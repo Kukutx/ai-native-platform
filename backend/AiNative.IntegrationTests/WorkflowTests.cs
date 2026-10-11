@@ -494,8 +494,6 @@ public sealed class WorkflowTests(PostgresFixture postgres) : IntegrationTest(po
         Priority = task.Priority,
     };
 
-    private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();
-
     private static async Task<WorkflowRunDto> WaitForRunAsync(HttpClient client, Guid runId, WorkflowRunStatus status)
     {
         var run = await EventuallyAsync(
@@ -503,19 +501,6 @@ public sealed class WorkflowTests(PostgresFixture postgres) : IntegrationTest(po
             r => r.Summary.Status == status || r.Summary.Status is WorkflowRunStatus.Succeeded or WorkflowRunStatus.Failed or WorkflowRunStatus.Cancelled);
         run.Summary.Status.Should().Be(status, "运行结果：{0}", PlatformJson.Serialize(run));
         return run;
-    }
-
-    private async Task<string> AddMemberAsync(HttpClient ownerClient, string email, Guid roleId)
-    {
-        await PostAsync<MemberDto>(ownerClient, "/api/members", new AddMemberRequest
-        {
-            Email = email,
-            DisplayName = email.Split('@')[0],
-            Password = "Passw0rd!x",
-            RoleIds = [roleId],
-        });
-        var login = await PostAsync<AuthResponse>(Client(), "/api/auth/login", new LoginRequest { Email = email, Password = "Passw0rd!x" });
-        return login.AccessToken;
     }
 
     /// <summary>

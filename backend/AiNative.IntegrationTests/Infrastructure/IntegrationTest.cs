@@ -1,8 +1,11 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using AiNative.Application.Common;
+using AiNative.Contracts.Actions;
 using AiNative.Contracts.Agents;
 using AiNative.Contracts.Auth;
+using AiNative.Contracts.Platform;
 using AiNative.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -78,6 +81,40 @@ public abstract class IntegrationTest(PostgresFixture postgres) : IAsyncLifetime
         var response = await client.PutAsJsonAsync(url, body, PlatformJson.Options, Ct);
         await EnsureSuccessAsync(response);
         return (await response.Content.ReadFromJsonAsync<T>(PlatformJson.Options, Ct))!;
+    }
+
+    /// <summary>
+    /// 以当前身份调用平台动作，断言成功并返回输出。
+    /// </summary>
+    protected static async Task<JsonElement> InvokeAsync(HttpClient client, string key, object input)
+    {
+        var response = await PostAsync<InvokeActionResponse>(client, $"/api/actions/{key}/invoke", input);
+        response.Status.Should().Be("succeeded", response.Error);
+        return response.Output!.Value;
+    }
+
+    /// <summary>
+    /// 错误响应（ProblemDetails）里的业务错误码。
+    /// </summary>
+    protected static async Task<string?> CodeAsync(HttpResponseMessage response)
+        => (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("code").GetString();
+
+    protected static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();
+
+    /// <summary>
+    /// 添加一名指定角色的成员并返回其登录令牌。
+    /// </summary>
+    protected async Task<string> AddMemberAsync(HttpClient ownerClient, string email, Guid roleId)
+    {
+        await PostAsync<MemberDto>(ownerClient, "/api/members", new AddMemberRequest
+        {
+            Email = email,
+            DisplayName = email.Split('@')[0],
+            Password = "Passw0rd!x",
+            RoleIds = [roleId],
+        });
+        var login = await PostAsync<AuthResponse>(Client(), "/api/auth/login", new LoginRequest { Email = email, Password = "Passw0rd!x" });
+        return login.AccessToken;
     }
 
     protected static async Task<AgentDto> StarterAgentAsync(HttpClient client)

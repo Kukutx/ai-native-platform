@@ -6,6 +6,7 @@ using AiNative.Application.Agents;
 using AiNative.Application.Ai;
 using AiNative.Application.Common;
 using AiNative.Application.Crm;
+using AiNative.Application.Erp;
 using AiNative.Application.Modules;
 using AiNative.Contracts.Auth;
 using AiNative.Domain.Agents;
@@ -100,7 +101,7 @@ internal sealed class AuthHandlers(
             [
                 .. AgentDefaults.Permissions, Features.Agents.Manage, Features.Knowledge.Manage,
                 Features.Workflows.View, Features.Workflows.Manage, Features.Workflows.Run,
-                CrmFeatures.View, CrmFeatures.Manage,
+                CrmFeatures.View, CrmFeatures.Manage, ErpFeatures.View, ErpFeatures.Sales, ErpFeatures.Purchase,
             ],
             MonthlyBudgetUsd = 20,
         };
@@ -119,7 +120,8 @@ internal sealed class AuthHandlers(
 
         var token = tokens.Issue(user.Id, tenant.Id, membership.Id);
         var summary = new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, true);
-        List<string> enabled = [.. modules.Modules.Where(m => m.IsCore || m.EnabledByDefault).Select(m => m.Key)];
+        var defaults = modules.ResolveEnabled(new Dictionary<string, bool>());
+        List<string> enabled = [.. modules.Modules.Where(m => defaults.Contains(m.Key)).Select(m => m.Key)];
         var session = new SessionDto(
             new UserDto(user.Id, user.Email, user.DisplayName),
             summary,
@@ -206,7 +208,8 @@ internal sealed class AuthHandlers(
 
         var overrides = await db.TenantModules.IgnoreQueryFilters().AsNoTracking().Where(m => m.TenantId == current.TenantId)
             .ToDictionaryAsync(m => m.ModuleKey, m => m.Enabled, cancellationToken).ConfigureAwait(false);
-        var enabled = modules.Modules.Where(m => m.IsCore || overrides.GetValueOrDefault(m.Key, m.EnabledByDefault)).Select(m => m.Key).ToList();
+        var resolved = modules.ResolveEnabled(overrides);
+        var enabled = modules.Modules.Where(m => resolved.Contains(m.Key)).Select(m => m.Key).ToList();
 
         return new SessionDto(
             new UserDto(user.Id, user.Email, user.DisplayName),

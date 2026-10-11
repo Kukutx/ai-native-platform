@@ -10,7 +10,8 @@ public sealed record ModuleDto(
     string Description,
     bool IsCore,
     bool Enabled,
-    IReadOnlyList<FeatureDto> Features);
+    IReadOnlyList<FeatureDto> Features,
+    IReadOnlyList<string> DependsOn);
 
 public sealed record SetModuleEnabledRequest
 {

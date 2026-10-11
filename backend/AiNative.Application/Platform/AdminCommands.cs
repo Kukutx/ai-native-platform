@@ -285,16 +285,20 @@ internal sealed class OrganizationHandlers(IAppDbContext db) :
     private static OrganizationDto ToDto(Organization o) => new(o.Id, o.Name, o.ParentId, o.Path, o.Depth);
 }
 
-internal sealed class ModuleHandlers(IAppDbContext db, IModuleCatalog catalog, IChangeFeed changes) :
+internal sealed class ModuleHandlers(IAppDbContext db, IModuleCatalog catalog, ITenantContext tenant, ITransactionLock locks, IChangeFeed changes) :
     IRequestHandler<ListModulesQuery, IReadOnlyList<ModuleDto>>,
     IRequestHandler<SetModuleEnabledCommand, ModuleDto>
 {
     public async Task<IReadOnlyList<ModuleDto>> HandleAsync(ListModulesQuery request, CancellationToken cancellationToken)
     {
         var overrides = await db.TenantModules.AsNoTracking().ToDictionaryAsync(m => m.ModuleKey, m => m.Enabled, cancellationToken).ConfigureAwait(false);
-        return [.. catalog.Modules.Select(m => ToDto(m, m.IsCore || overrides.GetValueOrDefault(m.Key, m.EnabledByDefault)))];
+        var enabled = catalog.ResolveEnabled(overrides);
+        return [.. catalog.Modules.Select(m => ToDto(m, enabled.Contains(m.Key)))];
     }
 
+    /// <summary>
+    /// 启用前依赖要已启用，停用前依赖它的模块要已停用。同一空间的模块设置串行修改，避免并发时绕过依赖检查。
+    /// </summary>
     public async Task<ModuleDto> HandleAsync(SetModuleEnabledCommand request, CancellationToken cancellationToken)
     {
         var module = catalog.Find(request.Key) ?? throw new NotFoundException("module", request.Key);
@@ -303,7 +307,28 @@ internal sealed class ModuleHandlers(IAppDbContext db, IModuleCatalog catalog, I
             throw new ConflictException("module.core", "核心模块不能停用。");
         }
 
-        var row = await db.TenantModules.FirstOrDefaultAsync(m => m.ModuleKey == module.Key, cancellationToken).ConfigureAwait(false);
+        await locks.AcquireAsync($"modules:{tenant.TenantId}", cancellationToken).ConfigureAwait(false);
+        var rows = await db.TenantModules.ToListAsync(cancellationToken).ConfigureAwait(false);
+        var overrides = rows.ToDictionary(m => m.ModuleKey, m => m.Enabled);
+        var enabled = catalog.ResolveEnabled(overrides);
+        if (request.Enabled)
+        {
+            var missing = module.DependsOn.Where(key => !enabled.Contains(key)).Select(key => catalog.Find(key)?.Name ?? key).ToList();
+            if (missing.Count > 0)
+            {
+                throw new ConflictException("module.dependency_disabled", $"「{module.Name}」依赖{string.Join("、", missing.Select(n => $"「{n}」"))}，请先启用。");
+            }
+        }
+        else
+        {
+            var dependents = catalog.Modules.Where(m => m.DependsOn.Contains(module.Key) && enabled.Contains(m.Key)).Select(m => m.Name).ToList();
+            if (dependents.Count > 0)
+            {
+                throw new ConflictException("module.required_by", $"{string.Join("、", dependents.Select(n => $"「{n}」"))}依赖「{module.Name}」，请先停用它们。");
+            }
+        }
+
+        var row = rows.FirstOrDefault(m => m.ModuleKey == module.Key);
         if (row is null)
         {
             db.TenantModules.Add(new TenantModule { ModuleKey = module.Key, Enabled = request.Enabled });
@@ -313,10 +338,11 @@ internal sealed class ModuleHandlers(IAppDbContext db, IModuleCatalog catalog, I
             row.Enabled = request.Enabled;
         }
 
+        overrides[module.Key] = request.Enabled;
         changes.Publish(RealtimeEntities.Module, Guid.Empty, RealtimeChangeKind.Updated);
-        return ToDto(module, request.Enabled);
+        return ToDto(module, catalog.ResolveEnabled(overrides).Contains(module.Key));
     }
 
     private static ModuleDto ToDto(IPlatformModule m, bool enabled)
-        => new(m.Key, m.Name, m.Description, m.IsCore, enabled, [.. m.Features.Select(f => new FeatureDto(f.Key, f.Name, f.ModuleKey))]);
+        => new(m.Key, m.Name, m.Description, m.IsCore, enabled, [.. m.Features.Select(f => new FeatureDto(f.Key, f.Name, f.ModuleKey))], m.DependsOn);
 }
