@@ -23,6 +23,8 @@ const invalidation: Record<RealtimeChange['entity'], (id: string) => readonly (r
   approval: () => [['approvals']],
   conversation: () => [['conversations']],
   module: () => [['session']],
+  knowledge_document: () => [['knowledge']],
+  memory: () => [['knowledge', 'search']],
 };
 
 /** 登录后连接 SignalR 实时通道，服务端推送变化时让对应查询失效，界面自动刷新。 */
