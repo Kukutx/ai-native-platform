@@ -10,7 +10,7 @@ namespace AiNative.Api.Controllers;
 public sealed class CrmCompaniesController : ApiControllerBase
 {
     /// <summary>
-    /// 客户列表，最近有往来的在前；search 匹配名称、行业、电话、官网。
+    /// 客户列表，最近有往来的在前；search 匹配名称、行业、电话。
     /// </summary>
     [HttpGet]
     public Task<PagedResult<CrmCompanyDto>> List(

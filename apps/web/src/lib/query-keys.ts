@@ -29,6 +29,16 @@ export const queryKeys = {
   workflowCatalog: ['workflows', 'catalog'] as const,
   workflowRuns: (filters?: object) => ['workflow-runs', filters ?? {}] as const,
   workflowRun: (id: string) => ['workflow-run', id] as const,
+  // 客户管理的数据互相关联（金额、计数、最近往来），任何 crm_* 变化都整体失效 ['crm']。
+  crmPipeline: (ownerUserId?: string) => ['crm', 'pipeline', ownerUserId ?? 'all'] as const,
+  crmStages: ['crm', 'stages'] as const,
+  crmCompanies: (filters?: object) => ['crm', 'companies', filters ?? {}] as const,
+  crmCompany: (id: string) => ['crm', 'company', id] as const,
+  crmContacts: (filters?: object) => ['crm', 'contacts', filters ?? {}] as const,
+  crmContact: (id: string) => ['crm', 'contact', id] as const,
+  crmDeals: (filters?: object) => ['crm', 'deals', filters ?? {}] as const,
+  crmDeal: (id: string) => ['crm', 'deal', id] as const,
+  crmActivities: (filters: object) => ['crm', 'activities', filters] as const,
 };
 
 /** 实体变化 → 需要失效的查询前缀。 */
@@ -44,4 +54,9 @@ export const invalidationMap: Record<string, (id: string) => readonly (readonly 
   workflow: () => [['workflows']],
   // 运行状态变化也会改变列表里的"最近一次运行"。
   workflow_run: (id) => [['workflow-runs'], ['workflow-run', id], ['workflows']],
+  crm_company: () => [['crm']],
+  crm_contact: () => [['crm']],
+  crm_deal: () => [['crm']],
+  crm_activity: () => [['crm']],
+  crm_stage: () => [['crm']],
 };

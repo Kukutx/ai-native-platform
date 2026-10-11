@@ -66,6 +66,10 @@ export default function RootLayout() {
               <Stack.Screen name='workflows/index' options={{ title: '自动化' }} />
               <Stack.Screen name='workflows/[id]' options={{ title: '工作流' }} />
               <Stack.Screen name='workflows/runs/[id]' options={{ title: '运行详情' }} />
+              <Stack.Screen name='crm/deals/[id]' options={{ title: '商机' }} />
+              <Stack.Screen name='crm/companies/[id]' options={{ title: '客户' }} />
+              <Stack.Screen name='crm/contacts/[id]' options={{ title: '联系人' }} />
+              <Stack.Screen name='crm/new' options={{ title: '新建', presentation: 'modal' }} />
             </Stack.Protected>
             <Stack.Protected guard={!token}>
               <Stack.Screen name='login' options={{ headerShown: false }} />
