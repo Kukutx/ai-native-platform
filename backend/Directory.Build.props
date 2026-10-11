@@ -1,0 +1,13 @@
+<Project>
+  <!-- 后端所有项目共享的编译设置。 -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- 依赖版本超出包自身声明的范围时直接失败。 -->
+    <WarningsAsErrors>$(WarningsAsErrors);NU1608</WarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+</Project>

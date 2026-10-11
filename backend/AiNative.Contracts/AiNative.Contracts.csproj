@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- 对外契约：HTTP / 实时通道的请求与响应模型，生成前端客户端的唯一来源。枚举直接复用领域定义。 -->
+  <ItemGroup>
+    <ProjectReference Include="..\AiNative.Domain\AiNative.Domain.csproj" />
+  </ItemGroup>
+</Project>
