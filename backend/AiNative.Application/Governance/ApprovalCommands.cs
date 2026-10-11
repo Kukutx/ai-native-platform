@@ -187,7 +187,7 @@ internal sealed class ApprovalHandlers(
                 features,
                 approval.ActionKey,
                 JsonSerializer.Deserialize<Dictionary<string, object?>>(approval.InputJson, PlatformJson.Options),
-                new ActionInvocationOptions { RunId = approval.RunId, WorkItemId = approval.WorkItemId, ApprovedBy = approverId },
+                new ActionInvocationOptions { RunId = approval.RunId, WorkItemId = approval.WorkItemId, WorkflowRunId = approval.WorkflowRunId, ApprovedBy = approverId },
                 cancellationToken).ConfigureAwait(false);
             if (result.IsSuccess)
             {

@@ -21,7 +21,7 @@ internal sealed class WorkflowSignal : CoalescingSignal, IWorkflowSignal;
 
 /// <summary>
 /// 工作流引擎：触发到期的定时工作流，领取可执行的运行（排队中的、延时或等待超时到期的）并在独立作用域里执行。
-/// 领取用 FOR UPDATE SKIP LOCKED，多个循环不会抢到同一条；重启恢复（把 Running 放回队列）假定单实例部署。
+/// 领取用 FOR UPDATE SKIP LOCKED，多个循环不会抢到同一条；把 Running 放回队列的恢复逻辑（启动时、执行崩溃后）假定单实例部署。
 /// </summary>
 internal sealed class WorkflowEngine(
     IServiceScopeFactory scopes,
@@ -32,7 +32,9 @@ internal sealed class WorkflowEngine(
     ILogger<WorkflowEngine> logger) : BackgroundService
 {
     private readonly WorkflowOptions _options = options.Value;
+    private const int MaxCrashes = 3;
     private readonly ConcurrentDictionary<Guid, Task> _running = new();
+    private readonly ConcurrentDictionary<Guid, int> _crashes = new();
     private DateTimeOffset _nextScheduleSweep = DateTimeOffset.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -60,6 +62,7 @@ internal sealed class WorkflowEngine(
                 if (now >= _nextScheduleSweep)
                 {
                     _nextScheduleSweep = now + _options.ScheduleSweepInterval;
+                    await RequeueOrphanedAsync(stoppingToken).ConfigureAwait(false);
                     await FireSchedulesAsync(now, stoppingToken).ConfigureAwait(false);
                 }
 
@@ -93,6 +96,65 @@ internal sealed class WorkflowEngine(
         if (recovered > 0)
         {
             logger.LogWarning("Re-queued {Count} interrupted workflow runs", recovered);
+        }
+    }
+
+    /// <summary>
+    /// 执行过程中意外崩溃（例如数据库瞬断）的运行会停在 Running。领取与这里在同一个循环里先后执行，
+    /// 此刻不在本进程执行表里的 Running 运行就是没人管的：放回队列重试，连续崩溃多次的标记为失败，避免反复消耗。
+    /// </summary>
+    private async Task RequeueOrphanedAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var running = await db.WorkflowRuns.IgnoreQueryFilters().AsNoTracking()
+            .Where(r => r.Status == WorkflowRunStatus.Running)
+            .Select(r => r.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var orphaned = running.Where(id => !_running.ContainsKey(id)).ToList();
+        if (orphaned.Count == 0)
+        {
+            return;
+        }
+
+        var now = clock.GetUtcNow();
+        var exhausted = orphaned.Where(id => _crashes.GetValueOrDefault(id) >= MaxCrashes).ToList();
+        var retry = orphaned.Except(exhausted).ToList();
+        if (retry.Count > 0)
+        {
+            await db.WorkflowRuns.IgnoreQueryFilters()
+                .Where(r => retry.Contains(r.Id) && r.Status == WorkflowRunStatus.Running)
+                .ExecuteUpdateAsync(s => s.SetProperty(r => r.Status, WorkflowRunStatus.Queued).SetProperty(r => r.UpdatedAt, now), cancellationToken)
+                .ConfigureAwait(false);
+            logger.LogWarning("Re-queued {Count} orphaned workflow runs", retry.Count);
+        }
+
+        if (exhausted.Count > 0)
+        {
+            const string error = "运行多次意外中断，已停止。请查看服务日志排查后重新运行。";
+            await db.WorkflowRuns.IgnoreQueryFilters()
+                .Where(r => exhausted.Contains(r.Id) && r.Status == WorkflowRunStatus.Running)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(r => r.Status, WorkflowRunStatus.Failed)
+                    .SetProperty(r => r.Error, error)
+                    .SetProperty(r => r.FinishedAt, now)
+                    .SetProperty(r => r.UpdatedAt, now), cancellationToken)
+                .ConfigureAwait(false);
+            await db.WorkflowRunSteps.IgnoreQueryFilters()
+                .Where(x => exhausted.Contains(x.RunId) && (x.Status == WorkflowStepStatus.Running || x.Status == WorkflowStepStatus.Waiting))
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(x => x.Status, WorkflowStepStatus.Failed)
+                    .SetProperty(x => x.Error, error)
+                    .SetProperty(x => x.FinishedAt, now)
+                    .SetProperty(x => x.UpdatedAt, now), cancellationToken)
+                .ConfigureAwait(false);
+            foreach (var id in exhausted)
+            {
+                _crashes.TryRemove(id, out _);
+            }
+
+            logger.LogError("Marked {Count} workflow runs as failed after repeated crashes", exhausted.Count);
         }
     }
 
@@ -195,9 +257,16 @@ internal sealed class WorkflowEngine(
         {
             await using var scope = scopes.CreateAsyncScope();
             await scope.ServiceProvider.GetRequiredService<IWorkflowExecutor>().ExecuteAsync(tenantId, runId, stoppingToken).ConfigureAwait(false);
+            _crashes.TryRemove(runId, out _);
         }
         catch (Exception ex)
         {
+            // 停机取消不算崩溃：运行保持 Running，下次启动时放回队列。
+            if (!stoppingToken.IsCancellationRequested)
+            {
+                _crashes.AddOrUpdate(runId, 1, (_, count) => count + 1);
+            }
+
             logger.LogError(ex, "Workflow run {RunId} crashed", runId);
         }
         finally

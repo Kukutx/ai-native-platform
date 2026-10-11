@@ -2,6 +2,7 @@ using System.Text.Json;
 using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
 using AiNative.Application.Common;
+using AiNative.Application.Governance;
 using AiNative.Application.Modules;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
@@ -54,9 +55,11 @@ internal sealed class WorkflowCommandHandlers(
     ITenantContext tenant,
     WorkflowDefinitionValidator validator,
     WorkflowExecutionScope scope,
+    ITransactionLock locks,
     IPostCommitActions postCommit,
     IWorkflowSignal signal,
     IChangeFeed changes,
+    IServiceProvider services,
     IOptions<WorkflowOptions> options,
     TimeProvider clock) :
     IRequestHandler<CreateWorkflowCommand, WorkflowDto>,
@@ -115,6 +118,8 @@ internal sealed class WorkflowCommandHandlers(
 
     public async Task<Unit> HandleAsync(DeleteWorkflowCommand request, CancellationToken cancellationToken)
     {
+        // 与事件触发持有同一把锁：正在为它创建运行的事务提交之后才删除，不会出现插入运行时外键失效。
+        await locks.AcquireAsync(WorkflowTriggers.TriggerLockKey(request.Id), cancellationToken).ConfigureAwait(false);
         var workflow = await FindAsync(request.Id, cancellationToken).ConfigureAwait(false);
         var active = await db.WorkflowRuns.AsNoTracking()
             .Where(r => r.WorkflowId == workflow.Id && (r.Status == WorkflowRunStatus.Queued || r.Status == WorkflowRunStatus.Running || r.Status == WorkflowRunStatus.Waiting))
@@ -179,12 +184,15 @@ internal sealed class WorkflowCommandHandlers(
 
     /// <summary>
     /// 取消未结束的运行。正在执行的步骤提交进度时会发现运行已取消而整体回滚；等待中的审批一并拒绝，
-    /// 避免之后有人批准时动作仍被执行。
+    /// 避免之后有人批准时动作仍被执行。审批已通过、动作正在执行时拒绝取消，否则动作结果将无人接手。
     /// </summary>
     private async Task<bool> CancelAsync(Guid runId, string reason, CancellationToken cancellationToken)
     {
-        var run = await db.WorkflowRuns.AsNoTracking().FirstOrDefaultAsync(r => r.Id == runId, cancellationToken).ConfigureAwait(false)
-                  ?? throw new NotFoundException("workflow_run", runId);
+        if (!await db.WorkflowRuns.AnyAsync(r => r.Id == runId, cancellationToken).ConfigureAwait(false))
+        {
+            throw new NotFoundException("workflow_run", runId);
+        }
+
         var now = clock.GetUtcNow();
         var cancelled = await db.WorkflowRuns
             .Where(r => r.Id == runId && (r.Status == WorkflowRunStatus.Queued || r.Status == WorkflowRunStatus.Running || r.Status == WorkflowRunStatus.Waiting))
@@ -200,16 +208,10 @@ internal sealed class WorkflowCommandHandlers(
             return false;
         }
 
-        await db.WorkflowRunSteps
-            .Where(s => s.RunId == runId && (s.Status == WorkflowStepStatus.Running || s.Status == WorkflowStepStatus.Waiting))
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(x => x.Status, WorkflowStepStatus.Failed)
-                .SetProperty(x => x.Error, reason)
-                .SetProperty(x => x.FinishedAt, now)
-                .SetProperty(x => x.UpdatedAt, now), cancellationToken)
-            .ConfigureAwait(false);
-
-        if (run.WaitingApprovalId is { } approvalId)
+        // 上面的更新已锁住这一行，执行器登记等待也要更新它，所以此刻读到的等待审批不会再变。
+        var waitingApprovalId = await db.WorkflowRuns.AsNoTracking().Where(r => r.Id == runId).Select(r => r.WaitingApprovalId)
+            .FirstAsync(cancellationToken).ConfigureAwait(false);
+        if (waitingApprovalId is { } approvalId)
         {
             var rejected = await db.Approvals
                 .Where(a => a.Id == approvalId && a.Status == ApprovalStatus.Pending)
@@ -223,8 +225,25 @@ internal sealed class WorkflowCommandHandlers(
             if (rejected > 0)
             {
                 changes.Publish(RealtimeEntities.Approval, approvalId, RealtimeChangeKind.Updated);
+                await ApprovalEvents.PublishDecidedAsync(services, approvalId, cancellationToken).ConfigureAwait(false);
+            }
+            else if (await db.Approvals.AnyAsync(
+                         a => a.Id == approvalId && a.Status == ApprovalStatus.Approved && a.ResultJson == null && a.ExecutionError == null,
+                         cancellationToken).ConfigureAwait(false))
+            {
+                // 抛出后整个事务回滚，运行保持原状，动作完成后会照常恢复它。
+                throw new ConflictException("workflow_run.approval_executing", "审批已通过，动作正在执行，请等动作完成后再操作。");
             }
         }
+
+        await db.WorkflowRunSteps
+            .Where(s => s.RunId == runId && (s.Status == WorkflowStepStatus.Running || s.Status == WorkflowStepStatus.Waiting))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.Status, WorkflowStepStatus.Failed)
+                .SetProperty(x => x.Error, reason)
+                .SetProperty(x => x.FinishedAt, now)
+                .SetProperty(x => x.UpdatedAt, now), cancellationToken)
+            .ConfigureAwait(false);
 
         changes.Publish(RealtimeEntities.WorkflowRun, runId, RealtimeChangeKind.Updated);
         return true;

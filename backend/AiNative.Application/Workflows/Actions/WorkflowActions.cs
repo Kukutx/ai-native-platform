@@ -107,13 +107,14 @@ public class WorkflowDefinitionInput
     [Description("按顺序执行的步骤")]
     public required List<WorkflowStep> Steps { get; init; }
 
-    public SaveWorkflowRequest ToRequest() => new()
+    public SaveWorkflowRequest ToRequest(DateTimeOffset? expectedUpdatedAt = null) => new()
     {
         Name = Name,
         Description = Description,
         IsEnabled = IsEnabled,
         Trigger = Trigger,
         Steps = Steps,
+        ExpectedUpdatedAt = expectedUpdatedAt,
     };
 }
 
@@ -121,6 +122,9 @@ public sealed class UpdateWorkflowInput : WorkflowDefinitionInput
 {
     [Description("要修改的工作流 ID")]
     public required Guid WorkflowId { get; init; }
+
+    [Description("读取工作流时得到的 updatedAt，原样传回。期间被别人改过会返回冲突，这时重新读取、在最新定义上修改后再提交")]
+    public required DateTimeOffset ExpectedUpdatedAt { get; init; }
 }
 
 internal static class WorkflowActionText
@@ -165,14 +169,14 @@ internal sealed class UpdateWorkflowAction(IRequestDispatcher dispatcher) : Plat
 
     public override string Title => "修改工作流";
 
-    public override string Description => "用完整的新定义替换工作流（先用 workflows.get 读取原定义，在其基础上修改后整体提交）。保存后工作流改以你的身份和权限运行。" + WorkflowActionText.DefinitionGuide;
+    public override string Description => "用完整的新定义替换工作流（先用 workflows.get 读取原定义，在其基础上修改后整体提交，并把读到的 updatedAt 作为 expectedUpdatedAt 传回）。保存后工作流改以你的身份和权限运行。" + WorkflowActionText.DefinitionGuide;
 
     public override string RequiredFeature => Features.Workflows.Manage;
 
     public override ApprovalPolicy ApprovalPolicy => ApprovalPolicy.RequiredForAgents;
 
     protected override Task<WorkflowDto> ExecuteAsync(UpdateWorkflowInput input, ActionContext context, CancellationToken cancellationToken)
-        => dispatcher.SendAsync(new UpdateWorkflowCommand(input.WorkflowId, input.ToRequest()), cancellationToken);
+        => dispatcher.SendAsync(new UpdateWorkflowCommand(input.WorkflowId, input.ToRequest(input.ExpectedUpdatedAt)), cancellationToken);
 }
 
 public sealed class RunWorkflowInput

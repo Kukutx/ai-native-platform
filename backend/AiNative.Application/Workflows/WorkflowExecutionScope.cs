@@ -14,11 +14,13 @@ public sealed class WorkflowExecutionScope
 
     public int Depth { get; private set; }
 
-    public void Enter(WorkflowRun run)
+    public void Enter(WorkflowRun run) => Enter(run.Id, run.WorkflowId, run.Depth);
+
+    public void Enter(Guid runId, Guid workflowId, int depth)
     {
-        RunId = run.Id;
-        WorkflowId = run.WorkflowId;
-        Depth = run.Depth;
+        RunId = runId;
+        WorkflowId = workflowId;
+        Depth = depth;
     }
 
     /// <summary>

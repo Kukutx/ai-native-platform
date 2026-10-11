@@ -43,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<WorkflowExecutionScope>();
         services.AddScoped<IPlatformEvents, WorkflowTriggers>();
         services.AddScoped<WorkflowDefinitionValidator>();
+        services.AddScoped<WorkflowOwnerAccess>();
         services.AddScoped<IWorkflowExecutor, WorkflowExecutor>();
         services.AddScoped<IWorkflowScheduleTrigger, WorkflowScheduleTrigger>();
 

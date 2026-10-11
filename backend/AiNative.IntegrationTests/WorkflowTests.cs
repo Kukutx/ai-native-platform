@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using AiNative.Application.Common;
+using AiNative.Contracts.Actions;
 using AiNative.Contracts.Auth;
 using AiNative.Contracts.Common;
 using AiNative.Contracts.Governance;
@@ -10,6 +11,7 @@ using AiNative.Contracts.Work;
 using AiNative.Contracts.Workflows;
 using AiNative.Domain.Common;
 using AiNative.Domain.Governance;
+using AiNative.Domain.Identity;
 using AiNative.Domain.Work;
 using AiNative.Domain.Workflows;
 using AiNative.IntegrationTests.Infrastructure;
@@ -192,6 +194,12 @@ public sealed class WorkflowTests(PostgresFixture postgres) : IntegrationTest(po
         var agent = await StarterAgentAsync(client);
         var workflowId = await InsertAgentOwnedWorkflowAsync(auth.Session.Tenant.Id, agent.Id,
             new WorkflowStep { Key = "hire", Name = "招聘", Kind = WorkflowStepKind.Action, ActionKey = "agents.hire", Input = Json("""{ "name": "小研", "title": "研究员", "instructions": "负责市场调研。" }""") });
+        await PostAsync<WorkflowDto>(client, "/api/workflows", new SaveWorkflowRequest
+        {
+            Name = "审批结论登记",
+            Trigger = new WorkflowTriggerDto { Kind = WorkflowTriggerKind.Event, EventType = "approvals.decided" },
+            Steps = [new WorkflowStep { Key = "log", Name = "登记", Kind = WorkflowStepKind.Action, ActionKey = "tasks.create", Input = Json("""{ "title": "审批结论：{{ trigger.approval.status }}" }""") }],
+        });
         var started = await PostAsync<WorkflowRunSummaryDto>(client, $"/api/workflows/{workflowId}/runs", new StartWorkflowRunRequest());
         var waiting = await WaitForRunAsync(client, started.Id, WorkflowRunStatus.Waiting);
 
@@ -206,6 +214,103 @@ public sealed class WorkflowTests(PostgresFixture postgres) : IntegrationTest(po
         var again = await client.PostAsync(new Uri($"/api/workflows/runs/{started.Id}/cancel", UriKind.Relative), null, Ct);
         again.StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await GetAsync<List<AiNative.Contracts.Agents.AgentDto>>(client, "/api/agents")).Should().HaveCount(1);
+
+        // 取消时拒绝审批同样是一次审批结论，订阅它的工作流照常触发。
+        await EventuallyAsync(
+            () => GetAsync<PagedResult<WorkItemDto>>(client, "/api/work-items"),
+            r => r.Items.Any(t => t.Title == "审批结论：rejected"));
+    }
+
+    [Fact]
+    public async Task Cancelling_is_refused_while_an_approved_action_is_still_executing()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var agent = await StarterAgentAsync(client);
+        var workflowId = await InsertAgentOwnedWorkflowAsync(auth.Session.Tenant.Id, agent.Id,
+            new WorkflowStep { Key = "hire", Name = "招聘", Kind = WorkflowStepKind.Action, ActionKey = "agents.hire", Input = Json("""{ "name": "小研", "title": "研究员", "instructions": "负责市场调研。" }""") });
+        var started = await PostAsync<WorkflowRunSummaryDto>(client, $"/api/workflows/{workflowId}/runs", new StartWorkflowRunRequest());
+        var waiting = await WaitForRunAsync(client, started.Id, WorkflowRunStatus.Waiting);
+        var approvalId = waiting.WaitingApprovalId!.Value;
+
+        // 模拟审批人刚批准、动作还在执行（结论已落定，结果尚未写回）。
+        await WithDbAsync(db => db.Approvals.IgnoreQueryFilters().Where(a => a.Id == approvalId)
+            .ExecuteUpdateAsync(x => x.SetProperty(a => a.Status, ApprovalStatus.Approved).SetProperty(a => a.DecidedAt, DateTimeOffset.UtcNow), Ct));
+
+        var refused = await client.PostAsync(new Uri($"/api/workflows/runs/{started.Id}/cancel", UriKind.Relative), null, Ct);
+        refused.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await refused.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("code").GetString().Should().Be("workflow_run.approval_executing");
+        (await GetAsync<WorkflowRunDto>(client, $"/api/workflows/runs/{started.Id}")).Summary.Status.Should().Be(WorkflowRunStatus.Waiting);
+        (await client.DeleteAsync(new Uri($"/api/workflows/{workflowId}", UriKind.Relative), Ct)).StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        // 动作结果写回之后就可以取消了。
+        await WithDbAsync(db => db.Approvals.IgnoreQueryFilters().Where(a => a.Id == approvalId)
+            .ExecuteUpdateAsync(x => x.SetProperty(a => a.ResultJson, "null"), Ct));
+        var cancelled = await PostAsync<WorkflowRunSummaryDto>(client, $"/api/workflows/runs/{started.Id}/cancel", new { });
+        cancelled.Status.Should().Be(WorkflowRunStatus.Cancelled);
+    }
+
+    [Fact]
+    public async Task Event_workflows_stop_receiving_events_once_the_owner_loses_access()
+    {
+        var owner = await RegisterAsync();
+        using var ownerClient = Client(owner.AccessToken);
+        var roles = await GetAsync<List<RoleDto>>(ownerClient, "/api/roles");
+        using var memberClient = Client(await AddMemberAsync(ownerClient, "member@example.com", roles.Single(r => r.Key == "member").Id));
+        SaveWorkflowRequest Subscriber(string name) => new()
+        {
+            Name = name,
+            Trigger = new WorkflowTriggerDto { Kind = WorkflowTriggerKind.Event, EventType = "tasks.created" },
+            Steps = [new WorkflowStep { Key = "note", Name = "留言", Kind = WorkflowStepKind.Action, ActionKey = "tasks.comment", Input = Json("""{ "taskId": "{{ trigger.task.id }}", "body": "收到" }""") }],
+        };
+        var memberWorkflow = await PostAsync<WorkflowDto>(memberClient, "/api/workflows", Subscriber("成员的订阅"));
+        var ownerWorkflow = await PostAsync<WorkflowDto>(ownerClient, "/api/workflows", Subscriber("负责人的订阅"));
+
+        // 保存之后，成员被换到看不到任务的角色。
+        var automation = await PostAsync<RoleDto>(ownerClient, "/api/roles", new SaveRoleRequest { Key = "automation", Name = "自动化专员", Features = ["workflows.*"] });
+        var member = (await GetAsync<List<MemberDto>>(ownerClient, "/api/members")).Single(m => m.Email == "member@example.com");
+        await PutAsync<MemberDto>(ownerClient, $"/api/members/{member.MembershipId}", new UpdateMemberRequest { RoleIds = [automation.Id], Status = MembershipStatus.Active });
+
+        await PostAsync<WorkItemDto>(ownerClient, "/api/work-items", new CreateWorkItemRequest { Title = "季度复盘" });
+
+        await EventuallyAsync(
+            () => GetAsync<PagedResult<WorkflowRunSummaryDto>>(ownerClient, $"/api/workflows/runs?workflowId={ownerWorkflow.Id}"),
+            r => r.Items.Count == 1 && r.Items[0].Status == WorkflowRunStatus.Succeeded);
+        await Task.Delay(500, Ct);
+        (await GetAsync<PagedResult<WorkflowRunSummaryDto>>(ownerClient, $"/api/workflows/runs?workflowId={memberWorkflow.Id}")).Total.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Runs_left_running_by_a_crashed_execution_are_picked_up_again()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var workflow = await PostAsync<WorkflowDto>(client, "/api/workflows", Manual("补跑",
+            new WorkflowStep { Key = "a", Name = "建任务", Kind = WorkflowStepKind.Action, ActionKey = "tasks.create", Input = Json("""{ "title": "补跑成功" }""") }));
+
+        // 执行中途崩溃的运行停在 Running，且不在引擎的执行表里。
+        var runId = await WithDbAsync(async db =>
+        {
+            var run = new WorkflowRun
+            {
+                TenantId = auth.Session.Tenant.Id,
+                WorkflowId = workflow.Id,
+                WorkflowVersion = workflow.Version,
+                WorkflowName = workflow.Name,
+                Steps = [.. workflow.Steps],
+                Owner = Actor.ForUser(auth.Session.User.Id),
+                TriggeredBy = Actor.ForUser(auth.Session.User.Id),
+                TriggerKind = WorkflowTriggerKind.Manual,
+                Status = WorkflowRunStatus.Running,
+                StartedAt = DateTimeOffset.UtcNow,
+            };
+            db.WorkflowRuns.Add(run);
+            await db.SaveChangesAsync(Ct);
+            return run.Id;
+        });
+
+        await WaitForRunAsync(client, runId, WorkflowRunStatus.Succeeded);
+        (await GetAsync<PagedResult<WorkItemDto>>(client, "/api/work-items")).Items.Should().ContainSingle(t => t.Title == "补跑成功");
     }
 
     [Fact]
@@ -299,6 +404,19 @@ public sealed class WorkflowTests(PostgresFixture postgres) : IntegrationTest(po
 
         var run = await PostAsync<WorkflowRunSummaryDto>(client, $"/api/workflows/{created.Id}/runs", new StartWorkflowRunRequest());
         await WaitForRunAsync(client, run.Id, WorkflowRunStatus.Succeeded);
+        // 智能体和对话通过动作修改时同样要带上读到的版本。
+        var definition = new { name = "动作修改", trigger = new { kind = "manual" }, steps = request.Steps };
+        var missing = await PostAsync<InvokeActionResponse>(client, "/api/actions/workflows.update/invoke", new { workflowId = created.Id, definition.name, definition.trigger, definition.steps });
+        missing.Status.Should().Be("invalid_input");
+        var staleAction = await PostAsync<InvokeActionResponse>(client, "/api/actions/workflows.update/invoke",
+            new { workflowId = created.Id, expectedUpdatedAt = created.UpdatedAt, definition.name, definition.trigger, definition.steps });
+        staleAction.Status.Should().Be("failed");
+        staleAction.Error.Should().Contain("修改过");
+        var viaAction = await PostAsync<InvokeActionResponse>(client, "/api/actions/workflows.update/invoke",
+            new { workflowId = created.Id, expectedUpdatedAt = updated.UpdatedAt, definition.name, definition.trigger, definition.steps });
+        viaAction.Status.Should().Be("succeeded", viaAction.Error);
+        viaAction.Output!.Value.GetProperty("version").GetInt32().Should().Be(3);
+
         var deleted = await client.DeleteAsync(new Uri($"/api/workflows/{created.Id}", UriKind.Relative), Ct);
         deleted.StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await client.GetAsync(new Uri($"/api/workflows/runs/{run.Id}", UriKind.Relative), Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);

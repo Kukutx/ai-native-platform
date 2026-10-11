@@ -1,10 +1,12 @@
 using System.Text.Json;
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Common;
 using AiNative.Application.Modules;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
 using AiNative.Application.Workflows.Expressions;
+using AiNative.Domain.Common;
 using AiNative.Domain.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,14 +16,17 @@ namespace AiNative.Application.Workflows;
 
 /// <summary>
 /// 平台事件进入工作流的入口：恢复正在等待该事件主体的运行，并为订阅该事件的已启用工作流创建新运行。
-/// 在发布事件的写操作的事务里执行，新运行和业务变化一起提交。
+/// 在发布事件的写操作的事务里执行，新运行和业务变化一起提交；发布方不在事务里时自己开一个。
 /// </summary>
 internal sealed class WorkflowTriggers(
     IAppDbContext db,
     ITenantContext tenant,
     IModuleAccess modules,
+    IModuleCatalog catalog,
+    WorkflowOwnerAccess owners,
     WorkflowExecutionScope scope,
     ITransactionLock locks,
+    IUnitOfWork unitOfWork,
     IPostCommitActions postCommit,
     IWorkflowSignal signal,
     IChangeFeed changes,
@@ -36,6 +41,22 @@ internal sealed class WorkflowTriggers(
             return;
         }
 
+        // 等待锁和触发锁都是事务级的。审批处理等不走统一事务管道的发布方在这里补一个事务。
+        if (db.Database.CurrentTransaction is null)
+        {
+            await unitOfWork.RunAsync(async () =>
+            {
+                await PublishInTransactionAsync(eventType, subjectId, payload, cancellationToken).ConfigureAwait(false);
+                return Unit.Value;
+            }, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        await PublishInTransactionAsync(eventType, subjectId, payload, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task PublishInTransactionAsync(string eventType, Guid subjectId, Func<Task<object>> payload, CancellationToken cancellationToken)
+    {
         var resumed = await ResumeWaitingAsync(eventType, subjectId, cancellationToken).ConfigureAwait(false);
         var started = await StartSubscribedAsync(eventType, payload, cancellationToken).ConfigureAwait(false);
         if (resumed || started)
@@ -67,10 +88,7 @@ internal sealed class WorkflowTriggers(
                 return false;
         }
 
-        if (db.Database.CurrentTransaction is not null)
-        {
-            await locks.AcquireAsync(WaitLockKey(subjectId), cancellationToken).ConfigureAwait(false);
-        }
+        await locks.AcquireAsync(WaitLockKey(subjectId), cancellationToken).ConfigureAwait(false);
 
         var now = clock.GetUtcNow();
         var ids = await waiting.Select(r => r.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -93,16 +111,20 @@ internal sealed class WorkflowTriggers(
 
     private async Task<bool> StartSubscribedAsync(string eventType, Func<Task<object>> payload, CancellationToken cancellationToken)
     {
-        if (!await modules.IsEnabledAsync(WorkflowsModule.ModuleKey, cancellationToken).ConfigureAwait(false))
+        if (catalog.FindEvent(eventType) is not { } definition
+            || !await modules.IsEnabledAsync(WorkflowsModule.ModuleKey, cancellationToken).ConfigureAwait(false))
         {
             return false;
         }
 
-        var subscribed = await db.Workflows.AsNoTracking()
+        // 按 ID 顺序加锁，多个事务同时发布事件时加锁顺序一致。
+        var candidates = await db.Workflows.AsNoTracking()
             .Where(w => w.IsEnabled && w.TriggerKind == WorkflowTriggerKind.Event && w.EventType == eventType)
+            .OrderBy(w => w.Id)
+            .Select(w => w.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
-        if (subscribed.Count == 0)
+        if (candidates.Count == 0)
         {
             return false;
         }
@@ -113,14 +135,36 @@ internal sealed class WorkflowTriggers(
             return false;
         }
 
-        var data = PlatformJson.ToElement(await payload().ConfigureAwait(false));
-        var context = PlatformJson.ToElement(new { trigger = data });
+        JsonElement? data = null;
+        var context = default(JsonElement);
+        var ownerGrants = new Dictionary<Actor, bool>();
         var since = clock.GetUtcNow().AddMinutes(-1);
         var started = false;
-        foreach (var workflow in subscribed)
+        foreach (var workflowId in candidates)
         {
             // 工作流自己的步骤引发的事件不再触发它自己。
-            if (workflow.Id == scope.WorkflowId || !Matches(workflow, context))
+            if (workflowId == scope.WorkflowId)
+            {
+                continue;
+            }
+
+            // 同一工作流的触发与删除串行：频率计数和新建运行是原子的，也不会给刚删除的工作流插入运行。
+            await locks.AcquireAsync(TriggerLockKey(workflowId), cancellationToken).ConfigureAwait(false);
+            var workflow = await db.Workflows.AsNoTracking()
+                .FirstOrDefaultAsync(w => w.Id == workflowId && w.IsEnabled && w.TriggerKind == WorkflowTriggerKind.Event && w.EventType == eventType, cancellationToken)
+                .ConfigureAwait(false);
+            if (workflow is null || !await OwnerCanReceiveAsync(workflow, definition, ownerGrants, cancellationToken).ConfigureAwait(false))
+            {
+                continue;
+            }
+
+            if (data is null)
+            {
+                data = PlatformJson.ToElement(await payload().ConfigureAwait(false));
+                context = PlatformJson.ToElement(new { trigger = data });
+            }
+
+            if (!Matches(workflow, context))
             {
                 continue;
             }
@@ -133,7 +177,7 @@ internal sealed class WorkflowTriggers(
                 continue;
             }
 
-            var run = WorkflowRuns.Create(workflow, WorkflowTriggerKind.Event, eventType, tenant.Actor, data, default, scope);
+            var run = WorkflowRuns.Create(workflow, WorkflowTriggerKind.Event, eventType, tenant.Actor, data.Value, default, scope);
             db.WorkflowRuns.Add(run);
             changes.Publish(RealtimeEntities.WorkflowRun, run.Id, RealtimeChangeKind.Created);
             started = true;
@@ -141,11 +185,40 @@ internal sealed class WorkflowTriggers(
 
         if (started)
         {
-            // 发布方可能不在统一事务管道里（例如审批处理），这里直接保存；在事务里时随事务提交。
+            // 立即写入，同一事务里随后发布的事件计数时能看到这些运行。
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
         return started;
+    }
+
+    /// <summary>
+    /// 载荷里是所有者能看到的业务数据，所以每次触发都按所有者当前的权限复查：
+    /// 保存工作流之后被收回事件权限、离开空间或被停用的所有者，不再收到这类事件。
+    /// </summary>
+    private async Task<bool> OwnerCanReceiveAsync(Workflow workflow, PlatformEventDefinition definition, Dictionary<Actor, bool> cache, CancellationToken cancellationToken)
+    {
+        if (!cache.TryGetValue(workflow.Owner, out var granted))
+        {
+            try
+            {
+                var principal = await owners.ResolveAsync(workflow.Owner, tenant.TenantId, cancellationToken).ConfigureAwait(false);
+                granted = FeatureMatcher.IsGranted(principal.Features, definition.RequiredFeature);
+            }
+            catch (WorkflowRunException)
+            {
+                granted = false;
+            }
+
+            cache[workflow.Owner] = granted;
+        }
+
+        if (!granted)
+        {
+            logger.LogWarning("Owner of workflow {WorkflowId} can no longer receive event {EventType}; skipping", workflow.Id, definition.Key);
+        }
+
+        return granted;
     }
 
     private bool Matches(Workflow workflow, JsonElement context)
@@ -167,4 +240,6 @@ internal sealed class WorkflowTriggers(
     }
 
     public static string WaitLockKey(Guid subjectId) => $"workflow-wait:{subjectId}";
+
+    public static string TriggerLockKey(Guid workflowId) => $"workflow-trigger:{workflowId}";
 }

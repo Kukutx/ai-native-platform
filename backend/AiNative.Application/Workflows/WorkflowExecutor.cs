@@ -48,7 +48,7 @@ internal sealed class WorkflowExecutor(
     IUnitOfWork unitOfWork,
     ITransactionLock locks,
     ITenantScopeFactory scopes,
-    IAccessResolver access,
+    WorkflowOwnerAccess owners,
     IModelGateway models,
     IChangeFeed changes,
     IWorkflowSignal signal,
@@ -71,7 +71,7 @@ internal sealed class WorkflowExecutor(
 
         try
         {
-            var principal = await ResolvePrincipalAsync(run, cancellationToken).ConfigureAwait(false);
+            var principal = await owners.ResolveAsync(run.Owner, run.TenantId, cancellationToken).ConfigureAwait(false);
             var records = await db.WorkflowRunSteps.AsNoTracking().Where(s => s.RunId == run.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
             var context = new RunContext(run, records);
             for (var index = run.CurrentStep; index < run.Steps.Count; index++)
@@ -107,7 +107,7 @@ internal sealed class WorkflowExecutor(
         }
     }
 
-    private async Task<StepOutcome> StartStepAsync(WorkflowRun run, Principal principal, WorkflowStep step, int index, JsonElement context, CancellationToken cancellationToken)
+    private async Task<StepOutcome> StartStepAsync(WorkflowRun run, WorkflowPrincipal principal, WorkflowStep step, int index, JsonElement context, CancellationToken cancellationToken)
     {
         try
         {
@@ -151,7 +151,7 @@ internal sealed class WorkflowExecutor(
         }
     }
 
-    private async Task<StepOutcome> RunActionAsync(WorkflowRun run, Principal principal, WorkflowStep step, int index, JsonElement input, CancellationToken cancellationToken)
+    private async Task<StepOutcome> RunActionAsync(WorkflowRun run, WorkflowPrincipal principal, WorkflowStep step, int index, JsonElement input, CancellationToken cancellationToken)
     {
         if (!await MarkRunningAsync(run, step, index, input, cancellationToken).ConfigureAwait(false))
         {
@@ -212,7 +212,7 @@ internal sealed class WorkflowExecutor(
 
     private async Task<StepOutcome> RunAgentTaskAsync(
         WorkflowRun run,
-        Principal principal,
+        WorkflowPrincipal principal,
         WorkflowStep step,
         int index,
         string title,
@@ -274,7 +274,7 @@ internal sealed class WorkflowExecutor(
         return await FailStepAsync(run, step, index, null, error, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<StepOutcome> RunLlmAsync(WorkflowRun run, Principal principal, WorkflowStep step, int index, string prompt, CancellationToken cancellationToken)
+    private async Task<StepOutcome> RunLlmAsync(WorkflowRun run, WorkflowPrincipal principal, WorkflowStep step, int index, string prompt, CancellationToken cancellationToken)
     {
         if (!await MarkRunningAsync(run, step, index, PlatformJson.ToElement(new { prompt }), cancellationToken).ConfigureAwait(false))
         {
@@ -444,34 +444,10 @@ internal sealed class WorkflowExecutor(
         return null;
     }
 
-    private async Task<Principal> ResolvePrincipalAsync(WorkflowRun run, CancellationToken cancellationToken)
-    {
-        switch (run.Owner)
-        {
-            case { Kind: ActorKind.User, Id: { } userId }:
-                var membershipId = await db.Memberships.AsNoTracking().Where(m => m.UserId == userId).Select(m => (Guid?)m.Id)
-                    .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-                var resolved = membershipId is { } id ? await access.ResolveAsync(userId, run.TenantId, id, cancellationToken).ConfigureAwait(false) : null;
-                return resolved is null
-                    ? throw new WorkflowRunException("工作流的所有者已不在当前空间或已被停用。请其他成员检查并重新保存工作流后再运行。")
-                    : new Principal(run.Owner, resolved.Features, [], null);
-
-            case { Kind: ActorKind.Agent, Id: { } agentId }:
-                var agent = await db.Agents.AsNoTracking().FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken).ConfigureAwait(false)
-                            ?? throw new WorkflowRunException("工作流所属的智能体已不存在。");
-                return agent.CanWork
-                    ? new Principal(run.Owner, agent.Permissions, agent.ApprovalRequiredActions, agent)
-                    : throw new WorkflowRunException($"工作流所属的智能体「{agent.Name}」已暂停或终止。");
-
-            default:
-                throw new WorkflowRunException("工作流没有有效的所有者。");
-        }
-    }
-
     /// <summary>
     /// 以所有者身份在独立作用域中执行；作用域标记为"正在执行该运行"，其中引发的事件据此防止循环触发。
     /// </summary>
-    private Task<T> InOwnerScopeAsync<T>(WorkflowRun run, Principal principal, Func<IServiceProvider, Task<T>> work)
+    private Task<T> InOwnerScopeAsync<T>(WorkflowRun run, WorkflowPrincipal principal, Func<IServiceProvider, Task<T>> work)
         => scopes.RunAsync(run.TenantId, principal.Actor, principal.Features, sp =>
         {
             sp.GetRequiredService<WorkflowExecutionScope>().Enter(run);
@@ -733,8 +709,6 @@ internal sealed class WorkflowExecutor(
 
         return PlatformJson.ToElement(new { text });
     }
-
-    private sealed record Principal(Actor Actor, IReadOnlyList<string> Features, IReadOnlyCollection<string> ExtraApprovalRequired, Agent? Agent);
 
     private sealed record Resolution(WorkflowStepStatus Status, JsonElement? Output, string? Error);
 
