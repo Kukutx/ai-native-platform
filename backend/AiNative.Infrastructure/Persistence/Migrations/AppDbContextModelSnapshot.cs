@@ -22,6 +22,7 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                 .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "vector");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
@@ -474,6 +475,489 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_conversation_messages_conversation_id_seq");
 
                     b.ToTable("conversation_messages", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<Guid?>("ContactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("contact_id");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("content");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("DealId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deal_id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<Guid?>("RunId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("run_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Author", "AiNative.Domain.Crm.CrmActivity.Author#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("author_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("author_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_crm_activities");
+
+                    b.HasIndex("CompanyId", "OccurredAt")
+                        .HasDatabaseName("ix_crm_activities_company_id_occurred_at");
+
+                    b.HasIndex("ContactId", "OccurredAt")
+                        .HasDatabaseName("ix_crm_activities_contact_id_occurred_at");
+
+                    b.HasIndex("DealId", "OccurredAt")
+                        .HasDatabaseName("ix_crm_activities_deal_id_occurred_at");
+
+                    b.HasIndex("TenantId", "OccurredAt")
+                        .HasDatabaseName("ix_crm_activities_tenant_id_occurred_at");
+
+                    b.ToTable("crm_activities", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmCompany", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("address");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Industry")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("industry");
+
+                    b.Property<DateTimeOffset?>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_activity_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("phone");
+
+                    b.PrimitiveCollection<List<string>>("Tags")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("tags");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Website")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("website");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Crm.CrmCompany.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_crm_companies");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_crm_companies_name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("OwnerUserId")
+                        .HasDatabaseName("ix_crm_companies_owner_user_id");
+
+                    b.HasIndex("Tags")
+                        .HasDatabaseName("ix_crm_companies_tags");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Tags"), "gin");
+
+                    b.HasIndex("TenantId", "OwnerUserId")
+                        .HasDatabaseName("ix_crm_companies_tenant_id_owner_user_id");
+
+                    b.HasIndex("TenantId", "UpdatedAt")
+                        .HasDatabaseName("ix_crm_companies_tenant_id_updated_at");
+
+                    b.ToTable("crm_companies", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmContact", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("email");
+
+                    b.Property<DateTimeOffset?>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_activity_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<string>("Phone")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("phone");
+
+                    b.PrimitiveCollection<List<string>>("Tags")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("tags");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Crm.CrmContact.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_crm_contacts");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_crm_contacts_company_id");
+
+                    b.HasIndex("Email")
+                        .HasDatabaseName("ix_crm_contacts_email");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Email"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Email"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_crm_contacts_name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("OwnerUserId")
+                        .HasDatabaseName("ix_crm_contacts_owner_user_id");
+
+                    b.HasIndex("Tags")
+                        .HasDatabaseName("ix_crm_contacts_tags");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Tags"), "gin");
+
+                    b.HasIndex("TenantId", "OwnerUserId")
+                        .HasDatabaseName("ix_crm_contacts_tenant_id_owner_user_id");
+
+                    b.HasIndex("TenantId", "UpdatedAt")
+                        .HasDatabaseName("ix_crm_contacts_tenant_id_updated_at");
+
+                    b.ToTable("crm_contacts", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmDeal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<Guid?>("ContactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("contact_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("description");
+
+                    b.Property<DateOnly?>("ExpectedCloseDate")
+                        .HasColumnType("date")
+                        .HasColumnName("expected_close_date");
+
+                    b.Property<DateTimeOffset?>("LastActivityAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_activity_at");
+
+                    b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<Guid>("StageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("stage_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Crm.CrmDeal.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_crm_deals");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_crm_deals_company_id");
+
+                    b.HasIndex("ContactId")
+                        .HasDatabaseName("ix_crm_deals_contact_id");
+
+                    b.HasIndex("OwnerUserId")
+                        .HasDatabaseName("ix_crm_deals_owner_user_id");
+
+                    b.HasIndex("StageId")
+                        .HasDatabaseName("ix_crm_deals_stage_id");
+
+                    b.HasIndex("Title")
+                        .HasDatabaseName("ix_crm_deals_title");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Title"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Title"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("TenantId", "ClosedAt")
+                        .HasDatabaseName("ix_crm_deals_tenant_id_closed_at")
+                        .HasFilter("status <> 'Open'");
+
+                    b.HasIndex("TenantId", "OwnerUserId")
+                        .HasDatabaseName("ix_crm_deals_tenant_id_owner_user_id");
+
+                    b.HasIndex("TenantId", "Status", "StageId")
+                        .HasDatabaseName("ix_crm_deals_tenant_id_status_stage_id");
+
+                    b.ToTable("crm_deals", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmStage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<int>("Probability")
+                        .HasColumnType("integer")
+                        .HasColumnName("probability");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_crm_stages");
+
+                    b.HasIndex("TenantId", "Position")
+                        .HasDatabaseName("ix_crm_stages_tenant_id_position");
+
+                    b.ToTable("crm_stages", (string)null);
                 });
 
             modelBuilder.Entity("AiNative.Domain.Governance.Approval", b =>
@@ -1860,6 +2344,117 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_conversation_messages_conversations_conversation_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmActivity", b =>
+                {
+                    b.HasOne("AiNative.Domain.Crm.CrmCompany", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_crm_activities_crm_companies_company_id");
+
+                    b.HasOne("AiNative.Domain.Crm.CrmContact", null)
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_crm_activities_crm_contacts_contact_id");
+
+                    b.HasOne("AiNative.Domain.Crm.CrmDeal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_crm_activities_crm_deals_deal_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_crm_activities_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmCompany", b =>
+                {
+                    b.HasOne("AiNative.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_crm_companies_users_owner_user_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_crm_companies_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmContact", b =>
+                {
+                    b.HasOne("AiNative.Domain.Crm.CrmCompany", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_crm_contacts_crm_companies_company_id");
+
+                    b.HasOne("AiNative.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_crm_contacts_users_owner_user_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_crm_contacts_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmDeal", b =>
+                {
+                    b.HasOne("AiNative.Domain.Crm.CrmCompany", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_crm_deals_crm_companies_company_id");
+
+                    b.HasOne("AiNative.Domain.Crm.CrmContact", null)
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_crm_deals_crm_contacts_contact_id");
+
+                    b.HasOne("AiNative.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_crm_deals_users_owner_user_id");
+
+                    b.HasOne("AiNative.Domain.Crm.CrmStage", null)
+                        .WithMany()
+                        .HasForeignKey("StageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_crm_deals_crm_stages_stage_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_crm_deals_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmStage", b =>
+                {
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_crm_stages_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("AiNative.Domain.Identity.ApiKey", b =>

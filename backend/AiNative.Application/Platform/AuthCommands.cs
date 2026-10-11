@@ -5,6 +5,7 @@ using AiNative.Application.Access;
 using AiNative.Application.Agents;
 using AiNative.Application.Ai;
 using AiNative.Application.Common;
+using AiNative.Application.Crm;
 using AiNative.Application.Modules;
 using AiNative.Contracts.Auth;
 using AiNative.Domain.Agents;
@@ -52,6 +53,7 @@ internal sealed class AuthHandlers(
     IPasswordHasher passwords,
     ITokenService tokens,
     IModuleCatalog modules,
+    IEnumerable<ITenantInitializer> initializers,
     IModelGateway models,
     TimeProvider clock) :
     IRequestHandler<RegisterCommand, AuthResponse>,
@@ -98,6 +100,7 @@ internal sealed class AuthHandlers(
             [
                 .. AgentDefaults.Permissions, Features.Agents.Manage, Features.Knowledge.Manage,
                 Features.Workflows.View, Features.Workflows.Manage, Features.Workflows.Run,
+                CrmFeatures.View, CrmFeatures.Manage,
             ],
             MonthlyBudgetUsd = 20,
         };
@@ -109,6 +112,10 @@ internal sealed class AuthHandlers(
         db.Memberships.Add(membership);
         db.Agents.Add(chief);
         db.TenantModules.AddRange(modules.Modules.Where(m => !m.IsCore).Select(m => new TenantModule { TenantId = tenant.Id, ModuleKey = m.Key, Enabled = m.EnabledByDefault }));
+        foreach (var initializer in initializers)
+        {
+            await initializer.InitializeAsync(tenant.Id, cancellationToken).ConfigureAwait(false);
+        }
 
         var token = tokens.Issue(user.Id, tenant.Id, membership.Id);
         var summary = new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, true);

@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<PostCommitActions>();
         services.AddScoped<IPostCommitActions>(sp => sp.GetRequiredService<PostCommitActions>());
         services.AddScoped<IUnitOfWork, ScopedUnitOfWork>();
+        services.AddSingleton<ITextMatcher, PostgresTextMatcher>();
         services.AddScoped<IRequestDispatcher, RequestDispatcher>();
         services.AddScoped(typeof(IRequestPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
         services.AddScoped(typeof(IRequestPipelineBehavior<,>), typeof(ValidationBehavior<,>));

@@ -85,14 +85,9 @@ internal sealed class WorkflowCommandHandlers(
         var now = clock.GetUtcNow();
         if (request.Request.ExpectedUpdatedAt is { } expected)
         {
-            // 条件更新同时锁住这一行直到提交，检查与写入之间不会再被别人改掉。PostgreSQL 时间戳精确到微秒。
-            var version = new DateTimeOffset(expected.UtcTicks - (expected.UtcTicks % 10), TimeSpan.Zero);
-            var matched = await db.Workflows.Where(w => w.Id == workflow.Id && w.UpdatedAt == version)
-                .ExecuteUpdateAsync(s => s.SetProperty(w => w.UpdatedAt, now), cancellationToken).ConfigureAwait(false);
-            if (matched == 0)
-            {
-                throw new ConflictException("workflow.modified", "工作流刚被其他人修改过，已刷新为最新内容，请确认后再保存。");
-            }
+            await OptimisticConcurrency.EnsureUnchangedAsync(
+                db.Workflows, workflow.Id, expected, now, "workflow.modified", "工作流刚被其他人修改过，已刷新为最新内容，请确认后再保存。", cancellationToken)
+                .ConfigureAwait(false);
         }
 
         var (trigger, steps) = await validator.ValidateAsync(request.Request, cancellationToken).ConfigureAwait(false);

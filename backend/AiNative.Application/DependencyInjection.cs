@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddScoped<IChangeFeed, ChangeFeed>();
 
         services.AddScoped<WorkItemWorkflow>();
+        services.AddScoped<Crm.CrmRecords>();
         services.AddScoped<AgentPromptBuilder>();
         services.AddScoped<IAgentRuntime, AgentRuntime>();
         services.AddScoped<IChatService, ChatService>();
@@ -52,7 +53,7 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// 外部程序集（新业务模块）复用同一套约定注册自己的处理器、校验器、动作与模块。
+    /// 外部程序集（新业务模块）复用同一套约定注册自己的处理器、校验器、动作、模块与新空间初始化。
     /// </summary>
     public static IServiceCollection AddPlatformModuleAssembly(this IServiceCollection services, Assembly assembly)
     {
@@ -75,6 +76,11 @@ public static class DependencyInjection
             if (typeof(IPlatformModule).IsAssignableFrom(type))
             {
                 services.AddSingleton(typeof(IPlatformModule), type);
+            }
+
+            if (typeof(ITenantInitializer).IsAssignableFrom(type))
+            {
+                services.AddScoped(typeof(ITenantInitializer), type);
             }
         }
 

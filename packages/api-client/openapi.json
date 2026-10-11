@@ -1188,6 +1188,906 @@
         }
       }
     },
+    "/api/crm/companies": {
+      "get": {
+        "tags": [
+          "CrmCompanies"
+        ],
+        "summary": "客户列表，最近有往来的在前；search 匹配名称、行业、电话、官网。",
+        "operationId": "CrmCompanies_List",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "ownerUserId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 2
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 3
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 4
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            },
+            "x-position": 5
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfCrmCompanyDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CrmCompanies"
+        ],
+        "operationId": "CrmCompanies_Create",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCrmCompanyRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmCompanyDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crm/companies/{id}": {
+      "get": {
+        "tags": [
+          "CrmCompanies"
+        ],
+        "operationId": "CrmCompanies_Get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmCompanyDetailDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "CrmCompanies"
+        ],
+        "operationId": "CrmCompanies_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCrmCompanyRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmCompanyDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "CrmCompanies"
+        ],
+        "summary": "删除客户。名下联系人和商机保留，只解除关联；只挂在该客户上的跟进记录一并删除。",
+        "operationId": "CrmCompanies_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/crm/contacts": {
+      "get": {
+        "tags": [
+          "CrmContacts"
+        ],
+        "operationId": "CrmContacts_List",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 2
+          },
+          {
+            "name": "ownerUserId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 3
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 4
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 5
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            },
+            "x-position": 6
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfCrmContactDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CrmContacts"
+        ],
+        "operationId": "CrmContacts_Create",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCrmContactRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmContactDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crm/contacts/{id}": {
+      "get": {
+        "tags": [
+          "CrmContacts"
+        ],
+        "operationId": "CrmContacts_Get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmContactDetailDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "CrmContacts"
+        ],
+        "operationId": "CrmContacts_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCrmContactRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmContactDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "CrmContacts"
+        ],
+        "operationId": "CrmContacts_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/crm/deals": {
+      "get": {
+        "tags": [
+          "CrmDeals"
+        ],
+        "operationId": "CrmDeals_List",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "stageId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 2
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "nullable": true,
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CrmDealStatus"
+                }
+              ]
+            },
+            "x-position": 3
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 4
+          },
+          {
+            "name": "contactId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 5
+          },
+          {
+            "name": "ownerUserId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 6
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 7
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            },
+            "x-position": 8
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfCrmDealDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CrmDeals"
+        ],
+        "operationId": "CrmDeals_Create",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCrmDealRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmDealDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crm/deals/pipeline": {
+      "get": {
+        "tags": [
+          "CrmDeals"
+        ],
+        "summary": "销售看板：按阶段分列的商机与金额合计（赢单、输单列只含最近结束的）。",
+        "operationId": "CrmDeals_Pipeline",
+        "parameters": [
+          {
+            "name": "ownerUserId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmPipelineDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crm/deals/{id}": {
+      "get": {
+        "tags": [
+          "CrmDeals"
+        ],
+        "operationId": "CrmDeals_Get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmDealDetailDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "CrmDeals"
+        ],
+        "operationId": "CrmDeals_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCrmDealRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmDealDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "CrmDeals"
+        ],
+        "operationId": "CrmDeals_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/crm/deals/{id}/stage": {
+      "post": {
+        "tags": [
+          "CrmDeals"
+        ],
+        "summary": "推进到另一个阶段（看板拖动）。阶段变化自动记入跟进记录；商机已被别人移走时返回 409。",
+        "operationId": "CrmDeals_Move",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveCrmDealRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmDealDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crm/activities": {
+      "get": {
+        "tags": [
+          "CrmActivities"
+        ],
+        "summary": "跟进记录，最近发生的在前。按客户查询时包含名下联系人和商机的记录。",
+        "operationId": "CrmActivities_List",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "contactId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 2
+          },
+          {
+            "name": "dealId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 3
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 4
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            },
+            "x-position": 5
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfCrmActivityDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CrmActivities"
+        ],
+        "operationId": "CrmActivities_Log",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogCrmActivityRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmActivityDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crm/activities/{id}": {
+      "delete": {
+        "tags": [
+          "CrmActivities"
+        ],
+        "operationId": "CrmActivities_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/crm/stages": {
+      "get": {
+        "tags": [
+          "CrmStages"
+        ],
+        "operationId": "CrmStages_List",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CrmStageDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "CrmStages"
+        ],
+        "summary": "整体保存销售阶段（顺序即列表顺序）。带 id 的是改名或调整，不带 id 的是新增，缺席的会被删除（仍有商机时返回 409）。",
+        "operationId": "CrmStages_Save",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCrmStagesRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CrmStageDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/knowledge/documents": {
       "get": {
         "tags": [
@@ -3620,6 +4520,933 @@
           "status": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "PagedResultOfCrmCompanyDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmCompanyDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CrmCompanyDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "industry",
+          "website",
+          "phone",
+          "address",
+          "description",
+          "tags",
+          "contactCount",
+          "openDealCount",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "industry": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActorDto"
+              }
+            ]
+          },
+          "contactCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openDealCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastActivityAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "CrmCompanyDetailDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "company",
+          "contacts",
+          "deals",
+          "activities"
+        ],
+        "properties": {
+          "company": {
+            "$ref": "#/components/schemas/CrmCompanyDto"
+          },
+          "contacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmContactDto"
+            }
+          },
+          "deals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmDealDto"
+            }
+          },
+          "activities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmActivityDto"
+            }
+          }
+        }
+      },
+      "CrmContactDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "title",
+          "email",
+          "phone",
+          "description",
+          "tags",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "companyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "owner": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActorDto"
+              }
+            ]
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastActivityAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "CrmDealDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "stageId",
+          "stageName",
+          "status",
+          "probability",
+          "currency",
+          "description",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "companyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "contactName": {
+            "type": "string",
+            "nullable": true
+          },
+          "stageId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "stageName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CrmDealStatus"
+          },
+          "probability": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "expectedCloseDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActorDto"
+              }
+            ]
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "closedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastActivityAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "CrmDealStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Open",
+          "Won",
+          "Lost"
+        ],
+        "enum": [
+          "open",
+          "won",
+          "lost"
+        ]
+      },
+      "CrmActivityDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "content",
+          "occurredAt",
+          "author",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CrmActivityKind"
+          },
+          "content": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "companyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "contactName": {
+            "type": "string",
+            "nullable": true
+          },
+          "dealId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "dealTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "author": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CrmActivityKind": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Note",
+          "Call",
+          "Meeting",
+          "Email",
+          "StageChange"
+        ],
+        "enum": [
+          "note",
+          "call",
+          "meeting",
+          "email",
+          "stage_change"
+        ]
+      },
+      "SaveCrmCompanyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "industry": {
+            "type": "string"
+          },
+          "website": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ownerUserId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "PagedResultOfCrmContactDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmContactDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CrmContactDetailDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "contact",
+          "deals",
+          "activities"
+        ],
+        "properties": {
+          "contact": {
+            "$ref": "#/components/schemas/CrmContactDto"
+          },
+          "deals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmDealDto"
+            }
+          },
+          "activities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmActivityDto"
+            }
+          }
+        }
+      },
+      "SaveCrmContactRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "title": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ownerUserId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "PagedResultOfCrmDealDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmDealDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CrmPipelineDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stages",
+          "openTotals",
+          "weightedTotals",
+          "wonThisMonth",
+          "closedWindowDays"
+        ],
+        "properties": {
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmPipelineStageDto"
+            }
+          },
+          "openTotals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmAmountDto"
+            }
+          },
+          "weightedTotals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmAmountDto"
+            }
+          },
+          "wonThisMonth": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmAmountDto"
+            }
+          },
+          "closedWindowDays": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "CrmPipelineStageDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage",
+          "dealCount",
+          "totals",
+          "deals"
+        ],
+        "properties": {
+          "stage": {
+            "$ref": "#/components/schemas/CrmStageDto"
+          },
+          "dealCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmAmountDto"
+            }
+          },
+          "deals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmDealDto"
+            }
+          }
+        }
+      },
+      "CrmStageDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "position",
+          "probability",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "probability": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CrmStageKind"
+          }
+        }
+      },
+      "CrmStageKind": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Open",
+          "Won",
+          "Lost"
+        ],
+        "enum": [
+          "open",
+          "won",
+          "lost"
+        ]
+      },
+      "CrmAmountDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "CrmDealDetailDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deal",
+          "activities"
+        ],
+        "properties": {
+          "deal": {
+            "$ref": "#/components/schemas/CrmDealDto"
+          },
+          "activities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmActivityDto"
+            }
+          }
+        }
+      },
+      "SaveCrmDealRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "contactId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "stageId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "expectedCloseDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "description": {
+            "type": "string"
+          },
+          "ownerUserId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "MoveCrmDealRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stageId",
+          "stageId"
+        ],
+        "properties": {
+          "stageId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "PagedResultOfCrmActivityDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmActivityDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "LogCrmActivityRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "content",
+          "kind",
+          "content"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/CrmActivityKind"
+          },
+          "content": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "companyId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "contactId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "dealId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "SaveCrmStagesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stages",
+          "stages"
+        ],
+        "properties": {
+          "stages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SaveCrmStageItem"
+            }
+          }
+        }
+      },
+      "SaveCrmStageItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "probability": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CrmStageKind"
           }
         }
       },

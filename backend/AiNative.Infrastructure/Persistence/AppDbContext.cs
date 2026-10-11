@@ -6,6 +6,7 @@ using AiNative.Application.Tenancy;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Chat;
 using AiNative.Domain.Common;
+using AiNative.Domain.Crm;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
 using AiNative.Domain.Knowledge;
@@ -80,6 +81,16 @@ public sealed class AppDbContext : DbContext, IAppDbContext
 
     public DbSet<WorkflowRunStep> WorkflowRunSteps => Set<WorkflowRunStep>();
 
+    public DbSet<CrmCompany> CrmCompanies => Set<CrmCompany>();
+
+    public DbSet<CrmContact> CrmContacts => Set<CrmContact>();
+
+    public DbSet<CrmStage> CrmStages => Set<CrmStage>();
+
+    public DbSet<CrmDeal> CrmDeals => Set<CrmDeal>();
+
+    public DbSet<CrmActivity> CrmActivities => Set<CrmActivity>();
+
     /// <summary>
     /// 查询过滤器引用的当前租户；EF 按上下文实例参数化，未进入租户时为空 Guid，什么都查不到。
     /// </summary>
@@ -120,8 +131,9 @@ public sealed class AppDbContext : DbContext, IAppDbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // 向量检索（knowledge_chunks.embedding）依赖 pgvector 扩展。
+        // 向量检索（knowledge_chunks.embedding）依赖 pgvector 扩展；客户管理的模糊搜索用 pg_trgm 的三元组索引。
         modelBuilder.HasPostgresExtension("vector");
+        modelBuilder.HasPostgresExtension("pg_trgm");
 
         modelBuilder.Entity<Tenant>(b =>
         {
@@ -374,6 +386,88 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.Property(x => x.OutputJson).HasColumnType("jsonb");
             b.HasIndex(x => new { x.RunId, x.Index }).IsUnique();
             b.HasOne<WorkflowRun>().WithMany().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CrmCompany>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(200);
+            b.Property(x => x.Industry).HasMaxLength(100);
+            b.Property(x => x.Website).HasMaxLength(300);
+            b.Property(x => x.Phone).HasMaxLength(50);
+            b.Property(x => x.Address).HasMaxLength(500);
+            b.Property(x => x.Description).HasMaxLength(10_000);
+            b.ComplexProperty(x => x.CreatedBy);
+
+            // 名称包含匹配走三元组索引；标签过滤走数组 GIN 索引。
+            b.HasIndex(x => x.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
+            b.HasIndex(x => x.Tags).HasMethod("gin");
+            b.HasIndex(x => new { x.TenantId, x.UpdatedAt });
+            b.HasIndex(x => new { x.TenantId, x.OwnerUserId });
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CrmContact>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.Title).HasMaxLength(100);
+            b.Property(x => x.Email).HasMaxLength(254);
+            b.Property(x => x.Phone).HasMaxLength(50);
+            b.Property(x => x.Description).HasMaxLength(10_000);
+            b.ComplexProperty(x => x.CreatedBy);
+            b.HasIndex(x => x.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
+            b.HasIndex(x => x.Email).HasMethod("gin").HasOperators("gin_trgm_ops");
+            b.HasIndex(x => x.Tags).HasMethod("gin");
+            b.HasIndex(x => new { x.TenantId, x.UpdatedAt });
+            b.HasIndex(x => new { x.TenantId, x.OwnerUserId });
+            b.HasIndex(x => x.CompanyId);
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<CrmCompany>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CrmStage>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(50);
+            b.HasIndex(x => new { x.TenantId, x.Position });
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CrmDeal>(b =>
+        {
+            b.Property(x => x.Title).HasMaxLength(200);
+            b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+            b.Property(x => x.Amount).HasPrecision(18, 2);
+            b.Property(x => x.Description).HasMaxLength(10_000);
+            b.ComplexProperty(x => x.CreatedBy);
+            b.HasIndex(x => x.Title).HasMethod("gin").HasOperators("gin_trgm_ops");
+            b.HasIndex(x => new { x.TenantId, x.Status, x.StageId });
+            b.HasIndex(x => new { x.TenantId, x.ClosedAt }).HasFilter("status <> 'Open'");
+            b.HasIndex(x => new { x.TenantId, x.OwnerUserId });
+            b.HasIndex(x => x.StageId);
+            b.HasIndex(x => x.CompanyId);
+            b.HasIndex(x => x.ContactId);
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<CrmStage>().WithMany().HasForeignKey(x => x.StageId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<CrmCompany>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<CrmContact>().WithMany().HasForeignKey(x => x.ContactId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CrmActivity>(b =>
+        {
+            b.Property(x => x.Content).HasMaxLength(10_000);
+            b.ComplexProperty(x => x.Author);
+
+            // 三条时间线（客户、联系人、商机）各自按发生时间倒序翻页。
+            b.HasIndex(x => new { x.CompanyId, x.OccurredAt });
+            b.HasIndex(x => new { x.ContactId, x.OccurredAt });
+            b.HasIndex(x => new { x.DealId, x.OccurredAt });
+            b.HasIndex(x => new { x.TenantId, x.OccurredAt });
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<CrmCompany>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<CrmContact>().WithMany().HasForeignKey(x => x.ContactId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<CrmDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.SetNull);
         });
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => typeof(ITenantScoped).IsAssignableFrom(t.ClrType)))

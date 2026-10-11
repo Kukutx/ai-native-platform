@@ -1,5 +1,6 @@
 using AiNative.Domain.Agents;
 using AiNative.Domain.Chat;
+using AiNative.Domain.Crm;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
 using AiNative.Domain.Knowledge;
@@ -7,6 +8,7 @@ using AiNative.Domain.Modules;
 using AiNative.Domain.Tenancy;
 using AiNative.Domain.Work;
 using AiNative.Domain.Workflows;
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -64,10 +66,32 @@ public interface IAppDbContext
 
     DbSet<WorkflowRunStep> WorkflowRunSteps { get; }
 
+    DbSet<CrmCompany> CrmCompanies { get; }
+
+    DbSet<CrmContact> CrmContacts { get; }
+
+    DbSet<CrmStage> CrmStages { get; }
+
+    DbSet<CrmDeal> CrmDeals { get; }
+
+    DbSet<CrmActivity> CrmActivities { get; }
+
     DatabaseFacade Database { get; }
 
     EntityEntry<TEntity> Entry<TEntity>(TEntity entity)
         where TEntity : class;
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// 不区分大小写的包含匹配。应用层不依赖具体数据库：PostgreSQL 实现为 ILIKE，配合 pg_trgm 三元组索引，
+/// 用户输入里的 % 和 _ 按字面匹配。
+/// </summary>
+public interface ITextMatcher
+{
+    /// <summary>
+    /// 任意一个字段包含 <paramref name="term"/> 即匹配。
+    /// </summary>
+    IQueryable<T> WhereContains<T>(IQueryable<T> source, string term, params Expression<Func<T, string>>[] fields);
 }
