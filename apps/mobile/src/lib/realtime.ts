@@ -43,12 +43,15 @@ export function useRealtimeSync() {
         void queryClient.invalidateQueries({ queryKey: key });
       }
     });
+    // 断线期间错过的变化不会补发，重新连上后把当前页面的数据全部重取一次。
+    const offResync = realtime.onResync(() => void queryClient.invalidateQueries());
     realtime.start().catch(() => {
-      // 自动重连会继续尝试；连不上时下拉刷新仍然可用。
+      // 客户端会在后台按退避节奏重试；连不上时下拉刷新仍然可用。
     });
 
     return () => {
       off();
+      offResync();
       void realtime.stop();
     };
   }, [token, baseUrl, queryClient]);

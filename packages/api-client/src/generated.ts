@@ -2587,6 +2587,7 @@ export interface SessionDto {
     tenants: TenantSummaryDto[];
     features: string[];
     enabledModules: string[];
+    disabledFeatures: string[];
 }
 
 export interface UserDto {
@@ -2843,6 +2844,7 @@ export interface UpdateWorkItemRequest {
     priority: WorkItemPriority;
     assigneeAgentId?: string | undefined;
     assigneeUserId?: string | undefined;
+    expectedUpdatedAt?: string | undefined;
 }
 
 export interface AddCommentRequest {

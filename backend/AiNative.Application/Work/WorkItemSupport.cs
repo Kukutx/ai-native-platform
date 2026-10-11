@@ -63,12 +63,18 @@ internal sealed class WorkItemWorkflow(IAppDbContext db, IWakeupQueue wakeups, I
 {
     public async Task OnAssignedAsync(WorkItem item, Guid? previousAgentId, Actor actor, CancellationToken cancellationToken)
     {
-        if (item.AssigneeAgentId is not { } agentId || agentId == previousAgentId || IsSelf(actor, agentId) || item.IsClosed)
+        if (item.AssigneeAgentId is not { } agentId || agentId == previousAgentId)
         {
             return;
         }
 
+        // 负责人变了就校验（包括已关闭的任务、智能体自己转派），之后的条件只决定要不要唤醒。
         await EnsureAgentCanBeAssignedAsync(agentId, cancellationToken).ConfigureAwait(false);
+        if (IsSelf(actor, agentId) || item.IsClosed)
+        {
+            return;
+        }
+
         await WakeAsync(
             agentId,
             actor.IsAgent ? WakeupSource.Delegation : WakeupSource.Assignment,

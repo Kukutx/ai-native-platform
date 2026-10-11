@@ -4,6 +4,8 @@ using AiNative.Application.Agents.Runtime;
 using AiNative.Application.Tenancy;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Common;
+using AiNative.Domain.Governance;
+using AiNative.Application.Realtime;
 using AiNative.Infrastructure.Dispatching;
 using AiNative.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -28,6 +30,10 @@ internal sealed class HeartbeatScheduler(
     ILogger<HeartbeatScheduler> logger) : BackgroundService
 {
     private const string InterruptedError = "服务重启，执行被中断。";
+    private const string ApprovalInterruptedError = "批准后执行过程中服务中断，结果未知。请先核实动作是否已经生效，需要时重新申请。";
+
+    // 审批动作通常几秒内完成；超过这个时间仍没有写回结果，视为执行被中断。
+    private static readonly TimeSpan ApprovalExecutionGrace = TimeSpan.FromMinutes(10);
 
     private readonly SchedulerOptions _options = options.Value;
     private readonly ConcurrentDictionary<Guid, Task> _running = new();
@@ -50,6 +56,16 @@ internal sealed class HeartbeatScheduler(
             logger.LogError(ex, "Failed to recover interrupted runs");
         }
 
+        try
+        {
+            // 启动时（单实例假定下）所有没写回结果的已批准审批都已中断，不必等宽限期。
+            await RecoverInterruptedApprovalsAsync(clock.GetUtcNow(), stoppingToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Failed to recover interrupted approvals");
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -59,6 +75,7 @@ internal sealed class HeartbeatScheduler(
                 {
                     _nextTimerSweep = now + _options.TimerSweepInterval;
                     await EnqueueTimerWakeupsAsync(now, stoppingToken).ConfigureAwait(false);
+                    await RecoverInterruptedApprovalsAsync(now - ApprovalExecutionGrace, stoppingToken).ConfigureAwait(false);
                 }
 
                 await ClaimAndDispatchAsync(stoppingToken).ConfigureAwait(false);
@@ -139,6 +156,65 @@ internal sealed class HeartbeatScheduler(
             .ConfigureAwait(false);
 
         await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 审批结论已落定但执行结果没有写回（进程崩溃、写回失败）：结论不能重做，动作也不能盲目重跑（可能已经生效），
+    /// 所以标记为结果未知，并唤醒申请的智能体去核实。
+    /// </summary>
+    private async Task RecoverInterruptedApprovalsAsync(DateTimeOffset decidedBefore, CancellationToken cancellationToken)
+    {
+        List<(Guid Id, Guid TenantId)> stuck;
+        await using (var scope = scopes.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var rows = await db.Approvals.IgnoreQueryFilters().AsNoTracking()
+                .Where(a => a.Status == ApprovalStatus.Approved && a.ResultJson == null && a.ExecutionError == null && a.DecidedAt < decidedBefore)
+                .Select(a => new { a.Id, a.TenantId })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            stuck = [.. rows.Select(r => (r.Id, r.TenantId))];
+        }
+
+        foreach (var (approvalId, tenantId) in stuck)
+        {
+            await tenantScopes.RunAsync(tenantId, Actor.System, [], sp => UnitOfWork.RunAsync(sp, async () =>
+            {
+                var db = sp.GetRequiredService<AppDbContext>();
+                var now = clock.GetUtcNow();
+                var marked = await db.Approvals
+                    .Where(a => a.Id == approvalId && a.ResultJson == null && a.ExecutionError == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.ExecutionError, ApprovalInterruptedError).SetProperty(a => a.UpdatedAt, now), cancellationToken)
+                    .ConfigureAwait(false);
+                if (marked == 0)
+                {
+                    return false;
+                }
+
+                var approval = await db.Approvals.AsNoTracking().FirstAsync(a => a.Id == approvalId, cancellationToken).ConfigureAwait(false);
+                if (approval.RequestedBy is { Kind: ActorKind.Agent, Id: { } agentId }
+                    && await db.Agents.AnyAsync(a => a.Id == agentId && a.Status != AgentStatus.Terminated, cancellationToken).ConfigureAwait(false))
+                {
+                    await sp.GetRequiredService<IWakeupQueue>().EnqueueAsync(
+                        agentId,
+                        new WakeupItem
+                        {
+                            Source = WakeupSource.Approval,
+                            Reason = $"你申请的 {approval.ActionKey} 已批准，但执行过程中服务中断，结果未知。请核实是否已经生效，需要时重新申请。",
+                            ApprovalId = approval.Id,
+                            WorkItemId = approval.WorkItemId,
+                            RequestedAt = now,
+                        },
+                        Actor.System,
+                        $"approval:{approval.Id}:interrupted",
+                        cancellationToken).ConfigureAwait(false);
+                }
+
+                sp.GetRequiredService<IChangeFeed>().Publish(RealtimeEntities.Approval, approval.Id, RealtimeChangeKind.Updated);
+                logger.LogWarning("Approval {ApprovalId} was approved but its execution result was never recorded", approval.Id);
+                return true;
+            }, cancellationToken)).ConfigureAwait(false);
+        }
     }
 
     private async Task EnqueueTimerWakeupsAsync(DateTimeOffset now, CancellationToken cancellationToken)

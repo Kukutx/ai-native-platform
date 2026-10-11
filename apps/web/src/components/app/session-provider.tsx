@@ -69,6 +69,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<SessionContextValue>(() => {
     const features = sessionQuery.data?.features ?? [];
+    // 角色授予了、但所属模块在当前空间停用的功能，后端同样会拒绝，界面上也不显示入口。
+    const disabled = new Set(sessionQuery.data?.disabledFeatures ?? []);
     return {
       token,
       session: sessionQuery.data,
@@ -76,7 +78,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       signIn,
       signOut,
       switchTenant,
-      can: (feature) => isGranted(features, feature),
+      can: (feature) => !disabled.has(feature) && isGranted(features, feature),
     };
   }, [token, sessionQuery.data, sessionQuery.isPending, hydrated, signIn, signOut, switchTenant]);
 

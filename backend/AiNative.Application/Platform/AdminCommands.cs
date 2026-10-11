@@ -10,6 +10,7 @@ using AiNative.Domain.Modules;
 using AiNative.Domain.Tenancy;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace AiNative.Application.Platform;
 
@@ -83,7 +84,7 @@ public sealed class CreateOrganizationCommandValidator : AbstractValidator<Creat
     public CreateOrganizationCommandValidator() => RuleFor(x => x.Request.Name).NotEmpty().MaximumLength(100);
 }
 
-internal sealed class MemberHandlers(IAppDbContext db, ITenantContext tenant, IPasswordHasher passwords) :
+internal sealed class MemberHandlers(IAppDbContext db, ITenantContext tenant, IPasswordHasher passwords, IMemoryCache cache, IPostCommitActions postCommit) :
     IRequestHandler<ListMembersQuery, IReadOnlyList<MemberDto>>,
     IRequestHandler<AddMemberCommand, MemberDto>,
     IRequestHandler<UpdateMemberCommand, MemberDto>,
@@ -139,6 +140,7 @@ internal sealed class MemberHandlers(IAppDbContext db, ITenantContext tenant, IP
         membership.RoleIds = [.. r.RoleIds.Distinct()];
         membership.OrganizationId = r.OrganizationId;
         membership.Status = r.Status;
+        AccessResolver.InvalidateAfterCommit(cache, postCommit, [membership.Id]);
         var user = await db.Users.AsNoTracking().FirstAsync(u => u.Id == membership.UserId, cancellationToken).ConfigureAwait(false);
         return ToDto(membership, user);
     }
@@ -157,6 +159,7 @@ internal sealed class MemberHandlers(IAppDbContext db, ITenantContext tenant, IP
         }
 
         db.Memberships.Remove(membership);
+        AccessResolver.InvalidateAfterCommit(cache, postCommit, [membership.Id]);
         return Unit.Value;
     }
 
@@ -186,7 +189,7 @@ internal sealed class MemberHandlers(IAppDbContext db, ITenantContext tenant, IP
         => new(m.Id, u.Id, u.Email, u.DisplayName, m.IsOwner, m.Status, m.OrganizationId, m.RoleIds, m.CreatedAt);
 }
 
-internal sealed class RoleHandlers(IAppDbContext db) :
+internal sealed class RoleHandlers(IAppDbContext db, IMemoryCache cache, IPostCommitActions postCommit) :
     IRequestHandler<ListRolesQuery, IReadOnlyList<RoleDto>>,
     IRequestHandler<CreateRoleCommand, RoleDto>,
     IRequestHandler<UpdateRoleCommand, RoleDto>,
@@ -226,6 +229,8 @@ internal sealed class RoleHandlers(IAppDbContext db) :
         role.Name = r.Name.Trim();
         role.Description = r.Description?.Trim();
         role.Features = [.. r.Features.Distinct()];
+        var holders = await db.Memberships.Where(m => m.RoleIds.Contains(role.Id)).Select(m => m.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        AccessResolver.InvalidateAfterCommit(cache, postCommit, holders);
         return ToDto(role);
     }
 
@@ -245,6 +250,7 @@ internal sealed class RoleHandlers(IAppDbContext db) :
         }
 
         db.Roles.Remove(role);
+        AccessResolver.InvalidateAfterCommit(cache, postCommit, [.. holders.Select(m => m.Id)]);
         return Unit.Value;
     }
 

@@ -44,6 +44,13 @@ internal sealed class WorkItemCheckout(AppDbContext db, IChangeFeed changes, IOp
 
     public async Task ReleaseAsync(Guid runId, CancellationToken cancellationToken = default)
     {
+        var held = await db.WorkItems.Where(w => w.CheckoutRunId == runId).Select(w => w.Id)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (held.Count == 0)
+        {
+            return;
+        }
+
         var now = clock.GetUtcNow();
         await db.WorkItems
             .Where(w => w.CheckoutRunId == runId)
@@ -53,5 +60,11 @@ internal sealed class WorkItemCheckout(AppDbContext db, IChangeFeed changes, IOp
                     .SetProperty(w => w.UpdatedAt, now),
                 cancellationToken)
             .ConfigureAwait(false);
+
+        // 任务详情据此刷新"执行中"状态，客户端不需要轮询。
+        foreach (var id in held)
+        {
+            changes.Publish(RealtimeEntities.WorkItem, id, RealtimeChangeKind.Updated);
+        }
     }
 }

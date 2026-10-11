@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -33,6 +33,10 @@ function toRows(messages: ChatMessageDto[], draft: Draft | null): Row[] {
   return rows;
 }
 
+function lastUserMessageIs(messages: ChatMessageDto[] | undefined, text: string) {
+  return [...(messages ?? [])].reverse().find((m) => m.role === 'user')?.text === text;
+}
+
 /** 对话页。id 为 new 时是新对话：发送第一条消息时才创建会话。 */
 export default function ChatScreen() {
   const p = usePalette();
@@ -63,6 +67,7 @@ export default function ChatScreen() {
     const controller = new AbortController();
     abortRef.current = controller;
     let id = conversationId;
+    let failure: string | null = null;
     try {
       if (!id) {
         id = (await getApi().conversations.create({ title: text.slice(0, 40) }, controller.signal)).id;
@@ -79,12 +84,12 @@ export default function ChatScreen() {
           const status = (event.data as { status?: string } | undefined)?.status;
           setDraft((d) => d && { ...d, tools: d.tools.map((t) => (t.callId === event.callId ? { ...t, status } : t)) });
         } else if (event.type === 'error') {
-          setDraft((d) => d && { ...d, text: `出错了：${event.text ?? '未知错误'}` });
+          failure = event.text ?? '对话出错了';
         }
       }
     } catch (error) {
       if (!controller.signal.aborted) {
-        setDraft((d) => d && { ...d, text: `出错了：${error instanceof Error ? error.message : '网络异常'}` });
+        failure = error instanceof Error ? error.message : '网络异常';
       }
     } finally {
       if (id) {
@@ -93,6 +98,14 @@ export default function ChatScreen() {
       }
 
       setDraft(null);
+      if (failure) {
+        // 消息没能保存（例如上一条还在回复中）时放回输入框，用户不用重新输入。
+        if (!lastUserMessageIs(id ? queryClient.getQueryData<ChatMessageDto[]>(['messages', id]) : undefined, text)) {
+          setInput((current) => current || text);
+        }
+
+        Alert.alert('发送失败', failure);
+      }
     }
   }
 

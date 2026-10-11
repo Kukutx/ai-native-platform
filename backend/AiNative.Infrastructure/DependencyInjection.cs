@@ -38,6 +38,7 @@ public static class DependencyInjection
             options.AddInterceptors(sp.GetRequiredService<AuditingInterceptor>());
         });
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+        services.AddSingleton<IDistributedLock>(new PostgresAdvisoryLock(connectionString));
 
         // 请求管道：权限 → 校验 → 日志 → 事务 → 处理器（按注册顺序由外到内）
         services.AddScoped<PostCommitActions>();

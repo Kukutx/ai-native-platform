@@ -18,8 +18,6 @@ export default function TaskDetailScreen() {
   const detail = useQuery({
     queryKey: ['work-item', id],
     queryFn: ({ signal }) => getApi().workItems.get(id, signal),
-    // 实时通道断开时的兜底：智能体执行期间定时刷新。
-    refetchInterval: (query) => (query.state.data?.item.checkoutRunId ? 5000 : false),
   });
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['work-item', id] });
@@ -35,9 +33,12 @@ export default function TaskDetailScreen() {
         priority: item.priority,
         assigneeAgentId: item.assigneeAgentId,
         assigneeUserId: item.assigneeUserId,
+        // 基于这份数据修改：期间被别人或智能体改过时后端返回 409，而不是用旧值覆盖。
+        expectedUpdatedAt: item.updatedAt,
       });
     },
-    onSuccess: refresh,
+    // 失败（包括冲突）也刷新，界面回到最新内容。
+    onSettled: refresh,
   });
   const addComment = useMutation({
     mutationFn: () => getApi().workItems.addComment(id, { body: comment.trim() }),

@@ -56,6 +56,11 @@ public sealed record UpdateWorkItemRequest
     public Guid? AssigneeAgentId { get; init; }
 
     public Guid? AssigneeUserId { get; init; }
+
+    /// <summary>
+    /// 编辑所基于的 <see cref="WorkItemDto.UpdatedAt"/>。提供时，任务在此之后被改过（其他成员或智能体）就返回 409，避免旧数据覆盖新改动。
+    /// </summary>
+    public DateTimeOffset? ExpectedUpdatedAt { get; init; }
 }
 
 public sealed record CommentDto(Guid Id, Guid WorkItemId, ActorDto Author, string Body, Guid? RunId, DateTimeOffset CreatedAt);

@@ -102,10 +102,15 @@ internal sealed class ChatTurnRunner(
     ITenantScopeFactory scopes,
     AgentPromptBuilder prompts,
     IChangeFeed changes,
+    IDistributedLock locks,
     TimeProvider clock)
 {
     private const int MaxSteps = 8;
     private const int MaxOutputTokens = 16_000;
+
+    // 带给模型的历史上限：最近若干条且总长度不超过预算，长对话不会超出上下文窗口、成本也不会无限增长。
+    private const int MaxHistoryMessages = 60;
+    private const int MaxHistoryChars = 120_000;
 
     public async Task RunAsync(Guid conversationId, string text, ChannelWriter<ChatStreamEvent> output, CancellationToken cancellationToken)
     {
@@ -115,9 +120,16 @@ internal sealed class ChatTurnRunner(
         var agent = conversation.AgentId is { } agentId
             ? await db.Agents.AsNoTracking().FirstOrDefaultAsync(a => a.Id == agentId, cancellationToken).ConfigureAwait(false)
             : null;
-        var history = await db.ConversationMessages.AsNoTracking().Where(m => m.ConversationId == conversation.Id).OrderBy(m => m.Seq)
+
+        // 同一对话同时只跑一轮：消息序号按顺序分配，两轮交错还会打乱工具调用与结果的配对。
+        await using var turn = await locks.TryAcquireAsync($"conversation-turn:{conversation.Id}", cancellationToken).ConfigureAwait(false)
+                               ?? throw new ConflictException("conversation.busy", "上一条消息还在回复中，请等它完成后再发送。");
+
+        var recent = await db.ConversationMessages.AsNoTracking().Where(m => m.ConversationId == conversation.Id)
+            .OrderByDescending(m => m.Seq).Take(MaxHistoryMessages)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
-        var seq = history.Count == 0 ? 0 : history[^1].Seq;
+        var seq = recent.Count == 0 ? 0 : recent[0].Seq;
+        var history = TrimHistory(recent);
 
         var userName = await db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.DisplayName).FirstAsync(cancellationToken).ConfigureAwait(false);
         var system = agent is null
@@ -198,6 +210,29 @@ internal sealed class ChatTurnRunner(
         changes.Publish(RealtimeEntities.Conversation, conversation.Id, RealtimeChangeKind.Updated);
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await output.WriteAsync(new ChatStreamEvent("done", MessageId: lastAssistantId), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 从最新往前取，直到长度预算用完；结果从一条用户消息开始，避免以孤立的工具调用或结果开头。
+    /// </summary>
+    private static List<ConversationMessage> TrimHistory(List<ConversationMessage> newestFirst)
+    {
+        var kept = new List<ConversationMessage>(newestFirst.Count);
+        var chars = 0;
+        foreach (var message in newestFirst)
+        {
+            chars += message.ContentJson.Length;
+            if (kept.Count > 0 && chars > MaxHistoryChars)
+            {
+                break;
+            }
+
+            kept.Add(message);
+        }
+
+        kept.Reverse();
+        var start = kept.FindIndex(m => m.Role == ChatRole.User.Value);
+        return start < 0 ? [] : kept[start..];
     }
 
     private async Task<Guid> PersistAsync(Guid conversationId, int seq, ChatMessage message, CancellationToken cancellationToken)

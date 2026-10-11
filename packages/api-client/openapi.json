@@ -2972,7 +2972,8 @@
           "tenant",
           "tenants",
           "features",
-          "enabledModules"
+          "enabledModules",
+          "disabledFeatures"
         ],
         "properties": {
           "user": {
@@ -2994,6 +2995,12 @@
             }
           },
           "enabledModules": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "disabledFeatures": {
             "type": "array",
             "items": {
               "type": "string"
@@ -4090,6 +4097,11 @@
           "assigneeUserId": {
             "type": "string",
             "format": "guid",
+            "nullable": true
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
             "nullable": true
           }
         }

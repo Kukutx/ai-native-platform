@@ -42,10 +42,14 @@ internal sealed class AuditingInterceptor(ITenantContext tenant, TimeProvider cl
                     entry.Entity.CreatedAt = now;
                 }
 
-                entry.Entity.UpdatedAt = now;
+                if (entry.Entity.UpdatedAt == default)
+                {
+                    entry.Entity.UpdatedAt = now;
+                }
             }
-            else if (entry.State == EntityState.Modified)
+            else if (entry.State == EntityState.Modified && !entry.Property(e => e.UpdatedAt).IsModified)
             {
+                // 处理器显式写了 UpdatedAt（例如作为并发版本返回给客户端）时保留它，返回的 DTO 与落库值一致。
                 entry.Entity.UpdatedAt = now;
             }
 
