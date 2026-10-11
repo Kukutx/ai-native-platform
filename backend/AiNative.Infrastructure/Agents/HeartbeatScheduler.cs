@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using AiNative.Application.Agents;
 using AiNative.Application.Agents.Runtime;
+using AiNative.Application.Governance;
 using AiNative.Application.Tenancy;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Common;
@@ -192,7 +193,11 @@ internal sealed class HeartbeatScheduler(
                 }
 
                 var approval = await db.Approvals.AsNoTracking().FirstAsync(a => a.Id == approvalId, cancellationToken).ConfigureAwait(false);
-                if (approval.RequestedBy is { Kind: ActorKind.Agent, Id: { } agentId }
+
+                // 工作流发起的审批：恢复那次运行（它会把这一步记为失败），不唤醒智能体。
+                await ApprovalEvents.PublishDecidedAsync(sp, approval.Id, cancellationToken).ConfigureAwait(false);
+                if (approval.WorkflowRunId is null
+                    && approval.RequestedBy is { Kind: ActorKind.Agent, Id: { } agentId }
                     && await db.Agents.AnyAsync(a => a.Id == agentId && a.Status != AgentStatus.Terminated, cancellationToken).ConfigureAwait(false))
                 {
                     await sp.GetRequiredService<IWakeupQueue>().EnqueueAsync(

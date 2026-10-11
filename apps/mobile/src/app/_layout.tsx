@@ -63,6 +63,9 @@ export default function RootLayout() {
               <Stack.Screen name='tasks/[id]' options={{ title: '任务' }} />
               <Stack.Screen name='tasks/new' options={{ title: '新建任务', presentation: 'modal' }} />
               <Stack.Screen name='knowledge/[id]' options={{ title: '文档' }} />
+              <Stack.Screen name='workflows/index' options={{ title: '自动化' }} />
+              <Stack.Screen name='workflows/[id]' options={{ title: '工作流' }} />
+              <Stack.Screen name='workflows/runs/[id]' options={{ title: '运行详情' }} />
             </Stack.Protected>
             <Stack.Protected guard={!token}>
               <Stack.Screen name='login' options={{ headerShown: false }} />

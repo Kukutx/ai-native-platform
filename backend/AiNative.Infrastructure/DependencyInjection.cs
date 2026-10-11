@@ -5,6 +5,7 @@ using AiNative.Application.Ai;
 using AiNative.Application.Knowledge;
 using AiNative.Application.Platform;
 using AiNative.Application.Work;
+using AiNative.Application.Workflows;
 using AiNative.Infrastructure.Agents;
 using AiNative.Infrastructure.Ai;
 using AiNative.Infrastructure.Dispatching;
@@ -12,6 +13,7 @@ using AiNative.Infrastructure.Knowledge;
 using AiNative.Infrastructure.Persistence;
 using AiNative.Infrastructure.Security;
 using AiNative.Infrastructure.Work;
+using AiNative.Infrastructure.Workflows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -44,6 +46,7 @@ public static class DependencyInjection
         // 请求管道：权限 → 校验 → 日志 → 事务 → 处理器（按注册顺序由外到内）
         services.AddScoped<PostCommitActions>();
         services.AddScoped<IPostCommitActions>(sp => sp.GetRequiredService<PostCommitActions>());
+        services.AddScoped<IUnitOfWork, ScopedUnitOfWork>();
         services.AddScoped<IRequestDispatcher, RequestDispatcher>();
         services.AddScoped(typeof(IRequestPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
         services.AddScoped(typeof(IRequestPipelineBehavior<,>), typeof(ValidationBehavior<,>));
@@ -82,6 +85,12 @@ public static class DependencyInjection
         services.AddScoped<IWorkItemNumbers, WorkItemNumbers>();
         services.AddScoped<IWorkItemCheckout, WorkItemCheckout>();
         services.AddHostedService<HeartbeatScheduler>();
+
+        // 工作流引擎：定时触发、领取并执行运行
+        services.AddOptions<WorkflowOptions>().BindConfiguration(WorkflowOptions.SectionName);
+        services.AddSingleton<WorkflowSignal>();
+        services.AddSingleton<IWorkflowSignal>(sp => sp.GetRequiredService<WorkflowSignal>());
+        services.AddHostedService<WorkflowEngine>();
 
         return services;
     }

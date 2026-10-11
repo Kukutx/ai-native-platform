@@ -27,6 +27,8 @@ public sealed class ApiFactory(string connectionString) : WebApplicationFactory<
         builder.UseSetting("Database:MigrateOnStartup", "true");
         builder.UseSetting("Scheduler:PollInterval", "00:00:00.200");
         builder.UseSetting("Scheduler:TimerSweepInterval", "01:00:00");
+        builder.UseSetting("Workflows:PollInterval", "00:00:00.200");
+        builder.UseSetting("Workflows:ScheduleSweepInterval", "00:00:00.200");
         builder.UseSetting("Ai:DefaultProvider", Provider);
         builder.UseSetting("Ai:DefaultModel", Model);
         builder.UseSetting($"Ai:Providers:{Provider}:Kind", Provider);

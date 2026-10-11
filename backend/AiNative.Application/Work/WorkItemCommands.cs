@@ -1,6 +1,7 @@
 using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
 using AiNative.Application.Common;
+using AiNative.Application.Modules;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
 using AiNative.Contracts.Common;
@@ -73,6 +74,7 @@ internal sealed class WorkItemCommandHandlers(
     IWorkItemNumbers numbers,
     WorkItemWorkflow workflow,
     IChangeFeed changes,
+    IPlatformEvents events,
     TimeProvider clock) :
     IRequestHandler<CreateWorkItemCommand, WorkItemDto>,
     IRequestHandler<UpdateWorkItemCommand, WorkItemDto>,
@@ -109,7 +111,9 @@ internal sealed class WorkItemCommandHandlers(
         db.WorkItems.Add(item);
         await workflow.OnAssignedAsync(item, null, tenant.Actor, cancellationToken).ConfigureAwait(false);
         changes.Publish(RealtimeEntities.WorkItem, item.Id, RealtimeChangeKind.Created);
-        return await ToDtoAsync(item, cancellationToken).ConfigureAwait(false);
+        var dto = await ToDtoAsync(item, cancellationToken).ConfigureAwait(false);
+        await PublishAsync(PlatformEventKeys.TaskCreated, item, dto, cancellationToken).ConfigureAwait(false);
+        return dto;
     }
 
     public async Task<WorkItemDto> HandleAsync(UpdateWorkItemCommand request, CancellationToken cancellationToken)
@@ -145,7 +149,14 @@ internal sealed class WorkItemCommandHandlers(
         await workflow.OnAssignedAsync(item, previousAgent, tenant.Actor, cancellationToken).ConfigureAwait(false);
         await workflow.OnStatusChangedAsync(item, previousStatus, tenant.Actor, cancellationToken).ConfigureAwait(false);
         changes.Publish(RealtimeEntities.WorkItem, item.Id, RealtimeChangeKind.Updated);
-        return await ToDtoAsync(item, cancellationToken).ConfigureAwait(false);
+        var dto = await ToDtoAsync(item, cancellationToken).ConfigureAwait(false);
+        if (previousStatus != item.Status)
+        {
+            await PublishAsync(PlatformEventKeys.TaskStatusChanged, item, dto, cancellationToken, ("from", previousStatus), ("to", item.Status), ("comment", null))
+                .ConfigureAwait(false);
+        }
+
+        return dto;
     }
 
     public async Task<WorkItemDto> HandleAsync(ChangeWorkItemStatusCommand request, CancellationToken cancellationToken)
@@ -166,7 +177,15 @@ internal sealed class WorkItemCommandHandlers(
 
         await workflow.OnStatusChangedAsync(item, previous, tenant.Actor, cancellationToken).ConfigureAwait(false);
         changes.Publish(RealtimeEntities.WorkItem, item.Id, RealtimeChangeKind.Updated);
-        return await ToDtoAsync(item, cancellationToken).ConfigureAwait(false);
+        var dto = await ToDtoAsync(item, cancellationToken).ConfigureAwait(false);
+        if (previous != item.Status)
+        {
+            var comment = string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim();
+            await PublishAsync(PlatformEventKeys.TaskStatusChanged, item, dto, cancellationToken, ("from", previous), ("to", item.Status), ("comment", comment))
+                .ConfigureAwait(false);
+        }
+
+        return dto;
     }
 
     public async Task<WorkItemDto> HandleAsync(AssignWorkItemCommand request, CancellationToken cancellationToken)
@@ -210,8 +229,27 @@ internal sealed class WorkItemCommandHandlers(
         db.WorkItemComments.Add(comment);
         await workflow.OnCommentedAsync(item, tenant.Actor, comment.Body, cancellationToken).ConfigureAwait(false);
         var actors = await ActorNames.ResolveAsync(db, [comment.Author], cancellationToken).ConfigureAwait(false);
-        return comment.ToDto(actors);
+        var dto = comment.ToDto(actors);
+        await PublishAsync(PlatformEventKeys.TaskCommented, item, null, cancellationToken, ("comment", dto)).ConfigureAwait(false);
+        return dto;
     }
+
+    /// <summary>
+    /// 发布任务事件（订阅的工作流随本事务一起创建运行）。载荷只在有订阅者时构造。
+    /// </summary>
+    private Task PublishAsync(string eventType, WorkItem item, WorkItemDto? dto, CancellationToken cancellationToken, params (string Key, object? Value)[] fields)
+        => events.PublishAsync(eventType, item.Id, async () =>
+        {
+            var task = dto ?? await ToDtoAsync(item, cancellationToken).ConfigureAwait(false);
+            var actors = await ActorNames.ResolveAsync(db, [tenant.Actor], cancellationToken).ConfigureAwait(false);
+            var payload = new Dictionary<string, object?> { ["task"] = task, ["actor"] = actors(tenant.Actor) };
+            foreach (var (key, value) in fields)
+            {
+                payload[key] = value;
+            }
+
+            return payload;
+        }, cancellationToken);
 
     private async Task EnsureUserIsMemberAsync(Guid? userId, CancellationToken cancellationToken)
     {

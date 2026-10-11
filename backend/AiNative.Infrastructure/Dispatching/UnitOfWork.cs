@@ -1,3 +1,4 @@
+using AiNative.Application.Abstractions;
 using AiNative.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,7 +26,14 @@ internal static class UnitOfWork
         catch
         {
             postCommit.Abort();
+            db.ChangeTracker.Clear();
             throw;
         }
     }
+}
+
+internal sealed class ScopedUnitOfWork(IServiceProvider services) : IUnitOfWork
+{
+    public Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default)
+        => UnitOfWork.RunAsync(services, work, cancellationToken);
 }

@@ -2102,6 +2102,443 @@ export class RunsClient {
     }
 }
 
+export class WorkflowsClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    list(signal?: AbortSignal): Promise<WorkflowDto[]> {
+        let url_ = this.baseUrl + "/api/workflows";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processList(_response);
+        });
+    }
+
+    protected processList(response: Response): Promise<WorkflowDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowDto[]>(null as any);
+    }
+
+    create(request: SaveWorkflowRequest, signal?: AbortSignal): Promise<WorkflowDto> {
+        let url_ = this.baseUrl + "/api/workflows";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreate(_response);
+        });
+    }
+
+    protected processCreate(response: Response): Promise<WorkflowDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowDto>(null as any);
+    }
+
+    /**
+     * 工作流可以订阅的事件（只列出当前身份有权订阅的）。
+     */
+    catalog(signal?: AbortSignal): Promise<WorkflowCatalogDto> {
+        let url_ = this.baseUrl + "/api/workflows/catalog";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCatalog(_response);
+        });
+    }
+
+    protected processCatalog(response: Response): Promise<WorkflowCatalogDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowCatalogDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowCatalogDto>(null as any);
+    }
+
+    get(id: string, signal?: AbortSignal): Promise<WorkflowDto> {
+        let url_ = this.baseUrl + "/api/workflows/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGet(_response);
+        });
+    }
+
+    protected processGet(response: Response): Promise<WorkflowDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowDto>(null as any);
+    }
+
+    update(id: string, request: SaveWorkflowRequest, signal?: AbortSignal): Promise<WorkflowDto> {
+        let url_ = this.baseUrl + "/api/workflows/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdate(_response);
+        });
+    }
+
+    protected processUpdate(response: Response): Promise<WorkflowDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowDto>(null as any);
+    }
+
+    delete(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/workflows/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    setEnabled(id: string, request: SetWorkflowEnabledRequest, signal?: AbortSignal): Promise<WorkflowDto> {
+        let url_ = this.baseUrl + "/api/workflows/{id}/enabled";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processSetEnabled(_response);
+        });
+    }
+
+    protected processSetEnabled(response: Response): Promise<WorkflowDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowDto>(null as any);
+    }
+
+    /**
+     * 手动运行一次。运行在后台进行，返回的运行记录通过实时通道持续更新。
+     */
+    start(id: string, request: StartWorkflowRunRequest, signal?: AbortSignal): Promise<WorkflowRunSummaryDto> {
+        let url_ = this.baseUrl + "/api/workflows/{id}/runs";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processStart(_response);
+        });
+    }
+
+    protected processStart(response: Response): Promise<WorkflowRunSummaryDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowRunSummaryDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowRunSummaryDto>(null as any);
+    }
+
+    runs(workflowId?: string | null | undefined, status?: WorkflowRunStatus | null | undefined, page?: number | undefined, pageSize?: number | undefined, signal?: AbortSignal): Promise<PagedResultOfWorkflowRunSummaryDto> {
+        let url_ = this.baseUrl + "/api/workflows/runs?";
+        if (workflowId !== undefined && workflowId !== null)
+            url_ += "workflowId=" + encodeURIComponent("" + workflowId) + "&";
+        if (status !== undefined && status !== null)
+            url_ += "status=" + encodeURIComponent("" + status) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processRuns(_response);
+        });
+    }
+
+    protected processRuns(response: Response): Promise<PagedResultOfWorkflowRunSummaryDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PagedResultOfWorkflowRunSummaryDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<PagedResultOfWorkflowRunSummaryDto>(null as any);
+    }
+
+    run(runId: string, signal?: AbortSignal): Promise<WorkflowRunDto> {
+        let url_ = this.baseUrl + "/api/workflows/runs/{runId}";
+        if (runId === undefined || runId === null)
+            throw new globalThis.Error("The parameter 'runId' must be defined.");
+        url_ = url_.replace("{runId}", encodeURIComponent("" + runId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processRun(_response);
+        });
+    }
+
+    protected processRun(response: Response): Promise<WorkflowRunDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowRunDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowRunDto>(null as any);
+    }
+
+    cancel(runId: string, signal?: AbortSignal): Promise<WorkflowRunSummaryDto> {
+        let url_ = this.baseUrl + "/api/workflows/runs/{runId}/cancel";
+        if (runId === undefined || runId === null)
+            throw new globalThis.Error("The parameter 'runId' must be defined.");
+        url_ = url_.replace("{runId}", encodeURIComponent("" + runId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCancel(_response);
+        });
+    }
+
+    protected processCancel(response: Response): Promise<WorkflowRunSummaryDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowRunSummaryDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowRunSummaryDto>(null as any);
+    }
+}
+
 export class WorkItemsClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -2551,6 +2988,7 @@ export interface ApprovalDto {
     requestedBy: ActorDto;
     runId?: string | undefined;
     workItemId?: string | undefined;
+    workflowRunId?: string | undefined;
     status: ApprovalStatus;
     decidedByUserId?: string | undefined;
     decidedAt?: string | undefined;
@@ -2781,6 +3219,132 @@ export interface RunEventDto {
 }
 
 export type RunEventType = "status" | "assistant_text" | "tool_call" | "tool_result" | "approval_requested" | "error";
+
+export interface WorkflowDto {
+    id: string;
+    name: string;
+    description: string;
+    isEnabled: boolean;
+    trigger: WorkflowTriggerDto;
+    steps: WorkflowStep[];
+    owner: ActorDto;
+    version: number;
+    nextRunAt?: string | undefined;
+    lastRun?: WorkflowRunSummaryDto | undefined;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface WorkflowTriggerDto {
+    kind?: WorkflowTriggerKind;
+    eventType?: string | undefined;
+    filter?: string | undefined;
+    cron?: string | undefined;
+    timeZone?: string | undefined;
+}
+
+export type WorkflowTriggerKind = "manual" | "event" | "schedule";
+
+export interface WorkflowStep {
+    key: string;
+    name: string;
+    kind?: WorkflowStepKind;
+    when?: string | undefined;
+    continueOnError?: boolean;
+    actionKey?: string | undefined;
+    input?: any | undefined;
+    agentId?: string | undefined;
+    title?: string | undefined;
+    instructions?: string | undefined;
+    waitForCompletion?: boolean;
+    timeoutMinutes?: number | undefined;
+    prompt?: string | undefined;
+    delaySeconds?: number | undefined;
+}
+
+export type WorkflowStepKind = "action" | "agent_task" | "llm" | "delay";
+
+export interface WorkflowRunSummaryDto {
+    id: string;
+    workflowId: string;
+    workflowName: string;
+    status: WorkflowRunStatus;
+    triggerKind: WorkflowTriggerKind;
+    eventType?: string | undefined;
+    triggeredBy: ActorDto;
+    currentStep: number;
+    stepCount: number;
+    error?: string | undefined;
+    createdAt: string;
+    startedAt?: string | undefined;
+    finishedAt?: string | undefined;
+}
+
+export type WorkflowRunStatus = "queued" | "running" | "waiting" | "succeeded" | "failed" | "cancelled";
+
+export interface WorkflowCatalogDto {
+    events: WorkflowEventDto[];
+}
+
+export interface WorkflowEventDto {
+    key: string;
+    name: string;
+    moduleKey: string;
+    description: string;
+}
+
+export interface SaveWorkflowRequest {
+    name: string;
+    description?: string;
+    isEnabled?: boolean;
+    trigger: WorkflowTriggerDto;
+    steps: WorkflowStep[];
+    expectedUpdatedAt?: string | undefined;
+}
+
+export interface SetWorkflowEnabledRequest {
+    enabled: boolean;
+}
+
+export interface StartWorkflowRunRequest {
+    input?: any | undefined;
+}
+
+export interface PagedResultOfWorkflowRunSummaryDto {
+    items: WorkflowRunSummaryDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+export interface WorkflowRunDto {
+    summary: WorkflowRunSummaryDto;
+    owner: ActorDto;
+    workflowVersion: number;
+    trigger: any;
+    input: any;
+    steps: WorkflowStep[];
+    stepRuns: WorkflowRunStepDto[];
+    waitingApprovalId?: string | undefined;
+    waitingWorkItemId?: string | undefined;
+    resumeAt?: string | undefined;
+    parentRunId?: string | undefined;
+}
+
+export interface WorkflowRunStepDto {
+    index: number;
+    stepKey: string;
+    name: string;
+    kind: WorkflowStepKind;
+    status: WorkflowStepStatus;
+    input?: any | undefined;
+    output?: any | undefined;
+    error?: string | undefined;
+    startedAt: string;
+    finishedAt?: string | undefined;
+}
+
+export type WorkflowStepStatus = "running" | "waiting" | "succeeded" | "failed" | "skipped";
 
 export interface PagedResultOfWorkItemDto {
     items: WorkItemDto[];

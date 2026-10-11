@@ -13,6 +13,7 @@ public sealed record ApprovalDto(
     ActorDto RequestedBy,
     Guid? RunId,
     Guid? WorkItemId,
+    Guid? WorkflowRunId,
     ApprovalStatus Status,
     Guid? DecidedByUserId,
     DateTimeOffset? DecidedAt,

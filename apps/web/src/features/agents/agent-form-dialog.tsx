@@ -51,7 +51,7 @@ function AgentForm({ agent, onDone }: { agent?: AgentDto; onDone: () => void }) 
   const queryClient = useQueryClient();
   const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
   const models = useQuery({ queryKey: queryKeys.models, queryFn: ({ signal }) => api.models.catalog(signal) });
-  const actions = useQuery({ queryKey: ['actions'], queryFn: ({ signal }) => api.actions.list(signal) });
+  const actions = useQuery({ queryKey: queryKeys.actions, queryFn: ({ signal }) => api.actions.list(signal) });
 
   const [form, setForm] = useState<SaveAgentRequest>(() => ({
     name: agent?.name ?? '',

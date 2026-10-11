@@ -15,6 +15,8 @@ public static class RealtimeEntities
     public const string Module = "module";
     public const string KnowledgeDocument = "knowledge_document";
     public const string Memory = "memory";
+    public const string Workflow = "workflow";
+    public const string WorkflowRun = "workflow_run";
 }
 
 public static class RealtimeChangeKind

@@ -12,6 +12,7 @@ using AiNative.Domain.Knowledge;
 using AiNative.Domain.Modules;
 using AiNative.Domain.Tenancy;
 using AiNative.Domain.Work;
+using AiNative.Domain.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
@@ -72,6 +73,12 @@ public sealed class AppDbContext : DbContext, IAppDbContext
     public DbSet<MemoryEntry> MemoryEntries => Set<MemoryEntry>();
 
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+
+    public DbSet<Workflow> Workflows => Set<Workflow>();
+
+    public DbSet<WorkflowRun> WorkflowRuns => Set<WorkflowRun>();
+
+    public DbSet<WorkflowRunStep> WorkflowRunSteps => Set<WorkflowRunStep>();
 
     /// <summary>
     /// 查询过滤器引用的当前租户；EF 按上下文实例参数化，未进入租户时为空 Guid，什么都查不到。
@@ -322,11 +329,72 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasOne<MemoryEntry>().WithMany().HasForeignKey(x => x.MemoryId).OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<Workflow>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.Description).HasMaxLength(2000);
+            b.Property(x => x.EventType).HasMaxLength(100);
+            b.Property(x => x.EventFilter).HasMaxLength(2000);
+            b.Property(x => x.Cron).HasMaxLength(100);
+            b.Property(x => x.TimeZone).HasMaxLength(64);
+            b.ComplexProperty(x => x.Owner);
+            JsonList(b.Property(x => x.Steps));
+
+            // 事件分发按事件类型找订阅者；定时扫描只看启用的定时工作流。
+            b.HasIndex(x => new { x.TenantId, x.EventType }).HasFilter("is_enabled AND trigger_kind = 'Event'");
+            b.HasIndex(x => x.NextRunAt).HasFilter("is_enabled AND trigger_kind = 'Schedule'");
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkflowRun>(b =>
+        {
+            b.Property(x => x.WorkflowName).HasMaxLength(100);
+            b.Property(x => x.EventType).HasMaxLength(100);
+            b.Property(x => x.TriggerJson).HasColumnType("jsonb");
+            b.Property(x => x.InputJson).HasColumnType("jsonb");
+            b.ComplexProperty(x => x.Owner);
+            b.ComplexProperty(x => x.TriggeredBy);
+            JsonList(b.Property(x => x.Steps));
+
+            b.HasIndex(x => new { x.WorkflowId, x.CreatedAt });
+            b.HasIndex(x => new { x.TenantId, x.CreatedAt });
+
+            // 引擎领取与重启恢复只关心未结束的运行。
+            b.HasIndex(x => new { x.Status, x.CreatedAt }).HasFilter("status IN ('Queued', 'Running', 'Waiting')").HasDatabaseName("ix_workflow_runs_active");
+            b.HasIndex(x => x.WaitingWorkItemId).HasFilter("waiting_work_item_id IS NOT NULL");
+            b.HasIndex(x => x.WaitingApprovalId).HasFilter("waiting_approval_id IS NOT NULL");
+            b.HasOne<Workflow>().WithMany().HasForeignKey(x => x.WorkflowId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkflowRunStep>(b =>
+        {
+            b.Property(x => x.StepKey).HasMaxLength(40);
+            b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.InputJson).HasColumnType("jsonb");
+            b.Property(x => x.OutputJson).HasColumnType("jsonb");
+            b.HasIndex(x => new { x.RunId, x.Index }).IsUnique();
+            b.HasOne<WorkflowRun>().WithMany().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => typeof(ITenantScoped).IsAssignableFrom(t.ClrType)))
         {
             ApplyTenantFilterMethod.MakeGenericMethod(entityType.ClrType).Invoke(this, [modelBuilder]);
         }
     }
+
+    /// <summary>
+    /// 列表存为 jsonb：按平台 JSON 约定序列化，按内容比较变化。
+    /// </summary>
+    private static void JsonList<T>(Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<List<T>> property)
+        => property
+            .HasColumnType("jsonb")
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, PlatformJson.Options),
+                v => JsonSerializer.Deserialize<List<T>>(v, PlatformJson.Options) ?? new List<T>(),
+                new ValueComparer<List<T>>(
+                    (a, c) => JsonSerializer.Serialize(a, PlatformJson.Options) == JsonSerializer.Serialize(c, PlatformJson.Options),
+                    v => JsonSerializer.Serialize(v, PlatformJson.Options).GetHashCode(StringComparison.Ordinal),
+                    v => JsonSerializer.Deserialize<List<T>>(JsonSerializer.Serialize(v, PlatformJson.Options), PlatformJson.Options)!));
 
     private static readonly System.Reflection.MethodInfo ApplyTenantFilterMethod =
         typeof(AppDbContext).GetMethod(nameof(ApplyTenantFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;

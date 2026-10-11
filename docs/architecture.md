@@ -11,9 +11,9 @@
         HTTP 控制器 · SignalR 实时通道 · MCP 服务 · JWT / API 密钥认证 · ProblemDetails
                                    |
                  Application：命令/查询管道 · 权限 · 模块 · 平台动作
-                 智能体运行时 · 对话 · 审批 · 知识与记忆 · 实时变更
+                 智能体运行时 · 工作流 · 对话 · 审批 · 知识与记忆 · 实时变更
                                    |
-     Infrastructure：EF Core + PostgreSQL · 唤醒队列 · 心跳调度器 · 模型网关 · 向量化与混合检索
+     Infrastructure：EF Core + PostgreSQL · 唤醒队列 · 心跳调度器 · 工作流引擎 · 模型网关 · 向量化与混合检索
                                    |
                 PostgreSQL 17（pgvector）       模型：Claude / OpenAI 兼容 / 演示
 ```
@@ -44,7 +44,8 @@
 
 - **模块**声明自己的功能权限，可按空间启用或停用；核心模块不可停用。
 - **平台动作**是一次定义、多处使用的业务操作：界面（`/api/actions`）、智能体工具调用、对话中的模型调用走同一个入口。输入类型自动生成 JSON Schema 给模型；入口统一做权限检查和审批判断，动作在独立的依赖注入作用域里执行。
-- 现有动作：`tasks.list/get/create/update_status/assign/comment`，`agents.list_team/wake/hire`，`knowledge.search/get_document/create_document`，`memory.retain/recall/forget`。`agents.hire` 对智能体要求人工审批。
+- 现有动作：`tasks.list/get/create/update_status/assign/comment`，`agents.list_team/wake/hire`，`knowledge.search/get_document/create_document`，`memory.retain/recall/forget`，`workflows.list/list_events/get/create/update/run/get_run`。`agents.hire`、`workflows.create/update` 对智能体要求人工审批。
+- 模块还可以声明自己发布的**平台事件**（`PlatformEventDefinition`，附载荷字段说明），供工作流订阅，见下文。
 - 新模块和动作按约定自动注册，外部程序集用 `AddPlatformModuleAssembly` 接入。
 
 ## 智能体运行时
@@ -74,6 +75,18 @@
 
 任务的 **领取（checkout）** 是带状态条件的原子更新，并带租约，防止两个执行同时处理一个任务，也防止崩溃的执行永久占用任务。
 
+## 工作流与自动化
+
+工作流把固定流程交给平台执行：一个触发器加一串按顺序执行的步骤（定义存在 `workflows`，步骤为 jsonb）。
+
+- **触发**：手动（界面、对话或 `workflows.run`）；平台事件（如 `tasks.status_changed`，可加过滤条件 `trigger.to == 'done'`）；定时（5 段 cron + IANA 时区，夏令时跳过的时刻顺延到切换后的第一分钟，重复的时刻按第一次出现计算）。
+- **步骤**：`action` 执行平台动作；`agent_task` 建任务派给智能体，可以等它完成并取它写在评论里的结论；`llm` 让模型处理文本，输出是 JSON 时可以直接取字段；`delay` 等待。每步可以设执行条件 `when` 和"失败也继续"。
+- **表达式与模板**：字符串里写 `{{ 表达式 }}`，引用 `trigger`、`input`、`steps.<key>.output`；整个值只有一个表达式时保留原始 JSON 类型（数字、对象不会变成字符串）。表达式是自带的小语言（路径、比较、`&& || !`、`contains`、`length/lower/upper/trim/json/default`），保存时做语法校验，不执行任意代码。
+- **运行身份**：工作流以**最后保存它的操作者**（成员或智能体）的身份和当前权限运行。保存时校验引用的动作、事件、智能体都在保存者的权限之内，所以改一个别人建的工作流不能借用对方的权限。智能体保存的工作流遇到需审批的动作会进入等待，审批单关联到这次运行，审批结论由工作流接着处理，不再唤醒智能体。
+- **事件**：业务写操作在自己的事务里调用 `IPlatformEvents.PublishAsync`（载荷按需惰性构造），订阅它的工作流运行与业务变化一起提交；没有订阅时只多一两次索引查询，不构造载荷。
+- **执行引擎**：后台 `WorkflowEngine` 用 `FOR UPDATE SKIP LOCKED` 领取排队中或等待到期的运行，每次推进一步，按运行所有者的身份和权限执行。动作的副作用与"步骤完成"在同一事务提交；所有状态推进都是带 `status = running AND current_step = n` 条件的更新，与取消、删除并发时由条件更新决定胜负，落败的一方整体回滚，动作不会执行两次。等待审批、等待任务完成和延时都是"等待中"状态，由对应事件或到期时间唤醒；登记等待与事件唤醒在同一把 advisory lock 下判断，不会错过唤醒。进程启动时把中断的运行放回队列。
+- **防失控**：工作流自己的步骤引发的事件不会再触发它自己；嵌套触发深度上限 3；每个工作流每分钟最多被事件触发 30 次（均可配置）。运行保存启动时的定义快照，修改工作流不影响已开始的运行；编辑带 `expectedUpdatedAt`，推进定时的下一次时间不算编辑。
+
 ## 对话
 
 对话是用户与平台的直接入口：用户消息和模型回复（含工具调用与结果）按序存储在 `conversation_messages`（jsonb）。每一轮在当前用户的身份与权限下调用平台动作，所以对话里能做的事和界面上完全一致。客户端可以用 SSE（`POST /api/conversations/{id}/messages`）或 SignalR 的 `StreamChat` 接收流式事件。
@@ -95,7 +108,7 @@
 
 ## 实时通道
 
-写操作提交后发布 **实体变更**（agent、work_item、run、approval、conversation、module、knowledge_document、memory），SignalR 按租户分组推送；客户端据此让对应查询失效重取，三端都不轮询。查看某次执行时可订阅该执行的分组，接收逐字输出和新事件；客户端会在断线重连后自动重新订阅，并把当前查询全部重取一次补上断线期间的变化。连接的启动与断开按调用顺序串行执行（切换空间时不会卡在断开中），首次连接失败会按退避节奏继续重试。
+写操作提交后发布 **实体变更**（agent、work_item、run、approval、conversation、module、knowledge_document、memory、workflow、workflow_run），SignalR 按租户分组推送；客户端据此让对应查询失效重取，三端都不轮询。查看某次执行时可订阅该执行的分组，接收逐字输出和新事件；客户端会在断线重连后自动重新订阅，并把当前查询全部重取一次补上断线期间的变化。连接的启动与断开按调用顺序串行执行（切换空间时不会卡在断开中），首次连接失败会按退避节奏继续重试。
 
 编辑类接口带上读取时的 `updatedAt`（例如 `UpdateWorkItemRequest.expectedUpdatedAt`），期间被别人或智能体改过就返回 409，而不是用旧数据覆盖。成员被停用、移除或角色权限变化后，本实例的权限缓存在提交后立即清除。
 
@@ -113,17 +126,19 @@
 
 - **Web**：Next.js App Router + shadcn/ui；TanStack Query 管理服务端状态，查询键集中定义，实时变更映射到查询失效。可通过 `NEXT_OUTPUT=export` 静态导出。
 - **桌面**：Tauri 2 只做原生外壳，加载 Web 静态导出；单实例、窗口状态记忆、外链用系统浏览器打开；CSP 限制脚本只能来自应用本身。
-- **移动**：Expo Router；令牌存系统安全存储；对话用 `expo/fetch` 读流，任务与审批通过 SignalR 实时刷新；知识页可以检索文档和记忆。
+- **移动**：Expo Router；令牌存系统安全存储；对话用 `expo/fetch` 读流，任务与审批通过 SignalR 实时刷新；知识页可以检索文档和记忆；“我的”里可以查看、启停和手动运行工作流。
+- 三端共用 `@ainative/api-client` 里的 `sessionCan`，按与后端相同的通配规则决定显示哪些入口。
 
 ## 测试
 
-- 单元测试：领域不变量、权限通配、JSON 约定、动作工具集、模型网关、分词与切分、向量归一化、API 密钥格式。
-- 集成测试：真实 PostgreSQL（Testcontainers 或已有实例），覆盖注册登录、租户隔离、角色权限、成员停用即时生效、模块停用、智能体评论执行、唤醒合并、招聘审批与中断恢复、预算暂停、任务领取冲突、编辑冲突、对话串行与历史上限、实时通道、知识库检索与隔离、记忆可见性、智能体自动回忆、API 密钥、MCP 客户端调用。
+- 单元测试：领域不变量、权限通配、JSON 约定、动作工具集、模型网关、分词与切分、向量归一化、API 密钥格式、工作流表达式与模板、cron 计算（含夏令时）。
+- 集成测试：真实 PostgreSQL（Testcontainers 或已有实例），覆盖注册登录、租户隔离、角色权限、成员停用即时生效、模块停用、智能体评论执行、唤醒合并、招聘审批与中断恢复、预算暂停、任务领取冲突、编辑冲突、对话串行与历史上限、实时通道、知识库检索与隔离、记忆可见性、智能体自动回忆、API 密钥、MCP 客户端调用，以及工作流的手动运行与模板、事件过滤、等待智能体完成、智能体所有的工作流走审批、取消运行驳回审批、防自触发、定时触发、延时、版本冲突、定义校验、权限与租户隔离。
+- 每个集成测试用独立数据库，结束时清空连接池并删库，避免并行时连接数耗尽。
 
 ## 后续方向
 
 - 知识库进阶：PDF/Word 等文件解析、按文档权限过滤、重排序模型、记忆整理（合并、过期）。
 - 接入外部 MCP 服务：让智能体调用外部 MCP 工具。
-- 工作流与自动化：事件触发、定时任务、多智能体编排。
+- 工作流进阶：分支与并行、循环处理列表、外部 Webhook 触发、可视化编排，以及更多模块发布事件。
 - 业务模块：CRM、项目管理、知识管理、分析报表，作为可启用的模块接入。
 - 多实例部署：调度器的领导者选举或分布式领取，Redis 背板的 SignalR。

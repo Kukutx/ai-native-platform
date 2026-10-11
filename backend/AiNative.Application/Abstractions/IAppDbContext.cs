@@ -6,6 +6,7 @@ using AiNative.Domain.Knowledge;
 using AiNative.Domain.Modules;
 using AiNative.Domain.Tenancy;
 using AiNative.Domain.Work;
+using AiNative.Domain.Workflows;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -56,6 +57,12 @@ public interface IAppDbContext
     DbSet<MemoryEntry> MemoryEntries { get; }
 
     DbSet<ApiKey> ApiKeys { get; }
+
+    DbSet<Workflow> Workflows { get; }
+
+    DbSet<WorkflowRun> WorkflowRuns { get; }
+
+    DbSet<WorkflowRunStep> WorkflowRunSteps { get; }
 
     DatabaseFacade Database { get; }
 

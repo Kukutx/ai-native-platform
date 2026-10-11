@@ -1,0 +1,332 @@
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { toProblem, type SaveWorkflowRequest, type WorkflowDto, type WorkflowStep, type WorkflowStepKind, type WorkflowTriggerDto, type WorkflowTriggerKind } from '@ainative/api-client';
+import { useSession } from '@/components/app/session-provider';
+import { Icons } from '@/components/icons';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { api } from '@/lib/api';
+import { workflowStepKind, workflowTriggerKind } from '@/lib/labels';
+import { queryKeys } from '@/lib/query-keys';
+import { cronPresets } from './describe';
+import { FieldError, StepCard, type DraftStep, type FieldErrors } from './step-card';
+
+interface Draft {
+  name: string;
+  description: string;
+  isEnabled: boolean;
+  trigger: WorkflowTriggerDto;
+  steps: DraftStep[];
+}
+
+let uidSeed = 0;
+const nextUid = () => `s${++uidSeed}`;
+
+function localTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+function toDraft(workflow?: WorkflowDto): Draft {
+  if (!workflow) {
+    return { name: '', description: '', isEnabled: true, trigger: { kind: 'manual' }, steps: [] };
+  }
+
+  return {
+    name: workflow.name,
+    description: workflow.description,
+    isEnabled: workflow.isEnabled,
+    trigger: { ...workflow.trigger },
+    steps: workflow.steps.map((step) => ({
+      uid: nextUid(),
+      step: { ...step },
+      inputText: step.input === undefined || step.input === null ? '{}' : JSON.stringify(step.input, null, 2),
+    })),
+  };
+}
+
+function freeKey(steps: DraftStep[]) {
+  const used = new Set(steps.map((s) => s.step.key));
+  let n = steps.length + 1;
+  while (used.has(`step_${n}`)) {
+    n++;
+  }
+
+  return `step_${n}`;
+}
+
+const triggerKinds = Object.keys(workflowTriggerKind) as WorkflowTriggerKind[];
+const NO_PRESET = '__custom__';
+
+export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { session } = useSession();
+  const [draft, setDraft] = useState<Draft>(() => toDraft(workflow));
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const catalog = useQuery({ queryKey: queryKeys.workflowCatalog, queryFn: ({ signal }) => api.workflows.catalog(signal) });
+  const actions = useQuery({ queryKey: queryKeys.actions, queryFn: ({ signal }) => api.actions.list(signal) });
+  const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
+
+  const events = catalog.data?.events;
+  const steps = draft.steps.map((s) => s.step);
+  const setTrigger = (patch: Partial<WorkflowTriggerDto>) => setDraft((d) => ({ ...d, trigger: { ...d.trigger, ...patch } }));
+  const setStep = (uid: string, next: DraftStep) => setDraft((d) => ({ ...d, steps: d.steps.map((s) => (s.uid === uid ? next : s)) }));
+  const addStep = (kind: WorkflowStepKind) =>
+    setDraft((d) => ({
+      ...d,
+      steps: [...d.steps, { uid: nextUid(), step: { key: freeKey(d.steps), name: '', kind }, inputText: '{}' }],
+    }));
+  const moveStep = (index: number, delta: -1 | 1) =>
+    setDraft((d) => {
+      const next = [...d.steps];
+      const [moved] = next.splice(index, 1);
+      next.splice(index + delta, 0, moved!);
+      return { ...d, steps: next };
+    });
+
+  const save = useMutation({
+    mutationFn: (request: SaveWorkflowRequest) => (workflow ? api.workflows.update(workflow.id, request) : api.workflows.create(request)),
+    onSuccess: async (saved) => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.workflows });
+      toast.success(workflow ? '已保存' : '工作流已创建');
+      router.push(`/workflows/view?id=${saved.id}`);
+    },
+    onError: async (error) => {
+      const problem = toProblem(error);
+      setErrors(problem.errors ?? {});
+      if (problem.status === 409 && workflow) {
+        // 期间被别人修改过：按提示载入最新内容，再由用户确认修改。
+        const latest = await queryClient.fetchQuery({ queryKey: queryKeys.workflow(workflow.id), queryFn: () => api.workflows.get(workflow.id), staleTime: 0 });
+        setDraft(toDraft(latest));
+      }
+    },
+  });
+
+  const submit = () => {
+    const local: FieldErrors = {};
+    const payload: WorkflowStep[] = draft.steps.map(({ step, inputText }, index) => {
+      if ((step.kind ?? 'action') !== 'action') {
+        return { ...step, input: undefined };
+      }
+
+      try {
+        return { ...step, input: inputText.trim() ? JSON.parse(inputText) : {} };
+      } catch {
+        local[`steps[${index}].input`] = ['不是合法的 JSON。'];
+        return step;
+      }
+    });
+    setErrors(local);
+    if (Object.keys(local).length) {
+      return;
+    }
+
+    const trigger: WorkflowTriggerDto =
+      draft.trigger.kind === 'event'
+        ? { kind: 'event', eventType: draft.trigger.eventType, filter: draft.trigger.filter || undefined }
+        : draft.trigger.kind === 'schedule'
+          ? { kind: 'schedule', cron: draft.trigger.cron, timeZone: draft.trigger.timeZone || 'UTC' }
+          : { kind: 'manual' };
+    save.mutate({
+      name: draft.name,
+      description: draft.description,
+      isEnabled: draft.isEnabled,
+      trigger,
+      steps: payload,
+      expectedUpdatedAt: workflow?.updatedAt,
+    });
+  };
+
+  const ownerChanges = workflow && !(workflow.owner.kind === 'user' && workflow.owner.id === session?.user.id);
+  const event = events?.find((e) => e.key === draft.trigger.eventType);
+
+  return (
+    <form
+      className='grid gap-6'
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle>基本信息</CardTitle>
+        </CardHeader>
+        <CardContent className='grid gap-4'>
+          <div className='grid gap-2'>
+            <Label htmlFor='wf-name'>名称</Label>
+            <Input id='wf-name' value={draft.name} maxLength={100} required onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} placeholder='例如：新客户跟进' />
+            <FieldError errors={errors} path='name' />
+          </div>
+          <div className='grid gap-2'>
+            <Label htmlFor='wf-description'>说明</Label>
+            <Textarea
+              id='wf-description'
+              rows={2}
+              value={draft.description}
+              onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+              placeholder='什么时候运行、做什么、为什么'
+            />
+            <FieldError errors={errors} path='description' />
+          </div>
+          <label className='flex items-center gap-2 text-sm'>
+            <input type='checkbox' className='accent-primary size-4' checked={draft.isEnabled} onChange={(e) => setDraft((d) => ({ ...d, isEnabled: e.target.checked }))} />
+            启用（停用后不会被事件或定时触发，仍可手动运行）
+          </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>触发方式</CardTitle>
+          <CardDescription>工作流以最后保存它的人的身份和权限运行。</CardDescription>
+        </CardHeader>
+        <CardContent className='grid gap-4'>
+          <div className='flex flex-wrap gap-2'>
+            {triggerKinds.map((kind) => (
+              <Button
+                key={kind}
+                type='button'
+                size='sm'
+                variant={(draft.trigger.kind ?? 'manual') === kind ? 'default' : 'outline'}
+                onClick={() => setTrigger(kind === 'schedule' && !draft.trigger.timeZone ? { kind, timeZone: localTimeZone(), cron: draft.trigger.cron ?? '0 9 * * *' } : { kind })}
+              >
+                {workflowTriggerKind[kind]}
+              </Button>
+            ))}
+          </div>
+
+          {draft.trigger.kind === 'event' ? (
+            <>
+              <div className='grid gap-2'>
+                <Label>事件</Label>
+                <Select value={draft.trigger.eventType ?? ''} onValueChange={(value) => setTrigger({ eventType: value })}>
+                  <SelectTrigger className='w-full sm:w-96'>
+                    <SelectValue placeholder='选择触发事件' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {events?.map((e) => (
+                      <SelectItem key={e.key} value={e.key}>
+                        {e.name} <span className='text-muted-foreground font-mono text-xs'>{e.key}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {event ? <p className='text-muted-foreground text-xs'>{event.description}</p> : null}
+                <FieldError errors={errors} path='trigger.eventType' />
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='wf-filter'>过滤条件</Label>
+                <Input
+                  id='wf-filter'
+                  className='font-mono'
+                  value={draft.trigger.filter ?? ''}
+                  onChange={(e) => setTrigger({ filter: e.target.value })}
+                  placeholder="可选，例如 trigger.to == 'done'"
+                />
+                <FieldError errors={errors} path='trigger.filter' />
+              </div>
+            </>
+          ) : null}
+
+          {draft.trigger.kind === 'schedule' ? (
+            <div className='grid gap-4 sm:grid-cols-3'>
+              <div className='grid gap-2'>
+                <Label>常用</Label>
+                <Select value={cronPresets.some((p) => p.cron === draft.trigger.cron) ? draft.trigger.cron : NO_PRESET} onValueChange={(value) => value !== NO_PRESET && setTrigger({ cron: value })}>
+                  <SelectTrigger className='w-full'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cronPresets.map((p) => (
+                      <SelectItem key={p.cron} value={p.cron}>
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={NO_PRESET}>自定义</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='wf-cron'>cron（分 时 日 月 周）</Label>
+                <Input id='wf-cron' className='font-mono' value={draft.trigger.cron ?? ''} onChange={(e) => setTrigger({ cron: e.target.value })} />
+                <FieldError errors={errors} path='trigger.cron' />
+              </div>
+              <div className='grid gap-2'>
+                <Label htmlFor='wf-tz'>时区</Label>
+                <Input id='wf-tz' value={draft.trigger.timeZone ?? ''} onChange={(e) => setTrigger({ timeZone: e.target.value })} placeholder='Asia/Shanghai' />
+                <FieldError errors={errors} path='trigger.timeZone' />
+              </div>
+            </div>
+          ) : null}
+
+          {(draft.trigger.kind ?? 'manual') === 'manual' ? (
+            <p className='text-muted-foreground text-sm'>在列表或详情页点击“运行”启动，也可以让智能体在对话里运行它。</p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <div className='grid gap-4'>
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <h2 className='text-lg font-semibold'>步骤</h2>
+          <FieldError errors={errors} path='steps' />
+        </div>
+        {draft.steps.map((s, index) => (
+          <StepCard
+            key={s.uid}
+            index={index}
+            draft={s}
+            steps={steps}
+            trigger={draft.trigger}
+            events={events}
+            actions={actions.data}
+            agents={agents.data}
+            errors={errors}
+            onChange={(next) => setStep(s.uid, next)}
+            onMove={(delta) => moveStep(index, delta)}
+            onRemove={() => setDraft((d) => ({ ...d, steps: d.steps.filter((x) => x.uid !== s.uid) }))}
+          />
+        ))}
+        <div className='flex flex-wrap gap-2'>
+          {(Object.keys(workflowStepKind) as WorkflowStepKind[]).map((kind) => (
+            <Button key={kind} type='button' variant='outline' size='sm' onClick={() => addStep(kind)}>
+              <Icons.add className='size-4' />
+              {workflowStepKind[kind].label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {ownerChanges ? (
+        <Alert>
+          <Icons.info className='size-4' />
+          <AlertDescription>
+            这个工作流目前以「{workflow.owner.name ?? '其他身份'}」的身份运行，保存后改为以你的身份和权限运行。
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      <div className='flex justify-end gap-2'>
+        <Button type='button' variant='outline' onClick={() => router.back()}>
+          取消
+        </Button>
+        <Button type='submit' disabled={save.isPending || draft.steps.length === 0}>
+          {workflow ? '保存' : '创建'}
+        </Button>
+      </div>
+    </form>
+  );
+}

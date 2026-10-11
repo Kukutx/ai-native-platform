@@ -1,4 +1,12 @@
-import type { ApprovalStatus, WorkItemPriority, WorkItemStatus } from '@ainative/api-client';
+import type {
+  ApprovalStatus,
+  WorkItemPriority,
+  WorkItemStatus,
+  WorkflowRunStatus,
+  WorkflowStepKind,
+  WorkflowStepStatus,
+  WorkflowTriggerKind,
+} from '@ainative/api-client';
 
 export const workItemStatus: Record<WorkItemStatus, string> = {
   backlog: '待规划',
@@ -30,6 +38,36 @@ export const toolStatus: Record<string, string> = {
   forbidden: '无权限',
   not_found: '不存在',
   invalid_input: '参数有误',
+};
+
+export const workflowRunStatus: Record<WorkflowRunStatus, string> = {
+  queued: '排队中',
+  running: '运行中',
+  waiting: '等待中',
+  succeeded: '成功',
+  failed: '失败',
+  cancelled: '已取消',
+};
+
+export const workflowStepStatus: Record<WorkflowStepStatus, string> = {
+  running: '执行中',
+  waiting: '等待中',
+  succeeded: '成功',
+  failed: '失败',
+  skipped: '已跳过',
+};
+
+export const workflowTriggerKind: Record<WorkflowTriggerKind, string> = {
+  manual: '手动运行',
+  event: '事件触发',
+  schedule: '定时运行',
+};
+
+export const workflowStepKind: Record<WorkflowStepKind, string> = {
+  action: '执行动作',
+  agent_task: '派给智能体',
+  llm: '模型处理',
+  delay: '等待',
 };
 
 export function formatTime(value?: string | null) {

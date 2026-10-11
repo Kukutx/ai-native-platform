@@ -31,6 +31,15 @@ public interface IRequestPipelineBehavior<TRequest, TResponse>
     Task<TResponse> HandleAsync(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// 请求管道之外（后台执行）需要事务时使用，语义与写操作的事务管道相同：结束后保存并提交，提交成功后才执行登记的后续动作；
+/// 失败回滚并清空跟踪状态。
+/// </summary>
+public interface IUnitOfWork
+{
+    Task<T> RunAsync<T>(Func<Task<T>> work, CancellationToken cancellationToken = default);
+}
+
 public readonly record struct Unit
 {
     public static Unit Value => default;

@@ -59,6 +59,34 @@ internal sealed class AgentsModule : IPlatformModule
         new(Access.Features.Approvals.View, "查看审批", AgentsModuleKeys.Agents),
         new(Access.Features.Approvals.Decide, "处理审批", AgentsModuleKeys.Agents),
     ];
+
+    public IReadOnlyList<PlatformEventDefinition> Events { get; } =
+    [
+        new(
+            PlatformEventKeys.TaskCreated,
+            "任务创建",
+            AgentsModuleKeys.Agents,
+            Access.Features.Tasks.View,
+            "新任务被创建时触发（人、智能体或工作流创建的都算）。载荷：trigger.task 为任务（id、key、title、description、status、priority、assigneeAgentId 等），trigger.actor 为创建者（kind、id、name）。"),
+        new(
+            PlatformEventKeys.TaskStatusChanged,
+            "任务状态变化",
+            AgentsModuleKeys.Agents,
+            Access.Features.Tasks.View,
+            "任务状态改变时触发。载荷：trigger.task 为变化后的任务，trigger.from / trigger.to 为变化前后的状态（backlog、todo、in_progress、in_review、blocked、done、cancelled），trigger.comment 为随状态变化留下的说明（可能为空），trigger.actor 为操作者。"),
+        new(
+            PlatformEventKeys.TaskCommented,
+            "任务有新评论",
+            AgentsModuleKeys.Agents,
+            Access.Features.Tasks.View,
+            "任务下有新评论时触发。载荷：trigger.task 为任务，trigger.comment.body 为评论内容，trigger.actor 为评论者（kind 为 user 或 agent）。智能体也会评论，回复类工作流建议加过滤条件 trigger.actor.kind == 'user'，避免和智能体互相触发。"),
+        new(
+            PlatformEventKeys.ApprovalDecided,
+            "审批有结论",
+            AgentsModuleKeys.Agents,
+            Access.Features.Approvals.View,
+            "审批被批准（并执行完）或被拒绝时触发。载荷：trigger.approval 为审批单（actionKey、actionTitle、input、status 为 approved 或 rejected、decisionNote、result、executionError），trigger.actor 为处理人。"),
+    ];
 }
 
 /// <summary>

@@ -39,6 +39,11 @@ public sealed record ActionInvocationOptions
     public Guid? WorkItemId { get; init; }
 
     /// <summary>
+    /// 由工作流步骤发起时的运行 ID：需要审批时记在审批单上，结论出来后恢复该运行。
+    /// </summary>
+    public Guid? WorkflowRunId { get; init; }
+
+    /// <summary>
     /// 发起方给出的理由，进入审批单。
     /// </summary>
     public string? Rationale { get; init; }
@@ -151,6 +156,7 @@ internal sealed class ActionInvoker(
                 RequestedBy = tenant.Actor,
                 RunId = options.RunId,
                 WorkItemId = options.WorkItemId,
+                WorkflowRunId = options.WorkflowRunId,
             };
             db.Approvals.Add(approval);
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

@@ -19,6 +19,11 @@ public interface IPlatformModule
     bool EnabledByDefault { get; }
 
     IReadOnlyList<FeatureDefinition> Features { get; }
+
+    /// <summary>
+    /// 模块发布的平台事件，工作流可以订阅它们作为触发器。
+    /// </summary>
+    IReadOnlyList<PlatformEventDefinition> Events => [];
 }
 
 public interface IModuleCatalog
@@ -28,6 +33,10 @@ public interface IModuleCatalog
     IPlatformModule? Find(string key);
 
     IReadOnlyList<FeatureDefinition> AllFeatures { get; }
+
+    IReadOnlyList<PlatformEventDefinition> AllEvents { get; }
+
+    PlatformEventDefinition? FindEvent(string key);
 }
 
 public sealed class ModuleCatalog(IEnumerable<IPlatformModule> modules) : IModuleCatalog
@@ -39,6 +48,10 @@ public sealed class ModuleCatalog(IEnumerable<IPlatformModule> modules) : IModul
     public IPlatformModule? Find(string key) => _modules.FirstOrDefault(m => m.Key == key);
 
     public IReadOnlyList<FeatureDefinition> AllFeatures => [.. _modules.SelectMany(m => m.Features)];
+
+    public IReadOnlyList<PlatformEventDefinition> AllEvents => [.. _modules.SelectMany(m => m.Events)];
+
+    public PlatformEventDefinition? FindEvent(string key) => _modules.SelectMany(m => m.Events).FirstOrDefault(e => e.Key == key);
 }
 
 /// <summary>

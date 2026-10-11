@@ -14,19 +14,23 @@ namespace AiNative.IntegrationTests.Infrastructure;
 /// </summary>
 public abstract class IntegrationTest(PostgresFixture postgres) : IAsyncLifetime
 {
+    private string _connectionString = string.Empty;
+
     protected ApiFactory Factory { get; private set; } = null!;
 
     protected static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     public async ValueTask InitializeAsync()
     {
-        Factory = new ApiFactory(await postgres.CreateDatabaseAsync());
+        _connectionString = await postgres.CreateDatabaseAsync();
+        Factory = new ApiFactory(_connectionString);
         _ = Factory.Server;
     }
 
     public async ValueTask DisposeAsync()
     {
         await Factory.DisposeAsync();
+        await postgres.DropDatabaseAsync(_connectionString);
         GC.SuppressFinalize(this);
     }
 
