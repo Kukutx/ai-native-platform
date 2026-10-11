@@ -15,6 +15,7 @@ import { ActivityTimeline } from '@/features/crm/activity-timeline';
 import { ContactFormDialog } from '@/features/crm/contact-form-dialog';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
 import { InfoRow } from '@/features/crm/info-row';
+import { ListLimitNote } from '@/features/crm/list-limit-note';
 import { api } from '@/lib/api';
 import { crmDealStatus, formatAmount, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -39,7 +40,7 @@ function ContactDetail() {
     return <Skeleton className='m-6 h-40' />;
   }
 
-  const { contact, deals } = detail.data;
+  const { contact, deals, dealTotal } = detail.data;
   const manage = can('crm.manage');
 
   return (
@@ -106,7 +107,7 @@ function ContactDetail() {
           </Card>
           <Card>
             <CardHeader className='flex flex-row items-center justify-between'>
-              <CardTitle>商机 {deals.length ? <span className='text-muted-foreground font-normal'>{deals.length}</span> : null}</CardTitle>
+              <CardTitle>商机 {dealTotal ? <span className='text-muted-foreground font-normal'>{dealTotal}</span> : null}</CardTitle>
               {manage ? (
                 <Button size='sm' variant='outline' onClick={() => setAddingDeal(true)}>
                   <Icons.add />
@@ -134,6 +135,7 @@ function ContactDetail() {
               ) : (
                 <p className='text-muted-foreground text-sm'>还没有商机。</p>
               )}
+              <ListLimitNote shown={deals.length} total={dealTotal} />
             </CardContent>
           </Card>
         </div>

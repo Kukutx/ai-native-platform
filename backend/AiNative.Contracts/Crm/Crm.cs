@@ -74,16 +74,25 @@ public sealed record CrmActivityDto(
     ActorDto Author,
     DateTimeOffset CreatedAt);
 
+/// <summary>
+/// 客户详情。联系人、商机各最多附带 200 个，ContactTotal、DealTotal 为实际总数，大于列表长度说明列表被截断。
+/// </summary>
 public sealed record CrmCompanyDetailDto(
     CrmCompanyDto Company,
     IReadOnlyList<CrmContactDto> Contacts,
     IReadOnlyList<CrmDealDto> Deals,
-    IReadOnlyList<CrmActivityDto> Activities);
+    IReadOnlyList<CrmActivityDto> Activities,
+    int ContactTotal,
+    int DealTotal);
 
+/// <summary>
+/// 联系人详情。商机最多附带 200 个，DealTotal 为实际总数。
+/// </summary>
 public sealed record CrmContactDetailDto(
     CrmContactDto Contact,
     IReadOnlyList<CrmDealDto> Deals,
-    IReadOnlyList<CrmActivityDto> Activities);
+    IReadOnlyList<CrmActivityDto> Activities,
+    int DealTotal);
 
 public sealed record CrmDealDetailDto(CrmDealDto Deal, IReadOnlyList<CrmActivityDto> Activities);
 

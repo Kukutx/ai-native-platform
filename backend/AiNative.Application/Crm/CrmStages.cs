@@ -54,8 +54,7 @@ internal sealed class CrmStageHandlers(
     IAppDbContext db,
     ITenantContext tenant,
     ITransactionLock locks,
-    IChangeFeed changes,
-    TimeProvider clock) :
+    IChangeFeed changes) :
     IRequestHandler<ListCrmStagesQuery, IReadOnlyList<CrmStageDto>>,
     IRequestHandler<SaveCrmStagesCommand, IReadOnlyList<CrmStageDto>>
 {
@@ -63,7 +62,7 @@ internal sealed class CrmStageHandlers(
         => [.. (await db.CrmStages.AsNoTracking().OrderBy(s => s.Position).ToListAsync(cancellationToken).ConfigureAwait(false)).Select(s => s.ToDto())];
 
     /// <summary>
-    /// 按提交的顺序整体替换阶段列表。去掉的阶段里不能还有商机；阶段类型改变时，其中商机的状态随之改变。
+    /// 按提交的顺序整体替换阶段列表。去掉的阶段、改变类型的阶段里都不能还有商机。
     /// </summary>
     public async Task<IReadOnlyList<CrmStageDto>> HandleAsync(SaveCrmStagesCommand request, CancellationToken cancellationToken)
     {
@@ -94,7 +93,24 @@ internal sealed class CrmStageHandlers(
             db.CrmStages.RemoveRange(removed);
         }
 
-        var now = clock.GetUtcNow();
+        // 商机的状态、结束时间、阶段变化记录和事件都随"推进"产生；直接改有商机的阶段类型会绕过这些，所以不允许。
+        var kindChanged = request.Request.Stages
+            .Where(s => s.Id is { } id && existing[id].Kind != s.Kind)
+            .Select(s => s.Id!.Value)
+            .ToList();
+        if (kindChanged.Count > 0)
+        {
+            var occupied = await db.CrmDeals.Where(d => kindChanged.Contains(d.StageId))
+                .GroupBy(d => d.StageId).Select(g => new { g.Key, Count = g.Count() })
+                .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+            if (occupied is not null)
+            {
+                throw new ConflictException(
+                    "crm_stage.kind_in_use",
+                    $"阶段「{existing[occupied.Key].Name}」里还有 {occupied.Count} 个商机，不能改变它的类型。请先把这些商机推进到其他阶段。");
+            }
+        }
+
         var result = new List<CrmStage>();
         for (var position = 0; position < request.Request.Stages.Count; position++)
         {
@@ -103,10 +119,6 @@ internal sealed class CrmStageHandlers(
             if (item.Id is { } id)
             {
                 stage = existing[id];
-                if (stage.Kind != item.Kind)
-                {
-                    await SyncDealStatusAsync(stage.Id, item.Kind, now, cancellationToken).ConfigureAwait(false);
-                }
             }
             else
             {
@@ -125,25 +137,6 @@ internal sealed class CrmStageHandlers(
         return [.. result.Select(s => s.ToDto())];
     }
 
-    /// <summary>
-    /// 阶段类型变化后同步其中商机的状态：变成赢单或输单时记下结束时间（已结束的保留原时间），变回进行中则清除。
-    /// </summary>
-    private async Task SyncDealStatusAsync(Guid stageId, CrmStageKind kind, DateTimeOffset now, CancellationToken cancellationToken)
-    {
-        var deals = db.CrmDeals.Where(d => d.StageId == stageId);
-        var affected = kind switch
-        {
-            CrmStageKind.Open => await deals.ExecuteUpdateAsync(
-                s => s.SetProperty(d => d.Status, CrmDealStatus.Open).SetProperty(d => d.ClosedAt, (DateTimeOffset?)null), cancellationToken).ConfigureAwait(false),
-            _ => await deals.ExecuteUpdateAsync(
-                s => s.SetProperty(d => d.Status, kind == CrmStageKind.Won ? CrmDealStatus.Won : CrmDealStatus.Lost)
-                    .SetProperty(d => d.ClosedAt, d => d.ClosedAt ?? now), cancellationToken).ConfigureAwait(false),
-        };
-        if (affected > 0)
-        {
-            changes.Publish(CrmRealtime.Deal, stageId, RealtimeChangeKind.Updated);
-        }
-    }
 }
 
 /// <summary>

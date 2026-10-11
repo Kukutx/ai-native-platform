@@ -196,6 +196,11 @@ internal sealed class CrmRecords(IAppDbContext db, ITenantContext tenant, IPlatf
 {
     public const int TimelinePageSize = 50;
 
+    /// <summary>
+    /// 详情里最多附带这么多联系人、商机；总数另行返回。
+    /// </summary>
+    public const int RelatedLimit = 200;
+
     public async Task EnsureOwnerAsync(Guid? userId, CancellationToken cancellationToken)
     {
         if (userId is { } id && !await db.Memberships.AnyAsync(m => m.UserId == id, cancellationToken).ConfigureAwait(false))
@@ -250,6 +255,35 @@ internal sealed class CrmRecords(IAppDbContext db, ITenantContext tenant, IPlatf
         {
             await db.CrmDeals.Where(d => d.Id == deal && (d.LastActivityAt == null || d.LastActivityAt < at))
                 .ExecuteUpdateAsync(s => s.SetProperty(d => d.LastActivityAt, at), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// 删除跟进记录后，按剩下的记录重新计算关联记录的"最近跟进时间"（没有剩余记录时清空）。
+    /// </summary>
+    /// <param name="deletedId">正在删除、尚未落库的那条记录，计算时排除。</param>
+    public async Task RecomputeLastActivityAsync(Guid? companyId, Guid? contactId, Guid? dealId, Guid deletedId, CancellationToken cancellationToken)
+    {
+        var remaining = db.CrmActivities.Where(a => a.Id != deletedId);
+        if (companyId is { } company)
+        {
+            await db.CrmCompanies.Where(c => c.Id == company)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastActivityAt, c => remaining.Where(a => a.CompanyId == c.Id).Max(a => (DateTimeOffset?)a.OccurredAt)), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (contactId is { } contact)
+        {
+            await db.CrmContacts.Where(c => c.Id == contact)
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastActivityAt, c => remaining.Where(a => a.ContactId == c.Id).Max(a => (DateTimeOffset?)a.OccurredAt)), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (dealId is { } deal)
+        {
+            await db.CrmDeals.Where(d => d.Id == deal)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.LastActivityAt, d => remaining.Where(a => a.DealId == d.Id).Max(a => (DateTimeOffset?)a.OccurredAt)), cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 

@@ -93,7 +93,7 @@ function CompanyForm({ company, onClose, onSaved }: { company: CrmCompanyDto | n
           <Label htmlFor='company-website'>官网</Label>
           <Input id='company-website' {...field('website')} maxLength={300} placeholder='https://' />
         </div>
-        <OwnerSelect value={form.owner} onChange={(owner) => setForm({ ...form, owner })} />
+        <OwnerSelect value={form.owner} onChange={(owner) => setForm({ ...form, owner })} allowNone={!!company} />
       </div>
       <div className='grid gap-2'>
         <Label htmlFor='company-address'>地址</Label>

@@ -119,7 +119,7 @@ function ContactForm({
           <Label htmlFor='contact-tags'>标签</Label>
           <Input id='contact-tags' {...field('tags')} placeholder='用逗号分隔' />
         </div>
-        <OwnerSelect value={owner} onChange={setOwner} />
+        <OwnerSelect value={owner} onChange={setOwner} allowNone={!!contact} />
       </div>
       <div className='grid gap-2'>
         <Label htmlFor='contact-description'>备注</Label>

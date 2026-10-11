@@ -161,7 +161,7 @@ public sealed class CrmTests(PostgresFixture postgres) : IntegrationTest(postgre
     }
 
     [Fact]
-    public async Task Stage_settings_protect_stages_in_use_and_resync_deal_status()
+    public async Task Stage_settings_protect_stages_in_use()
     {
         var auth = await RegisterAsync();
         using var client = Client(auth.AccessToken);
@@ -182,29 +182,33 @@ public sealed class CrmTests(PostgresFixture postgres) : IntegrationTest(postgre
         }, PlatformJson.Options, Ct);
         duplicate.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
-        // 改名、删掉没有商机的阶段、新增阶段、调整顺序；把"方案报价"改成赢单类型，其中的商机随之变成赢单。
+        // 有商机的阶段不能直接改类型：状态、结束时间和事件都要随"推进"产生。
+        var kindInUse = await client.PutAsJsonAsync(
+            "/api/crm/stages", Save(current.Select(s => s.Id == stages["方案报价"].Id ? s with { Kind = CrmStageKind.Won } : s)), PlatformJson.Options, Ct);
+        kindInUse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await CodeAsync(kindInUse)).Should().Be("crm_stage.kind_in_use");
+        (await GetAsync<CrmDealDetailDto>(client, $"/api/crm/deals/{deal.Id}")).Deal.Status.Should().Be(CrmDealStatus.Open);
+
+        // 改名、删掉没有商机的阶段、新增阶段、调整顺序；没有商机的"商务谈判"可以改成赢单类型。
         var saved = await PutAsync<List<CrmStageDto>>(client, "/api/crm/stages", new SaveCrmStagesRequest
         {
             Stages =
             [
                 new SaveCrmStageItem { Id = stages["线索"].Id, Name = "初步接触", Probability = 5, Kind = CrmStageKind.Open },
                 new SaveCrmStageItem { Name = "试用中", Probability = 40, Kind = CrmStageKind.Open },
-                new SaveCrmStageItem { Id = stages["方案报价"].Id, Name = "签约", Probability = 100, Kind = CrmStageKind.Won },
+                new SaveCrmStageItem { Id = stages["方案报价"].Id, Name = "方案报价", Probability = 60, Kind = CrmStageKind.Open },
+                new SaveCrmStageItem { Id = stages["商务谈判"].Id, Name = "签约", Probability = 100, Kind = CrmStageKind.Won },
                 new SaveCrmStageItem { Id = stages["输单"].Id, Name = "输单", Probability = 0, Kind = CrmStageKind.Lost },
             ],
         });
 
-        saved.Select(s => s.Name).Should().Equal("初步接触", "试用中", "签约", "输单");
-        saved.Select(s => s.Position).Should().Equal(0, 1, 2, 3);
+        saved.Select(s => s.Name).Should().Equal("初步接触", "试用中", "方案报价", "签约", "输单");
+        saved.Select(s => s.Position).Should().Equal(0, 1, 2, 3, 4);
         saved[0].Id.Should().Be(stages["线索"].Id);
-        var resynced = await GetAsync<CrmDealDetailDto>(client, $"/api/crm/deals/{deal.Id}");
-        resynced.Deal.Status.Should().Be(CrmDealStatus.Won);
-        resynced.Deal.StageName.Should().Be("签约");
-        resynced.Deal.ClosedAt.Should().NotBeNull();
-
-        var reopened = await PutAsync<List<CrmStageDto>>(client, "/api/crm/stages", Save(saved.Select(s => s.Name == "签约" ? s with { Kind = CrmStageKind.Open } : s)));
-        reopened.Should().HaveCount(4);
-        (await GetAsync<CrmDealDetailDto>(client, $"/api/crm/deals/{deal.Id}")).Deal.Should().Match<CrmDealDto>(d => d.Status == CrmDealStatus.Open && d.ClosedAt == null);
+        saved[3].Kind.Should().Be(CrmStageKind.Won);
+        var unchanged = await GetAsync<CrmDealDetailDto>(client, $"/api/crm/deals/{deal.Id}");
+        unchanged.Deal.Status.Should().Be(CrmDealStatus.Open);
+        unchanged.Deal.StageName.Should().Be("方案报价");
     }
 
     [Fact]
@@ -292,6 +296,53 @@ public sealed class CrmTests(PostgresFixture postgres) : IntegrationTest(postgre
         (await client.DeleteAsync(new Uri($"/api/crm/deals/{deal.Id}", UriKind.Relative), Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
         (await client.GetAsync(new Uri($"/api/crm/activities/{stageChange.Id}", UriKind.Relative), Ct)).IsSuccessStatusCode.Should().BeFalse();
         (await GetAsync<PagedResult<CrmActivityDto>>(client, "/api/crm/activities?pageSize=100")).Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Associations_stay_consistent_and_last_activity_follows_deletes()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var acme = await PostAsync<CrmCompanyDto>(client, "/api/crm/companies", new SaveCrmCompanyRequest { Name = "星火科技" });
+        var other = await PostAsync<CrmCompanyDto>(client, "/api/crm/companies", new SaveCrmCompanyRequest { Name = "远山集团" });
+        var contact = await PostAsync<CrmContactDto>(client, "/api/crm/contacts", new SaveCrmContactRequest { Name = "王经理", CompanyId = acme.Id });
+        var outsider = await PostAsync<CrmContactDto>(client, "/api/crm/contacts", new SaveCrmContactRequest { Name = "李总", CompanyId = other.Id });
+        var deal = await PostAsync<CrmDealDto>(client, "/api/crm/deals", new SaveCrmDealRequest { Title = "年度采购", CompanyId = acme.Id, ContactId = contact.Id });
+
+        // 跟进记录的客户、联系人要和商机一致，否则会出现在不相干的客户时间线上。
+        var wrongCompany = await client.PostAsJsonAsync(
+            "/api/crm/activities", new LogCrmActivityRequest { Kind = CrmActivityKind.Note, Content = "x", DealId = deal.Id, CompanyId = other.Id }, PlatformJson.Options, Ct);
+        wrongCompany.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var wrongContact = await client.PostAsJsonAsync(
+            "/api/crm/activities", new LogCrmActivityRequest { Kind = CrmActivityKind.Note, Content = "x", DealId = deal.Id, ContactId = outsider.Id }, PlatformJson.Options, Ct);
+        wrongContact.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // 删除最近一条跟进后，最近跟进时间回到剩下记录里最晚的一条。
+        var earlier = await PostAsync<CrmActivityDto>(client, "/api/crm/activities", new LogCrmActivityRequest
+        {
+            Kind = CrmActivityKind.Meeting, Content = "上门拜访", DealId = deal.Id, OccurredAt = DateTimeOffset.UtcNow.AddDays(-3),
+        });
+        earlier.CompanyId.Should().Be(acme.Id);
+        var latest = await PostAsync<CrmActivityDto>(client, "/api/crm/activities", new LogCrmActivityRequest { Kind = CrmActivityKind.Call, Content = "电话确认", DealId = deal.Id, ContactId = contact.Id });
+        (await GetAsync<CrmDealDetailDto>(client, $"/api/crm/deals/{deal.Id}")).Deal.LastActivityAt.Should().BeCloseTo(latest.OccurredAt, TimeSpan.FromMilliseconds(1));
+        (await client.DeleteAsync(new Uri($"/api/crm/activities/{latest.Id}", UriKind.Relative), Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        (await GetAsync<CrmDealDetailDto>(client, $"/api/crm/deals/{deal.Id}")).Deal.LastActivityAt.Should().BeCloseTo(earlier.OccurredAt, TimeSpan.FromMilliseconds(1));
+        var companyDetail = await GetAsync<CrmCompanyDetailDto>(client, $"/api/crm/companies/{acme.Id}");
+        companyDetail.Company.LastActivityAt.Should().BeCloseTo(earlier.OccurredAt, TimeSpan.FromMilliseconds(1));
+        companyDetail.ContactTotal.Should().Be(1);
+        companyDetail.DealTotal.Should().Be(1);
+        (await GetAsync<CrmContactDetailDto>(client, $"/api/crm/contacts/{contact.Id}")).Contact.LastActivityAt.Should().BeNull();
+
+        // 联系人换到别的客户后，原客户的商机保留在原客户名下，但不再由这个人对接。
+        var moved = await PutAsync<CrmContactDto>(client, $"/api/crm/contacts/{contact.Id}", new SaveCrmContactRequest
+        {
+            Name = "王经理", CompanyId = other.Id, OwnerUserId = contact.Owner?.Id,
+        });
+        moved.CompanyId.Should().Be(other.Id);
+        var kept = await GetAsync<CrmDealDetailDto>(client, $"/api/crm/deals/{deal.Id}");
+        kept.Deal.CompanyId.Should().Be(acme.Id);
+        kept.Deal.ContactId.Should().BeNull();
+        (await GetAsync<CrmContactDetailDto>(client, $"/api/crm/contacts/{contact.Id}")).DealTotal.Should().Be(0);
     }
 
     [Fact]

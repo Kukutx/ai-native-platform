@@ -2,7 +2,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } fr
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { sessionCan } from '@ainative/api-client';
-import { ActivitySection, ContactLine, LinkRow } from '@/components/crm';
+import { ActivitySection, ContactLine, LimitNote, LinkRow } from '@/components/crm';
 import { Button, Card, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { crmDealStatus, formatAmount } from '@/lib/labels';
@@ -18,7 +18,7 @@ export default function ContactDetailScreen() {
     return <View style={[styles.flex, { backgroundColor: p.background }]} />;
   }
 
-  const { contact, deals, activities } = detail.data;
+  const { contact, deals, activities, dealTotal } = detail.data;
   const manage = sessionCan(session.data, 'crm.manage');
 
   return (
@@ -37,7 +37,7 @@ export default function ContactDetailScreen() {
           {contact.description ? <Text style={{ color: p.text, fontSize: 15, lineHeight: 22 }}>{contact.description}</Text> : null}
         </Card>
         <Card>
-          <Text style={[styles.heading, { color: p.text }]}>商机 {deals.length || ''}</Text>
+          <Text style={[styles.heading, { color: p.text }]}>商机 {dealTotal || ''}</Text>
           {deals.map((d) => (
             <LinkRow
               key={d.id}
@@ -46,6 +46,7 @@ export default function ContactDetailScreen() {
               href={{ pathname: '/crm/deals/[id]', params: { id: d.id } }}
             />
           ))}
+          <LimitNote shown={deals.length} total={dealTotal} />
           {manage ? (
             <Button
               title='添加商机'

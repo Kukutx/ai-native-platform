@@ -16,6 +16,7 @@ import { CompanyFormDialog } from '@/features/crm/company-form-dialog';
 import { ContactFormDialog } from '@/features/crm/contact-form-dialog';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
 import { InfoRow } from '@/features/crm/info-row';
+import { ListLimitNote } from '@/features/crm/list-limit-note';
 import { api } from '@/lib/api';
 import { crmDealStatus, formatAmount, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -41,7 +42,7 @@ function CompanyDetail() {
     return <Skeleton className='m-6 h-40' />;
   }
 
-  const { company, contacts, deals } = detail.data;
+  const { company, contacts, deals, contactTotal, dealTotal } = detail.data;
   const manage = can('crm.manage');
   const picked = { id: company.id, name: company.name };
 
@@ -117,7 +118,7 @@ function CompanyDetail() {
           </Card>
           <Card>
             <CardHeader className='flex flex-row items-center justify-between'>
-              <CardTitle>联系人 {contacts.length ? <span className='text-muted-foreground font-normal'>{contacts.length}</span> : null}</CardTitle>
+              <CardTitle>联系人 {contactTotal ? <span className='text-muted-foreground font-normal'>{contactTotal}</span> : null}</CardTitle>
               {manage ? (
                 <Button size='sm' variant='outline' onClick={() => setAddingContact(true)}>
                   <Icons.add />
@@ -140,11 +141,12 @@ function CompanyDetail() {
               ) : (
                 <p className='text-muted-foreground text-sm'>还没有联系人。</p>
               )}
+              <ListLimitNote shown={contacts.length} total={contactTotal} />
             </CardContent>
           </Card>
           <Card>
             <CardHeader className='flex flex-row items-center justify-between'>
-              <CardTitle>商机 {deals.length ? <span className='text-muted-foreground font-normal'>{deals.length}</span> : null}</CardTitle>
+              <CardTitle>商机 {dealTotal ? <span className='text-muted-foreground font-normal'>{dealTotal}</span> : null}</CardTitle>
               {manage ? (
                 <Button size='sm' variant='outline' onClick={() => setAddingDeal(true)}>
                   <Icons.add />
@@ -172,6 +174,7 @@ function CompanyDetail() {
               ) : (
                 <p className='text-muted-foreground text-sm'>还没有商机。</p>
               )}
+              <ListLimitNote shown={deals.length} total={dealTotal} />
             </CardContent>
           </Card>
         </div>

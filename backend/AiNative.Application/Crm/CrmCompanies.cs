@@ -89,11 +89,16 @@ internal sealed class CrmCompanyHandlers(IAppDbContext db, ITenantContext tenant
     {
         var company = await db.CrmCompanies.AsNoTracking().FirstOrDefaultAsync(c => c.Id == request.Id, cancellationToken).ConfigureAwait(false)
                       ?? throw new NotFoundException("crm_company", request.Id);
-        var contacts = await db.CrmContacts.AsNoTracking().Where(c => c.CompanyId == company.Id).OrderBy(c => c.Name)
-            .Take(200).ToListAsync(cancellationToken).ConfigureAwait(false);
-        var deals = await db.CrmDeals.AsNoTracking().Where(d => d.CompanyId == company.Id)
-            .OrderBy(d => d.Status).ThenByDescending(d => d.UpdatedAt)
-            .Take(200).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var companyContacts = db.CrmContacts.AsNoTracking().Where(c => c.CompanyId == company.Id);
+        var contacts = await companyContacts.OrderBy(c => c.Name)
+            .Take(CrmRecords.RelatedLimit).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var companyDeals = db.CrmDeals.AsNoTracking().Where(d => d.CompanyId == company.Id);
+        var deals = await companyDeals.OrderBy(d => d.Status).ThenByDescending(d => d.UpdatedAt)
+            .Take(CrmRecords.RelatedLimit).ToListAsync(cancellationToken).ConfigureAwait(false);
+
+        // 没取满时就是全部；取满了再数一次总数，调用方据此知道列表被截断了。
+        var contactTotal = contacts.Count < CrmRecords.RelatedLimit ? contacts.Count : await companyContacts.CountAsync(cancellationToken).ConfigureAwait(false);
+        var dealTotal = deals.Count < CrmRecords.RelatedLimit ? deals.Count : await companyDeals.CountAsync(cancellationToken).ConfigureAwait(false);
         var activities = await db.CrmActivities.AsNoTracking().Where(a => a.CompanyId == company.Id)
             .OrderByDescending(a => a.OccurredAt).ThenByDescending(a => a.Id)
             .Take(CrmRecords.TimelinePageSize).ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -101,7 +106,9 @@ internal sealed class CrmCompanyHandlers(IAppDbContext db, ITenantContext tenant
             (await CrmMapping.CompaniesAsync(db, [company], cancellationToken).ConfigureAwait(false))[0],
             await CrmMapping.ContactsAsync(db, contacts, cancellationToken).ConfigureAwait(false),
             await CrmMapping.DealsAsync(db, deals, cancellationToken).ConfigureAwait(false),
-            await CrmMapping.ActivitiesAsync(db, activities, cancellationToken).ConfigureAwait(false));
+            await CrmMapping.ActivitiesAsync(db, activities, cancellationToken).ConfigureAwait(false),
+            contactTotal,
+            dealTotal);
     }
 
     public async Task<CrmCompanyDto> HandleAsync(CreateCrmCompanyCommand request, CancellationToken cancellationToken)

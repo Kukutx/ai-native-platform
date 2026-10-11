@@ -4073,6 +4073,8 @@ export interface CrmCompanyDetailDto {
     contacts: CrmContactDto[];
     deals: CrmDealDto[];
     activities: CrmActivityDto[];
+    contactTotal: number;
+    dealTotal: number;
 }
 
 export interface CrmContactDto {
@@ -4157,6 +4159,7 @@ export interface CrmContactDetailDto {
     contact: CrmContactDto;
     deals: CrmDealDto[];
     activities: CrmActivityDto[];
+    dealTotal: number;
 }
 
 export interface SaveCrmContactRequest {

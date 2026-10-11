@@ -79,6 +79,13 @@ export function ContactLine({ icon, value, url }: { icon: keyof typeof Ionicons.
 }
 
 /** 可点进详情的一行。 */
+/**
+ * 详情里的关联列表只带前一部分（后端上限 200 条），总数更多时提示。
+ */
+export function LimitNote({ shown, total }: { shown: number; total: number }) {
+  return total > shown ? <Muted>只显示前 {shown} 个，共 {total} 个。</Muted> : null;
+}
+
 export function LinkRow({ title, subtitle, href }: { title: string; subtitle?: string; href: Parameters<typeof router.push>[0] }) {
   const p = usePalette();
   return (

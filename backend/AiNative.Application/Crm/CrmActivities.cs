@@ -68,24 +68,32 @@ internal sealed class CrmActivityHandlers(IAppDbContext db, ITenantContext tenan
     }
 
     /// <summary>
-    /// 记录跟进。记在商机或联系人上时自动带上所属客户，客户的时间线因此能看到全部往来。
+    /// 记录跟进。记在商机或联系人上时自动带上所属客户，客户的时间线因此能看到全部往来；
+    /// 同时指定的客户、联系人、商机必须属于同一个客户，否则拒绝。
     /// </summary>
     public async Task<CrmActivityDto> HandleAsync(LogCrmActivityCommand request, CancellationToken cancellationToken)
     {
         var r = request.Request;
-        Guid? companyId = r.CompanyId;
-        if (r.DealId is { } dealId)
+        var deal = r.DealId is { } dealId ? await records.DealAsync(dealId, cancellationToken).ConfigureAwait(false) : null;
+        var contact = r.ContactId is { } contactId ? await records.ContactAsync(contactId, cancellationToken).ConfigureAwait(false) : null;
+        var errors = new Dictionary<string, string[]>();
+        if (r.CompanyId is { } requested && deal?.CompanyId is { } dealCompany && dealCompany != requested)
         {
-            var deal = await records.DealAsync(dealId, cancellationToken).ConfigureAwait(false);
-            companyId ??= deal.CompanyId;
+            errors["dealId"] = ["商机不属于所选客户。"];
         }
 
-        if (r.ContactId is { } contactId)
+        if (contact?.CompanyId is { } contactCompany
+            && ((r.CompanyId is { } chosen && contactCompany != chosen) || (deal?.CompanyId is { } ofDeal && contactCompany != ofDeal)))
         {
-            var contact = await records.ContactAsync(contactId, cancellationToken).ConfigureAwait(false);
-            companyId ??= contact.CompanyId;
+            errors["contactId"] = [r.CompanyId is null ? "联系人与商机不属于同一个客户。" : "联系人不属于所选客户。"];
         }
 
+        if (errors.Count > 0)
+        {
+            throw new ValidationFailedException(errors);
+        }
+
+        var companyId = r.CompanyId ?? deal?.CompanyId ?? contact?.CompanyId;
         await records.EnsureCompanyExistsAsync(companyId, cancellationToken).ConfigureAwait(false);
         var activity = new CrmActivity
         {
@@ -117,6 +125,7 @@ internal sealed class CrmActivityHandlers(IAppDbContext db, ITenantContext tenan
         }
 
         db.CrmActivities.Remove(activity);
+        await records.RecomputeLastActivityAsync(activity.CompanyId, activity.ContactId, activity.DealId, activity.Id, cancellationToken).ConfigureAwait(false);
         PublishChanges(activity, RealtimeChangeKind.Deleted);
         return Unit.Value;
     }

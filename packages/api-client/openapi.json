@@ -4641,7 +4641,9 @@
           "company",
           "contacts",
           "deals",
-          "activities"
+          "activities",
+          "contactTotal",
+          "dealTotal"
         ],
         "properties": {
           "company": {
@@ -4664,6 +4666,14 @@
             "items": {
               "$ref": "#/components/schemas/CrmActivityDto"
             }
+          },
+          "contactTotal": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "dealTotal": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },
@@ -5020,7 +5030,8 @@
         "required": [
           "contact",
           "deals",
-          "activities"
+          "activities",
+          "dealTotal"
         ],
         "properties": {
           "contact": {
@@ -5037,6 +5048,10 @@
             "items": {
               "$ref": "#/components/schemas/CrmActivityDto"
             }
+          },
+          "dealTotal": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

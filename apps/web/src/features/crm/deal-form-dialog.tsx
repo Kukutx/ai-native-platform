@@ -172,7 +172,7 @@ function DealForm({
             </Select>
           </div>
         </div>
-        <OwnerSelect value={owner} onChange={setOwner} />
+        <OwnerSelect value={owner} onChange={setOwner} allowNone={!!deal} />
       </div>
       <div className='grid gap-2'>
         <Label htmlFor='deal-description'>描述</Label>

@@ -56,7 +56,7 @@ internal sealed class GetCrmCompanyAction(IRequestDispatcher dispatcher) : Platf
 
     public override string Title => "查看客户";
 
-    public override string Description => "查看客户详情：基本信息、全部联系人、商机，以及最近 50 条跟进记录（含名下联系人和商机的往来）。";
+    public override string Description => "查看客户详情：基本信息、联系人与商机（各最多 200 个，contactTotal、dealTotal 是总数，超出时用 crm.list_deals 按客户查询），以及最近 50 条跟进记录（含名下联系人和商机的往来）。";
 
     public override string RequiredFeature => CrmFeatures.View;
 
@@ -80,7 +80,7 @@ internal sealed class GetCrmContactAction(IRequestDispatcher dispatcher) : Platf
 
     public override string Title => "查看联系人";
 
-    public override string Description => "查看联系人详情：所属客户、联系方式、相关商机和最近 50 条跟进记录。";
+    public override string Description => "查看联系人详情：所属客户、联系方式、相关商机（最多 200 个，dealTotal 是总数）和最近 50 条跟进记录。";
 
     public override string RequiredFeature => CrmFeatures.View;
 

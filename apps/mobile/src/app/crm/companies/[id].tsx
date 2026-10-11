@@ -2,7 +2,7 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } fr
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { sessionCan } from '@ainative/api-client';
-import { ActivitySection, ContactLine, LinkRow } from '@/components/crm';
+import { ActivitySection, ContactLine, LimitNote, LinkRow } from '@/components/crm';
 import { Button, Card, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { crmDealStatus, formatAmount } from '@/lib/labels';
@@ -18,7 +18,7 @@ export default function CompanyDetailScreen() {
     return <View style={[styles.flex, { backgroundColor: p.background }]} />;
   }
 
-  const { company, contacts, deals, activities } = detail.data;
+  const { company, contacts, deals, activities, contactTotal, dealTotal } = detail.data;
   const manage = sessionCan(session.data, 'crm.manage');
   const website = company.website && (/^https?:\/\//i.test(company.website) ? company.website : `https://${company.website}`);
 
@@ -36,7 +36,7 @@ export default function CompanyDetailScreen() {
           {company.description ? <Text style={{ color: p.text, fontSize: 15, lineHeight: 22 }}>{company.description}</Text> : null}
         </Card>
         <Card>
-          <Text style={[styles.heading, { color: p.text }]}>联系人 {contacts.length || ''}</Text>
+          <Text style={[styles.heading, { color: p.text }]}>联系人 {contactTotal || ''}</Text>
           {contacts.map((c) => (
             <LinkRow
               key={c.id}
@@ -45,6 +45,7 @@ export default function CompanyDetailScreen() {
               href={{ pathname: '/crm/contacts/[id]', params: { id: c.id } }}
             />
           ))}
+          <LimitNote shown={contacts.length} total={contactTotal} />
           {manage ? (
             <Button
               title='添加联系人'
@@ -54,7 +55,7 @@ export default function CompanyDetailScreen() {
           ) : null}
         </Card>
         <Card>
-          <Text style={[styles.heading, { color: p.text }]}>商机 {deals.length || ''}</Text>
+          <Text style={[styles.heading, { color: p.text }]}>商机 {dealTotal || ''}</Text>
           {deals.map((d) => (
             <LinkRow
               key={d.id}
@@ -63,6 +64,7 @@ export default function CompanyDetailScreen() {
               href={{ pathname: '/crm/deals/[id]', params: { id: d.id } }}
             />
           ))}
+          <LimitNote shown={deals.length} total={dealTotal} />
           {manage ? (
             <Button
               title='添加商机'

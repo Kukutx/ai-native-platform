@@ -94,16 +94,18 @@ internal sealed class CrmContactHandlers(IAppDbContext db, ITenantContext tenant
     {
         var contact = await db.CrmContacts.AsNoTracking().FirstOrDefaultAsync(c => c.Id == request.Id, cancellationToken).ConfigureAwait(false)
                       ?? throw new NotFoundException("crm_contact", request.Id);
-        var deals = await db.CrmDeals.AsNoTracking().Where(d => d.ContactId == contact.Id)
-            .OrderBy(d => d.Status).ThenByDescending(d => d.UpdatedAt)
-            .Take(200).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var related = db.CrmDeals.AsNoTracking().Where(d => d.ContactId == contact.Id);
+        var deals = await related.OrderBy(d => d.Status).ThenByDescending(d => d.UpdatedAt)
+            .Take(CrmRecords.RelatedLimit).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var dealTotal = deals.Count < CrmRecords.RelatedLimit ? deals.Count : await related.CountAsync(cancellationToken).ConfigureAwait(false);
         var activities = await db.CrmActivities.AsNoTracking().Where(a => a.ContactId == contact.Id)
             .OrderByDescending(a => a.OccurredAt).ThenByDescending(a => a.Id)
             .Take(CrmRecords.TimelinePageSize).ToListAsync(cancellationToken).ConfigureAwait(false);
         return new CrmContactDetailDto(
             (await CrmMapping.ContactsAsync(db, [contact], cancellationToken).ConfigureAwait(false))[0],
             await CrmMapping.DealsAsync(db, deals, cancellationToken).ConfigureAwait(false),
-            await CrmMapping.ActivitiesAsync(db, activities, cancellationToken).ConfigureAwait(false));
+            await CrmMapping.ActivitiesAsync(db, activities, cancellationToken).ConfigureAwait(false),
+            dealTotal);
     }
 
     public async Task<CrmContactDto> HandleAsync(CreateCrmContactCommand request, CancellationToken cancellationToken)
@@ -142,6 +144,11 @@ internal sealed class CrmContactHandlers(IAppDbContext db, ITenantContext tenant
         await records.EnsureOwnerAsync(r.OwnerUserId, cancellationToken).ConfigureAwait(false);
         await records.EnsureCompanyExistsAsync(r.CompanyId, cancellationToken).ConfigureAwait(false);
         var previousCompany = contact.CompanyId;
+        if (r.CompanyId is { } newCompany && newCompany != previousCompany)
+        {
+            await DetachFromOtherCompaniesDealsAsync(contact.Id, newCompany, now, cancellationToken).ConfigureAwait(false);
+        }
+
         contact.Name = r.Name.Trim();
         contact.OwnerUserId = r.OwnerUserId;
         Apply(contact, r);
@@ -171,6 +178,27 @@ internal sealed class CrmContactHandlers(IAppDbContext db, ITenantContext tenant
         }
 
         return Unit.Value;
+    }
+
+    /// <summary>
+    /// 联系人换到另一个客户（例如跳槽）时，原客户的商机仍归原客户，只是不再由这个人对接：解除它与这些商机的关联，
+    /// 保持"商机的联系人属于商机的客户"。
+    /// </summary>
+    private async Task DetachFromOtherCompaniesDealsAsync(Guid contactId, Guid newCompany, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var deals = db.CrmDeals.Where(d => d.ContactId == contactId && d.CompanyId != null && d.CompanyId != newCompany);
+        var ids = await deals.Select(d => d.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        await db.CrmDeals.Where(d => ids.Contains(d.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.ContactId, (Guid?)null).SetProperty(d => d.UpdatedAt, now), cancellationToken).ConfigureAwait(false);
+        foreach (var id in ids)
+        {
+            changes.Publish(CrmRealtime.Deal, id, RealtimeChangeKind.Updated);
+        }
     }
 
     private static void Apply(CrmContact contact, SaveCrmContactRequest r)
