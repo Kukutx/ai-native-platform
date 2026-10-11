@@ -79,6 +79,11 @@ internal sealed class ApprovalHandlers(
         var approval = await db.Approvals.AsNoTracking().FirstOrDefaultAsync(a => a.Id == request.Id, cancellationToken).ConfigureAwait(false)
                        ?? throw new NotFoundException("approval", request.Id);
         var userId = tenant.Actor.IsUser ? tenant.Actor.Id!.Value : throw new ForbiddenException("只有成员可以处理审批。");
+        if (approval.Status != ApprovalStatus.Pending)
+        {
+            throw new ConflictException("approval.already_decided", "该审批已经处理过。");
+        }
+
         approval.Decide(request.Request.Approve, userId, request.Request.Note?.Trim(), clock.GetUtcNow());
 
         // 先以条件更新落定审批结论，并发的第二次处理会因状态已变而失败，保证动作最多执行一次。

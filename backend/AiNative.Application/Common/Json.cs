@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -20,6 +21,9 @@ public static class PlatformJson
         options.PropertyNameCaseInsensitive = true;
         options.NumberHandling = JsonNumberHandling.AllowReadingFromString;
         options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+
+        // 不转义中文：接口体积更小，发给模型的工具结果也不会因 \uXXXX 浪费 token。输出只用于 JSON 上下文，不嵌入 HTML。
+        options.Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
         options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
     }
 
