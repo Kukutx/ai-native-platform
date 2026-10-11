@@ -6,9 +6,9 @@ import { useQuery } from '@tanstack/react-query';
 import type { CrmDealDto, CrmPipelineStageDto, CrmStageDto } from '@ainative/api-client';
 import { PageHeader } from '@/components/app/page-header';
 import { useSession } from '@/components/app/session-provider';
+import { StatCard } from '@/components/app/stat-card';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -96,9 +96,9 @@ export default function CrmBoardPage() {
       ) : pipeline.data ? (
         <>
           <div className='grid gap-4 sm:grid-cols-3'>
-            <Summary label='进行中' value={formatTotals(pipeline.data.openTotals)} />
-            <Summary label='加权预测' hint='按各阶段成交概率折算' value={formatTotals(pipeline.data.weightedTotals)} />
-            <Summary label='本月赢单' value={formatTotals(pipeline.data.wonThisMonth)} />
+            <StatCard label='进行中' value={formatTotals(pipeline.data.openTotals)} />
+            <StatCard label='加权预测' hint='按各阶段成交概率折算' value={formatTotals(pipeline.data.weightedTotals)} />
+            <StatCard label='本月赢单' value={formatTotals(pipeline.data.wonThisMonth)} />
           </div>
           <div className='flex min-h-0 flex-1 gap-4 overflow-x-auto pb-2'>
             {pipeline.data.stages.map((column) => (
@@ -162,21 +162,6 @@ export default function CrmBoardPage() {
         }}
       />
     </div>
-  );
-}
-
-function Summary({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <Card className='py-4'>
-      <CardContent className='space-y-1 px-4'>
-        <p className='text-muted-foreground text-xs' title={hint}>
-          {label}
-        </p>
-        <p className='truncate text-xl font-semibold tabular-nums' title={value}>
-          {value}
-        </p>
-      </CardContent>
-    </Card>
   );
 }
 

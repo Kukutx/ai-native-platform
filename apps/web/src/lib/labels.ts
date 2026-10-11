@@ -2,9 +2,11 @@ import type {
   AgentStatus,
   ApprovalStatus,
   CrmActivityKind,
-  CrmAmountDto,
   CrmDealStatus,
   CrmStageKind,
+  ErpPurchaseOrderStatus,
+  ErpSalesOrderStatus,
+  ErpStockMovementKind,
   MemoryScope,
   RunStatus,
   WakeupSource,
@@ -126,6 +128,38 @@ export const crmActivityKind: Record<CrmActivityKind, string> = {
   stage_change: '阶段变化',
 };
 
+export const erpSalesOrderStatus: Record<ErpSalesOrderStatus, { label: string; tone: Tone }> = {
+  draft: { label: '草稿', tone: 'outline' },
+  confirmed: { label: '待发货', tone: 'default' },
+  shipped: { label: '已发货', tone: 'secondary' },
+  cancelled: { label: '已取消', tone: 'outline' },
+};
+
+export const erpPurchaseOrderStatus: Record<ErpPurchaseOrderStatus, { label: string; tone: Tone }> = {
+  draft: { label: '草稿', tone: 'outline' },
+  ordered: { label: '待收货', tone: 'default' },
+  received: { label: '已入库', tone: 'secondary' },
+  cancelled: { label: '已取消', tone: 'outline' },
+};
+
+export const erpMovementKind: Record<ErpStockMovementKind, string> = {
+  purchase: '采购入库',
+  sale: '销售出库',
+  adjustment: '库存调整',
+  transfer_in: '调拨入库',
+  transfer_out: '调拨出库',
+};
+
+/** 数量最多 4 位小数，整数不显示小数部分。 */
+export function formatQuantity(value: number | null | undefined, unit?: string) {
+  if (value === null || value === undefined) {
+    return '—';
+  }
+
+  const text = value.toLocaleString('zh-CN', { maximumFractionDigits: 4 });
+  return unit ? `${text} ${unit}` : text;
+}
+
 /** 金额按货币格式化；compact 用于看板等空间紧张的地方（例如 ¥12万）。 */
 export function formatAmount(amount: number | null | undefined, currency = 'CNY', compact = false) {
   if (amount === null || amount === undefined) {
@@ -146,7 +180,7 @@ export function formatAmount(amount: number | null | undefined, currency = 'CNY'
 }
 
 /** 多币种合计：每种货币一段，用「 + 」连接。 */
-export function formatTotals(totals: CrmAmountDto[] | undefined, compact = false) {
+export function formatTotals(totals: { amount: number; currency: string }[] | undefined, compact = false) {
   return totals?.length ? totals.map((t) => formatAmount(t.amount, t.currency, compact)).join(' + ') : formatAmount(0, 'CNY', compact);
 }
 

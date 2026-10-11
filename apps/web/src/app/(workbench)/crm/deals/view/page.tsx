@@ -16,6 +16,8 @@ import { DealFormDialog } from '@/features/crm/deal-form-dialog';
 import { InfoRow } from '@/features/crm/info-row';
 import { CloseDealDialog, useMoveDeal, type MoveRequest } from '@/features/crm/move-deal';
 import { isOverdue } from '@/features/crm/utils';
+import { DealOrders } from '@/features/erp/deal-orders';
+import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
 import { api } from '@/lib/api';
 import { crmDealStatus, crmStageKind, formatAmount, formatDate, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -28,6 +30,7 @@ function DealDetail() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [closing, setClosing] = useState<MoveRequest | null>(null);
+  const [ordering, setOrdering] = useState(false);
   const detail = useQuery({ queryKey: queryKeys.crmDeal(id), queryFn: ({ signal }) => api.crm.deals.get(id, signal), enabled: !!id });
   const stages = useQuery({ queryKey: queryKeys.crmStages, queryFn: ({ signal }) => api.crm.stages.list(signal) });
   const move = useMoveDeal();
@@ -84,16 +87,30 @@ function DealDetail() {
             ) : null}
           </div>
         </div>
-        {manage ? (
-          <div className='flex gap-2'>
-            <Button variant='outline' onClick={() => setEditing(true)}>
-              <Icons.edit />
-              编辑
-            </Button>
-            <Button variant='ghost' disabled={remove.isPending} onClick={() => confirm(`删除商机「${deal.title}」？它的阶段变化记录一并删除。`) && remove.mutate()}>
-              <Icons.trash />
-              删除
-            </Button>
+        {manage || can('erp.sales') ? (
+          <div className='flex flex-wrap gap-2'>
+            {can('erp.sales') ? (
+              <Button variant='outline' onClick={() => setOrdering(true)}>
+                <Icons.product />
+                生成销售订单
+              </Button>
+            ) : null}
+            {manage ? (
+              <>
+                <Button variant='outline' onClick={() => setEditing(true)}>
+                  <Icons.edit />
+                  编辑
+                </Button>
+                <Button
+                  variant='ghost'
+                  disabled={remove.isPending}
+                  onClick={() => confirm(`删除商机「${deal.title}」？它的阶段变化记录一并删除。`) && remove.mutate()}
+                >
+                  <Icons.trash />
+                  删除
+                </Button>
+              </>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -105,6 +122,7 @@ function DealDetail() {
               <CardContent className='text-sm whitespace-pre-wrap'>{deal.description}</CardContent>
             </Card>
           ) : null}
+          {can('erp.view') ? <DealOrders dealId={deal.id} /> : null}
           <ActivityTimeline scope={{ dealId: deal.id }} />
         </div>
         <Card className='h-fit'>
@@ -136,6 +154,16 @@ function DealDetail() {
         </Card>
       </div>
       <DealFormDialog open={editing} deal={deal} onOpenChange={setEditing} />
+      <SalesOrderFormDialog
+        open={ordering}
+        defaults={{
+          deal: { id: deal.id, title: deal.title, currency: deal.currency },
+          company: deal.companyId ? { id: deal.companyId, name: deal.companyName ?? '客户' } : null,
+          contact: deal.contactId ? { id: deal.contactId, name: deal.contactName ?? '联系人' } : null,
+        }}
+        onOpenChange={setOrdering}
+        onSaved={(o) => router.push(`/erp/sales-orders/view?id=${o.id}`)}
+      />
       <CloseDealDialog
         request={closing}
         onCancel={() => setClosing(null)}

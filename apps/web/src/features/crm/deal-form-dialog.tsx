@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CrmDealDto } from '@ainative/api-client';
+import { CurrencySelect } from '@/components/app/currency-select';
 import { useSession } from '@/components/app/session-provider';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -15,8 +16,6 @@ import { queryKeys } from '@/lib/query-keys';
 import { OwnerSelect } from './owner-select';
 import { RecordPicker, type PickedRecord } from './record-picker';
 import { ownerUserId } from './utils';
-
-const CURRENCIES = ['CNY', 'USD', 'EUR', 'HKD', 'JPY', 'GBP'];
 
 export interface DealDefaults {
   company?: PickedRecord | null;
@@ -97,7 +96,6 @@ function DealForm({
     },
     onError: () => queryClient.invalidateQueries({ queryKey: ['crm'] }),
   });
-  const currencies = CURRENCIES.includes(currency) ? CURRENCIES : [...CURRENCIES, currency];
 
   return (
     <form
@@ -158,18 +156,7 @@ function DealForm({
           <Label htmlFor='deal-amount'>预计金额</Label>
           <div className='flex gap-2'>
             <Input id='deal-amount' type='number' min={0} step='0.01' value={amount} onChange={(e) => setAmount(e.target.value)} className='flex-1' />
-            <Select value={currency} onValueChange={setCurrency}>
-              <SelectTrigger className='w-24'>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {currencies.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CurrencySelect value={currency} onChange={setCurrency} />
           </div>
         </div>
         <OwnerSelect value={owner} onChange={setOwner} allowNone={!!deal} />

@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sessionCan, type CrmStageDto } from '@ainative/api-client';
 import { ActivitySection, LinkRow } from '@/components/crm';
+import { DealOrders } from '@/components/erp';
 import { Card, Chip, Field, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { crmDealStatus, formatAmount, formatDate, formatTime } from '@/lib/labels';
@@ -74,6 +75,7 @@ export default function DealDetailScreen() {
             </View>
           </View>
         ) : null}
+        {sessionCan(session.data, 'erp.view') ? <DealOrders dealId={deal.id} /> : null}
         <ActivitySection scope={{ dealId: deal.id }} activities={activities} canLog={manage} />
       </ScrollView>
     </KeyboardAvoidingView>

@@ -20,6 +20,7 @@ export function ModulesTab() {
     },
   });
   const manage = can('platform.modules.manage');
+  const names = new Map(modules.data?.map((m) => [m.key, m.name]));
 
   return (
     <div className='grid gap-4 md:grid-cols-2'>
@@ -48,6 +49,9 @@ export function ModulesTab() {
           </CardHeader>
           <CardContent className='space-y-2 text-sm'>
             <p className='text-muted-foreground'>{m.description}</p>
+            {m.dependsOn.length ? (
+              <p className='text-muted-foreground text-xs'>依赖：{m.dependsOn.map((key) => names.get(key) ?? key).join('、')}（需要先启用）</p>
+            ) : null}
             <p className='text-muted-foreground text-xs'>{m.features.length} 项权限 · 停用后相关接口、智能体动作一并关闭</p>
           </CardContent>
         </Card>

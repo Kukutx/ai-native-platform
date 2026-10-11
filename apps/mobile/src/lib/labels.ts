@@ -1,8 +1,10 @@
 import type {
   ApprovalStatus,
   CrmActivityKind,
-  CrmAmountDto,
   CrmDealStatus,
+  ErpPurchaseOrderStatus,
+  ErpSalesOrderStatus,
+  ErpStockMovementKind,
   WorkItemPriority,
   WorkItemStatus,
   WorkflowRunStatus,
@@ -87,6 +89,38 @@ export const crmActivityKind: Record<CrmActivityKind, string> = {
   stage_change: '阶段变化',
 };
 
+export const erpSalesOrderStatus: Record<ErpSalesOrderStatus, string> = {
+  draft: '草稿',
+  confirmed: '待发货',
+  shipped: '已发货',
+  cancelled: '已取消',
+};
+
+export const erpPurchaseOrderStatus: Record<ErpPurchaseOrderStatus, string> = {
+  draft: '草稿',
+  ordered: '待收货',
+  received: '已入库',
+  cancelled: '已取消',
+};
+
+export const erpMovementKind: Record<ErpStockMovementKind, string> = {
+  purchase: '采购入库',
+  sale: '销售出库',
+  adjustment: '库存调整',
+  transfer_in: '调拨入库',
+  transfer_out: '调拨出库',
+};
+
+/** 数量最多 4 位小数，整数不显示小数部分。 */
+export function formatQuantity(value: number | null | undefined, unit?: string) {
+  if (value === null || value === undefined) {
+    return '—';
+  }
+
+  const text = String(Math.round(value * 10_000) / 10_000);
+  return unit ? `${text} ${unit}` : text;
+}
+
 const currencySymbols: Record<string, string> = { CNY: '¥', USD: '$', EUR: '€', HKD: 'HK$', JPY: '¥', GBP: '£' };
 
 /** 金额加千分位和货币符号。不依赖 Intl 的货币格式，各平台的 JS 引擎表现一致。 */
@@ -102,7 +136,7 @@ export function formatAmount(amount: number | null | undefined, currency = 'CNY'
 }
 
 /** 多币种合计：每种货币一段，用「 + 」连接。 */
-export function formatTotals(totals: CrmAmountDto[] | undefined) {
+export function formatTotals(totals: { amount: number; currency: string }[] | undefined) {
   return totals?.length ? totals.map((t) => formatAmount(t.amount, t.currency)).join(' + ') : formatAmount(0);
 }
 

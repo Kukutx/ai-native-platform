@@ -71,6 +71,12 @@ public sealed class ErpTests(PostgresFixture postgres) : IntegrationTest(postgre
         order.Lines.Select(l => (l.Sku, l.Amount)).Should().Equal(("W-100", 80m), ("SVC", 100m));
         order.Owner!.Id.Should().Be(auth.Session.User.Id);
 
+        // 商机属于别的客户时不能挂在这张订单上。
+        var stranger = await PostAsync<CrmCompanyDto>(client, "/api/crm/companies", new SaveCrmCompanyRequest { Name = "远山集团" });
+        var mismatched = await client.PostAsJsonAsync(
+            "/api/erp/sales-orders", new SaveErpSalesOrderRequest { DealId = deal.Id, CompanyId = stranger.Id, Lines = [Line(widget.Id, 1)] }, PlatformJson.Options, Ct);
+        mismatched.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
         var confirmed = await PostAsync<ErpSalesOrderDto>(client, $"/api/erp/sales-orders/{order.Id}/confirm", new { });
         confirmed.Status.Should().Be(ErpSalesOrderStatus.Confirmed);
         var stock = await ProductDetailAsync(client, widget.Id);

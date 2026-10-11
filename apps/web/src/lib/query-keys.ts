@@ -39,6 +39,18 @@ export const queryKeys = {
   crmDeals: (filters?: object) => ['crm', 'deals', filters ?? {}] as const,
   crmDeal: (id: string) => ['crm', 'deal', id] as const,
   crmActivities: (filters: object) => ['crm', 'activities', filters] as const,
+  // 进销存同理：订单会改库存，库存会改产品列表里的数量，任何 erp_* 变化都整体失效 ['erp']。
+  erpSummary: ['erp', 'summary'] as const,
+  erpProducts: (filters?: object) => ['erp', 'products', filters ?? {}] as const,
+  erpProduct: (id: string) => ['erp', 'product', id] as const,
+  erpCategories: ['erp', 'categories'] as const,
+  erpWarehouses: ['erp', 'warehouses'] as const,
+  erpStock: (filters?: object) => ['erp', 'stock', filters ?? {}] as const,
+  erpMovements: (filters?: object) => ['erp', 'movements', filters ?? {}] as const,
+  erpSalesOrders: (filters?: object) => ['erp', 'sales-orders', filters ?? {}] as const,
+  erpSalesOrder: (id: string) => ['erp', 'sales-order', id] as const,
+  erpPurchaseOrders: (filters?: object) => ['erp', 'purchase-orders', filters ?? {}] as const,
+  erpPurchaseOrder: (id: string) => ['erp', 'purchase-order', id] as const,
 };
 
 /** 实体变化 → 需要失效的查询前缀。 */
@@ -54,9 +66,15 @@ export const invalidationMap: Record<string, (id: string) => readonly (readonly 
   workflow: () => [['workflows']],
   // 运行状态变化也会改变列表里的"最近一次运行"。
   workflow_run: (id) => [['workflow-runs'], ['workflow-run', id], ['workflows']],
-  crm_company: () => [['crm']],
-  crm_contact: () => [['crm']],
-  crm_deal: () => [['crm']],
+  // 订单上显示客户、联系人和商机的名称，这几类变化也刷新进销存。
+  crm_company: () => [['crm'], ['erp']],
+  crm_contact: () => [['crm'], ['erp']],
+  crm_deal: () => [['crm'], ['erp']],
   crm_activity: () => [['crm']],
   crm_stage: () => [['crm']],
+  erp_product: () => [['erp']],
+  erp_warehouse: () => [['erp']],
+  erp_stock: () => [['erp']],
+  erp_sales_order: () => [['erp']],
+  erp_purchase_order: () => [['erp']],
 };

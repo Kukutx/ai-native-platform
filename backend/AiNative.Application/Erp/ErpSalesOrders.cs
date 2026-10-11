@@ -364,12 +364,18 @@ internal sealed class ErpSalesOrderHandlers(
             var deal = await db.CrmDeals.AsNoTracking().Where(d => d.Id == dealId).Select(d => new { d.CompanyId, d.ContactId, d.Currency })
                            .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
                        ?? throw new NotFoundException("crm_deal", dealId);
+            if (companyId is not null && deal.CompanyId is not null && companyId != deal.CompanyId)
+            {
+                throw new ValidationFailedException(new Dictionary<string, string[]> { ["dealId"] = ["商机不属于所选客户。"] });
+            }
+
+            // 只给了商机时沿用商机的客户和联系人；另选了联系人时，联系人仍要属于商机的客户（下面检查）。
             if (companyId is null && contactId is null)
             {
-                companyId = deal.CompanyId;
                 contactId = deal.ContactId;
             }
 
+            companyId ??= deal.CompanyId;
             currency ??= deal.Currency;
         }
 
