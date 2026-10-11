@@ -13,7 +13,7 @@ internal sealed class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<A
     {
         var options = new DbContextOptionsBuilder<AppDbContext>();
         PersistenceSetup.Configure(options, "Host=localhost;Database=ainative;Username=postgres;Password=postgres");
-        return new AppDbContext(options.Options, new TenantContext());
+        return new AppDbContext(options.Options, new TenantContext(), TimeProvider.System);
     }
 }
 

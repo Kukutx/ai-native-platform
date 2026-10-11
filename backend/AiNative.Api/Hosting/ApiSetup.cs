@@ -67,6 +67,7 @@ internal static class ApiSetup
             settings.DocumentName = "v1";
             settings.Title = "AI Native Platform API";
             settings.Version = "v1";
+            settings.SchemaSettings.SchemaProcessors.Add(new RequiredPropertiesSchemaProcessor());
             settings.AddSecurity(TokenAuthenticationHandler.SchemeName, new OpenApiSecurityScheme
             {
                 Type = OpenApiSecuritySchemeType.Http,

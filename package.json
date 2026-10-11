@@ -1,0 +1,32 @@
+{
+  "name": "ai-native-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI 原生的通用业务平台：智能体员工、任务协作、审批与多端工作台",
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:api": "dotnet run --project backend/AiNative.Api",
+    "dev:web": "pnpm --filter @ainative/web dev",
+    "dev:desktop": "pnpm --filter @ainative/desktop dev",
+    "dev:mobile": "pnpm --filter @ainative/mobile start",
+    "build": "turbo run build",
+    "build:api": "dotnet build backend/AiNative.slnx",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "test:api": "dotnet test --solution backend/AiNative.slnx",
+    "api:generate": "node tools/generate-api-client.mjs",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.0",
+    "prettier": "^3.9.9",
+    "turbo": "^2.11.7",
+    "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": "24.x",
+    "pnpm": ">=12.8.1 <13.0.0"
+  },
+  "packageManager": "pnpm@12.11.2"
+}

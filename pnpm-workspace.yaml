@@ -1,0 +1,15 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# 不公开提升传递依赖，各 workspace 显式声明自身依赖。
+publicHoistPattern: []
+
+# isolated 模式：每个包只能访问自己声明的依赖。
+nodeLinker: isolated
+
+allowBuilds:
+  '@tailwindcss/oxide': true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true

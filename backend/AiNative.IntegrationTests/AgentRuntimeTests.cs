@@ -30,6 +30,7 @@ public sealed class AgentRuntimeTests(PostgresFixture postgres) : IntegrationTes
         var agent = await StarterAgentAsync(client);
 
         var task = await PostAsync<WorkItemDto>(client, "/api/work-items", new CreateWorkItemRequest { Title = "写周报", AssigneeAgentId = agent.Id });
+        task.CreatedAt.Should().BeAfter(DateTimeOffset.UtcNow.AddMinutes(-5), "保存前返回的 DTO 也要带上真实的创建时间");
 
         var runs = await EventuallyAsync(RunsAsync, r => r.Count == 1 && r[0].Status == RunStatus.Succeeded);
         var detail = await GetAsync<WorkItemDetailDto>(client, $"/api/work-items/{task.Id}");
@@ -40,6 +41,8 @@ public sealed class AgentRuntimeTests(PostgresFixture postgres) : IntegrationTes
         run.Run.Summary.Should().Be("已开始处理。");
         run.Run.WorkItemId.Should().Be(task.Id);
         run.Events.Select(e => e.Type).Should().ContainInOrder(RunEventType.ToolCall, RunEventType.ToolResult, RunEventType.AssistantText);
+        var commentResult = run.Events.First(e => e.Type == RunEventType.ToolResult).Data.GetProperty("output");
+        commentResult.GetProperty("createdAt").GetDateTimeOffset().Should().BeAfter(DateTimeOffset.UtcNow.AddMinutes(-5));
         (await GetAsync<AgentDto>(client, $"/api/agents/{agent.Id}")).Status.Should().Be(AgentStatus.Idle);
 
         // 智能体自己的评论不会再次唤醒自己。

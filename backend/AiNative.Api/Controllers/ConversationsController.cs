@@ -26,10 +26,10 @@ public sealed class ConversationsController(IChatService chat) : ApiControllerBa
 
     /// <summary>
     /// 发送消息并以 Server-Sent Events 流式返回（实时通道 StreamChat 是等价的 WebSocket 版本）。
+    /// 流式接口不进 OpenAPI 生成的客户端，由 @ainative/api-client 的 streamChat 手写封装。
     /// </summary>
     [HttpPost("{id:guid}/messages")]
-    [Produces("text/event-stream")]
-    [ProducesResponseType<ChatStreamEvent>(StatusCodes.Status200OK, "text/event-stream")]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public IResult Send(Guid id, SendMessageRequest request)
         => TypedResults.ServerSentEvents(chat.SendAsync(id, request.Text, HttpContext.RequestAborted));
 }

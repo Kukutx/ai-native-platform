@@ -1101,49 +1101,6 @@
             }
           }
         }
-      },
-      "post": {
-        "tags": [
-          "Conversations"
-        ],
-        "summary": "发送消息并以 Server-Sent Events 流式返回（实时通道 StreamChat 是等价的 WebSocket 版本）。",
-        "operationId": "Conversations_Send",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            },
-            "x-position": 1
-          }
-        ],
-        "requestBody": {
-          "x-name": "request",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SendMessageRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 2
-        },
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatStreamEvent"
-                }
-              }
-            }
-          }
-        }
       }
     },
     "/api/runs": {
@@ -1478,6 +1435,16 @@
       "ActionDescriptorDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "key",
+          "moduleKey",
+          "title",
+          "description",
+          "requiredFeature",
+          "isMutation",
+          "requiresApprovalForAgents",
+          "inputSchema"
+        ],
         "properties": {
           "key": {
             "type": "string"
@@ -1506,6 +1473,9 @@
       "InvokeActionResponse": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "status"
+        ],
         "properties": {
           "status": {
             "type": "string"
@@ -1527,6 +1497,16 @@
       "MemberDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "membershipId",
+          "userId",
+          "email",
+          "displayName",
+          "isOwner",
+          "status",
+          "roleIds",
+          "joinedAt"
+        ],
         "properties": {
           "membershipId": {
             "type": "string",
@@ -1584,6 +1564,9 @@
         "required": [
           "email",
           "displayName",
+          "roleIds",
+          "email",
+          "displayName",
           "roleIds"
         ],
         "properties": {
@@ -1616,6 +1599,8 @@
         "additionalProperties": false,
         "required": [
           "roleIds",
+          "status",
+          "roleIds",
           "status"
         ],
         "properties": {
@@ -1639,6 +1624,13 @@
       "RoleDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "key",
+          "name",
+          "features",
+          "isSystem"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -1668,6 +1660,11 @@
       "FeatureDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "key",
+          "name",
+          "moduleKey"
+        ],
         "properties": {
           "key": {
             "type": "string"
@@ -1684,6 +1681,9 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "key",
+          "name",
+          "features",
           "key",
           "name",
           "features"
@@ -1710,6 +1710,12 @@
       "OrganizationDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "path",
+          "depth"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -1736,6 +1742,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "name",
           "name"
         ],
         "properties": {
@@ -1752,6 +1759,14 @@
       "ModuleDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "key",
+          "name",
+          "description",
+          "isCore",
+          "enabled",
+          "features"
+        ],
         "properties": {
           "key": {
             "type": "string"
@@ -1780,6 +1795,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "enabled",
           "enabled"
         ],
         "properties": {
@@ -1791,6 +1807,12 @@
       "UsageSummaryDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "periodStart",
+          "totalCostUsd",
+          "byAgent",
+          "byModel"
+        ],
         "properties": {
           "periodStart": {
             "type": "string",
@@ -1817,6 +1839,12 @@
       "AgentUsageDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "agentId",
+          "name",
+          "costUsd",
+          "budgetUsd"
+        ],
         "properties": {
           "agentId": {
             "type": "string",
@@ -1838,6 +1866,13 @@
       "ModelUsageDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "provider",
+          "model",
+          "inputTokens",
+          "outputTokens",
+          "costUsd"
+        ],
         "properties": {
           "provider": {
             "type": "string"
@@ -1862,6 +1897,11 @@
       "ModelCatalogDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "defaultProvider",
+          "defaultModel",
+          "providers"
+        ],
         "properties": {
           "defaultProvider": {
             "type": "string"
@@ -1880,6 +1920,12 @@
       "ModelProviderDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "name",
+          "kind",
+          "models",
+          "configured"
+        ],
         "properties": {
           "name": {
             "type": "string"
@@ -1901,6 +1947,21 @@
       "AgentDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "title",
+          "instructions",
+          "status",
+          "modelProvider",
+          "model",
+          "permissions",
+          "approvalRequiredActions",
+          "heartbeatIntervalSeconds",
+          "monthlyBudgetUsd",
+          "spentThisMonthUsd",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -1993,6 +2054,10 @@
       "OrgChartNodeDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "agent",
+          "reports"
+        ],
         "properties": {
           "agent": {
             "$ref": "#/components/schemas/AgentDto"
@@ -2009,6 +2074,8 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "name",
+          "title",
           "name",
           "title"
         ],
@@ -2061,6 +2128,14 @@
       "WakeupDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "agentId",
+          "status",
+          "items",
+          "coalescedCount",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -2115,6 +2190,11 @@
       "WakeupItemDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "source",
+          "reason",
+          "requestedAt"
+        ],
         "properties": {
           "source": {
             "$ref": "#/components/schemas/WakeupSource"
@@ -2177,6 +2257,15 @@
       "ApprovalDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "actionKey",
+          "actionTitle",
+          "input",
+          "requestedBy",
+          "status",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -2239,6 +2328,9 @@
       "ActorDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "kind"
+        ],
         "properties": {
           "kind": {
             "$ref": "#/components/schemas/ActorKind"
@@ -2286,6 +2378,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "approve",
           "approve"
         ],
         "properties": {
@@ -2301,6 +2394,11 @@
       "AuthResponse": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "accessToken",
+          "expiresAt",
+          "session"
+        ],
         "properties": {
           "accessToken": {
             "type": "string"
@@ -2317,6 +2415,13 @@
       "SessionDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "user",
+          "tenant",
+          "tenants",
+          "features",
+          "enabledModules"
+        ],
         "properties": {
           "user": {
             "$ref": "#/components/schemas/UserDto"
@@ -2347,6 +2452,11 @@
       "UserDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "email",
+          "displayName"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -2363,6 +2473,12 @@
       "TenantSummaryDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "isOwner"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -2383,6 +2499,10 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "email",
+          "password",
+          "displayName",
+          "tenantName",
           "email",
           "password",
           "displayName",
@@ -2408,6 +2528,8 @@
         "additionalProperties": false,
         "required": [
           "email",
+          "password",
+          "email",
           "password"
         ],
         "properties": {
@@ -2428,6 +2550,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "tenantId",
           "tenantId"
         ],
         "properties": {
@@ -2440,6 +2563,12 @@
       "ConversationDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "lastMessageAt",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -2481,6 +2610,14 @@
       "ChatMessageDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "seq",
+          "role",
+          "text",
+          "toolCalls",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -2511,6 +2648,11 @@
       "ToolCallDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "callId",
+          "actionKey",
+          "arguments"
+        ],
         "properties": {
           "callId": {
             "type": "string"
@@ -2528,50 +2670,15 @@
           }
         }
       },
-      "ChatStreamEvent": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "type": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string",
-            "nullable": true
-          },
-          "callId": {
-            "type": "string",
-            "nullable": true
-          },
-          "actionKey": {
-            "type": "string",
-            "nullable": true
-          },
-          "data": {
-            "nullable": true
-          },
-          "messageId": {
-            "type": "string",
-            "format": "guid",
-            "nullable": true
-          }
-        }
-      },
-      "SendMessageRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "text"
-        ],
-        "properties": {
-          "text": {
-            "type": "string"
-          }
-        }
-      },
       "PagedResultOfRunDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
         "properties": {
           "items": {
             "type": "array",
@@ -2596,6 +2703,19 @@
       "RunDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "agentId",
+          "agentName",
+          "status",
+          "provider",
+          "model",
+          "inputTokens",
+          "outputTokens",
+          "costUsd",
+          "steps",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -2690,6 +2810,10 @@
       "RunDetailDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "run",
+          "events"
+        ],
         "properties": {
           "run": {
             "$ref": "#/components/schemas/RunDto"
@@ -2713,6 +2837,14 @@
       "RunEventDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "runId",
+          "agentId",
+          "seq",
+          "type",
+          "data",
+          "createdAt"
+        ],
         "properties": {
           "runId": {
             "type": "string",
@@ -2759,6 +2891,12 @@
       "PagedResultOfWorkItemDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
         "properties": {
           "items": {
             "type": "array",
@@ -2783,6 +2921,18 @@
       "WorkItemDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "number",
+          "key",
+          "title",
+          "description",
+          "status",
+          "priority",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -2891,6 +3041,11 @@
       "WorkItemDetailDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "item",
+          "subtasks",
+          "comments"
+        ],
         "properties": {
           "item": {
             "$ref": "#/components/schemas/WorkItemDto"
@@ -2912,6 +3067,13 @@
       "CommentDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "id",
+          "workItemId",
+          "author",
+          "body",
+          "createdAt"
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -2942,6 +3104,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "title",
           "title"
         ],
         "properties": {
@@ -2980,6 +3143,9 @@
         "required": [
           "title",
           "status",
+          "priority",
+          "title",
+          "status",
           "priority"
         ],
         "properties": {
@@ -3011,6 +3177,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "body",
           "body"
         ],
         "properties": {

@@ -19,8 +19,19 @@ namespace AiNative.Infrastructure.Persistence;
 /// <summary>
 /// 平台数据库。所有实现 ITenantScoped 的实体自动带租户过滤器；表名、列名统一 snake_case，枚举存字符串。
 /// </summary>
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenant) : DbContext(options), IAppDbContext
+public sealed class AppDbContext : DbContext, IAppDbContext
 {
+    private readonly ITenantContext tenant;
+    private readonly TimeProvider clock;
+
+    public AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenant, TimeProvider clock)
+        : base(options)
+    {
+        this.tenant = tenant;
+        this.clock = clock;
+        ChangeTracker.Tracked += StampNewEntity;
+    }
+
     public DbSet<Tenant> Tenants => Set<Tenant>();
 
     public DbSet<Organization> Organizations => Set<Organization>();
@@ -57,6 +68,29 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
     /// 查询过滤器引用的当前租户；EF 按上下文实例参数化，未进入租户时为空 Guid，什么都查不到。
     /// </summary>
     internal Guid CurrentTenantId => tenant.TenantIdOrEmpty;
+
+    /// <summary>
+    /// 新实体加入跟踪时就写入时间戳和租户，处理器在保存前返回的 DTO 也能拿到真实的 CreatedAt；保存时由 AuditingInterceptor 兜底并校验。
+    /// </summary>
+    private void StampNewEntity(object? sender, EntityTrackedEventArgs e)
+    {
+        if (e.FromQuery || e.Entry.State != EntityState.Added || e.Entry.Entity is not Entity entity)
+        {
+            return;
+        }
+
+        var now = clock.GetUtcNow();
+        if (entity.CreatedAt == default)
+        {
+            entity.CreatedAt = now;
+        }
+
+        entity.UpdatedAt = now;
+        if (entity is ITenantScoped scoped && scoped.TenantId == Guid.Empty && tenant.HasTenant)
+        {
+            scoped.TenantId = tenant.TenantId;
+        }
+    }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
