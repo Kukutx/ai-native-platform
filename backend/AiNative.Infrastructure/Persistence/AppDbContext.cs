@@ -8,6 +8,7 @@ using AiNative.Domain.Chat;
 using AiNative.Domain.Common;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
+using AiNative.Domain.Knowledge;
 using AiNative.Domain.Modules;
 using AiNative.Domain.Tenancy;
 using AiNative.Domain.Work;
@@ -64,6 +65,14 @@ public sealed class AppDbContext : DbContext, IAppDbContext
 
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();
 
+    public DbSet<KnowledgeDocument> KnowledgeDocuments => Set<KnowledgeDocument>();
+
+    public DbSet<KnowledgeChunk> KnowledgeChunks => Set<KnowledgeChunk>();
+
+    public DbSet<MemoryEntry> MemoryEntries => Set<MemoryEntry>();
+
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+
     /// <summary>
     /// 查询过滤器引用的当前租户；EF 按上下文实例参数化，未进入租户时为空 Guid，什么都查不到。
     /// </summary>
@@ -104,6 +113,9 @@ public sealed class AppDbContext : DbContext, IAppDbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // 向量检索（knowledge_chunks.embedding）依赖 pgvector 扩展。
+        modelBuilder.HasPostgresExtension("vector");
+
         modelBuilder.Entity<Tenant>(b =>
         {
             b.Property(x => x.Name).HasMaxLength(100);
@@ -260,6 +272,54 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.Property(x => x.ContentJson).HasColumnType("jsonb");
             b.HasIndex(x => new { x.ConversationId, x.Seq }).IsUnique();
             b.HasOne<Conversation>().WithMany().HasForeignKey(x => x.ConversationId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ApiKey>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.Prefix).HasMaxLength(32);
+            b.Property(x => x.SecretHash).HasMaxLength(64);
+            b.HasIndex(x => x.Prefix).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.UserId });
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Membership>().WithMany().HasForeignKey(x => x.MembershipId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<KnowledgeDocument>(b =>
+        {
+            b.Property(x => x.Title).HasMaxLength(300);
+            b.Property(x => x.ContentHash).HasMaxLength(64);
+            b.Property(x => x.FileName).HasMaxLength(260);
+            b.ComplexProperty(x => x.CreatedBy);
+            b.HasIndex(x => new { x.TenantId, x.UpdatedAt });
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MemoryEntry>(b =>
+        {
+            b.Property(x => x.Content).HasMaxLength(4000);
+            b.Property(x => x.ContentHash).HasMaxLength(64);
+            b.ComplexProperty(x => x.CreatedBy);
+            b.HasIndex(x => new { x.TenantId, x.Scope, x.OwnerId, x.ContentHash }).IsUnique().AreNullsDistinct(false);
+            b.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<KnowledgeChunk>(b =>
+        {
+            b.Property(x => x.EmbeddingModel).HasMaxLength(200);
+
+            // 关键词检索：分词结果直接作为词位（array_to_tsvector 不再做任何解析），GIN 索引。
+            b.Property<NpgsqlTypes.NpgsqlTsVector>("SearchVector")
+                .HasComputedColumnSql("array_to_tsvector(string_to_array(search_text, ' '))", stored: true);
+            b.HasIndex("SearchVector").HasMethod("gin");
+
+            b.HasIndex(x => new { x.TenantId, x.SourceKind, x.Scope, x.OwnerId });
+            b.HasIndex(x => new { x.DocumentId, x.Seq });
+            b.HasIndex(x => x.MemoryId);
+            b.HasIndex(x => x.CreatedAt).HasFilter("embedding_model IS NULL").HasDatabaseName("ix_knowledge_chunks_pending_embedding");
+            b.HasOne<KnowledgeDocument>().WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<MemoryEntry>().WithMany().HasForeignKey(x => x.MemoryId).OnDelete(DeleteBehavior.Cascade);
         });
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => typeof(ITenantScoped).IsAssignableFrom(t.ClrType)))

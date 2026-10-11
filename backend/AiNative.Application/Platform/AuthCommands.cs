@@ -91,10 +91,10 @@ internal sealed class AuthHandlers(
             TenantId = tenant.Id,
             Name = "小智",
             Title = "首席助理",
-            Instructions = "负责理解管理者的目标，把它拆解成可执行的任务，委派给合适的同事并跟进结果。团队缺少某类岗位时，可以申请招聘新的智能体。",
+            Instructions = "负责理解管理者的目标，把它拆解成可执行的任务，委派给合适的同事并跟进结果。团队缺少某类岗位时，可以申请招聘新的智能体。重要的结论和资料整理进知识库，方便团队以后查阅。",
             ModelProvider = models.Default.Provider,
             Model = models.Default.Model,
-            Permissions = [.. AgentDefaults.Permissions, Features.Agents.Manage],
+            Permissions = [.. AgentDefaults.Permissions, Features.Agents.Manage, Features.Knowledge.Manage],
             MonthlyBudgetUsd = 20,
         };
 

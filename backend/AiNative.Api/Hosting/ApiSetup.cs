@@ -1,4 +1,5 @@
 using AiNative.Api.Errors;
+using AiNative.Api.Mcp;
 using AiNative.Api.Realtime;
 using AiNative.Api.Security;
 using AiNative.Application.Common;
@@ -51,6 +52,7 @@ internal static class ApiSetup
             .AddJsonProtocol(options => PlatformJson.Apply(options.PayloadSerializerOptions));
         services.AddSingleton<TenantHubFilter>();
         services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
+        services.AddPlatformMcp();
 
         var origins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
         services.AddCors(options => options.AddPolicy(CorsPolicy, policy => policy
@@ -99,6 +101,7 @@ internal static class ApiSetup
 
         app.MapControllers();
         app.MapHub<RealtimeHub>("/hubs/realtime");
+        app.MapMcp(PlatformMcpServer.Route).ExcludeFromDescription();
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
         app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
         return app;

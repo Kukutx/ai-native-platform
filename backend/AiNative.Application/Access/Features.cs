@@ -18,6 +18,7 @@ public static class Features
         public const string ModulesManage = "platform.modules.manage";
         public const string OrganizationsManage = "platform.organizations.manage";
         public const string UsageView = "platform.usage.view";
+        public const string ApiKeysUse = "platform.api_keys.use";
     }
 
     public static class Agents
@@ -48,5 +49,17 @@ public static class Features
     public static class Chat
     {
         public const string Use = "chat.use";
+    }
+
+    public static class Knowledge
+    {
+        public const string View = "knowledge.view";
+        public const string Manage = "knowledge.manage";
+    }
+
+    public static class Memory
+    {
+        public const string Use = "memory.use";
+        public const string Manage = "memory.manage";
     }
 }

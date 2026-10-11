@@ -160,7 +160,7 @@ internal sealed class ActionInvoker(
 
         try
         {
-            var context = new ActionContext(tenant.Actor, options.RunId);
+            var context = new ActionContext(tenant.Actor, options.RunId, WorkItemId: options.WorkItemId);
             var output = await action.ExecuteAsync(typedInput, context, cancellationToken).ConfigureAwait(false);
             return new ActionInvocationResult(ActionInvocationStatus.Succeeded, PlatformJson.ToElement(output));
         }

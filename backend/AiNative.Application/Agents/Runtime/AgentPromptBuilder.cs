@@ -1,20 +1,33 @@
 using System.Globalization;
 using System.Text;
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Common;
+using AiNative.Application.Knowledge;
+using AiNative.Application.Modules;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Governance;
+using AiNative.Domain.Knowledge;
 using AiNative.Domain.Work;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace AiNative.Application.Agents.Runtime;
 
 /// <summary>
-/// 组装一轮心跳的上下文：身份与组织关系、唤醒原因、聚焦任务、自己的待办和待审批事项。
-/// 每轮都从数据库现取，智能体不依赖上一轮的对话记忆。
+/// 组装一轮心跳的上下文：身份与组织关系、唤醒原因、聚焦任务、自己的待办和待审批事项，
+/// 以及按本轮内容自动回忆的长期记忆和知识库资料。每轮都从数据库现取，不依赖上一轮的对话。
 /// </summary>
-internal sealed class AgentPromptBuilder(IAppDbContext db, TimeProvider clock)
+internal sealed class AgentPromptBuilder(
+    IAppDbContext db,
+    IKnowledgeSearch knowledge,
+    IModuleAccess modules,
+    TimeProvider clock,
+    ILogger<AgentPromptBuilder> logger)
 {
+    private const int RecalledMemories = 6;
+    private const int RecalledDocuments = 3;
+
     public const string FocusMarker = "focus_task_id:";
 
     public async Task<string> BuildSystemPromptAsync(Agent agent, CancellationToken cancellationToken)
@@ -58,6 +71,16 @@ internal sealed class AgentPromptBuilder(IAppDbContext db, TimeProvider clock)
             - 需要审批的操作提交一次即可，结果出来后你会被唤醒。
             - 评论和总结使用任务所用的语言。
             """);
+        if (FeatureMatcher.IsGranted(agent.Permissions, Features.Memory.Use))
+        {
+            sb.AppendLine("- 你每轮都会重新开始，只有记下来的东西才会留到以后：学到以后还会用到的偏好、约定、事实或教训，用 memory_retain 记下（团队都该知道的设 shared）。");
+        }
+
+        if (FeatureMatcher.IsGranted(agent.Permissions, Features.Knowledge.View))
+        {
+            sb.AppendLine("- 需要背景资料时先用 knowledge_search 查团队知识库，引用时注明文档标题。");
+        }
+
         return sb.ToString();
     }
 
@@ -117,8 +140,91 @@ internal sealed class AgentPromptBuilder(IAppDbContext db, TimeProvider clock)
             }
         }
 
+        await AppendRecallAsync(sb, agent, wakeup, focus, cancellationToken).ConfigureAwait(false);
+
         sb.AppendLine().AppendLine("请处理本轮需要做的事。");
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// 自动回忆：用唤醒原因和聚焦任务做查询，带入最相关的记忆与知识库片段。检索失败不影响本轮执行。
+    /// </summary>
+    private async Task AppendRecallAsync(StringBuilder sb, Agent agent, WakeupRequest? wakeup, WorkItem? focus, CancellationToken cancellationToken)
+    {
+        var useMemory = FeatureMatcher.IsGranted(agent.Permissions, Features.Memory.Use);
+        var useKnowledge = FeatureMatcher.IsGranted(agent.Permissions, Features.Knowledge.View);
+        if ((!useMemory && !useKnowledge) || !await modules.IsEnabledAsync(KnowledgeModule.ModuleKey, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var query = new StringBuilder();
+        if (focus is not null)
+        {
+            query.AppendLine(focus.Title).AppendLine(Truncate(focus.Description, 500));
+        }
+
+        foreach (var item in wakeup?.Items ?? [])
+        {
+            query.AppendLine(item.Reason);
+        }
+
+        if (query.Length == 0)
+        {
+            query.Append(agent.Title).Append(' ').Append(Truncate(agent.Instructions ?? string.Empty, 300));
+        }
+
+        try
+        {
+            if (useMemory)
+            {
+                var memories = await knowledge.SearchAsync(new KnowledgeSearchRequest
+                {
+                    Query = query.ToString(),
+                    IncludeDocuments = false,
+                    Limit = RecalledMemories,
+                }, cancellationToken).ConfigureAwait(false);
+                if (memories.Count > 0)
+                {
+                    var ids = memories.Select(m => m.SourceId).ToList();
+                    var details = await db.MemoryEntries.AsNoTracking().Where(m => ids.Contains(m.Id))
+                        .Select(m => new { m.Id, m.Scope, m.CreatedAt })
+                        .ToDictionaryAsync(m => m.Id, cancellationToken).ConfigureAwait(false);
+                    sb.AppendLine().AppendLine("## 相关记忆（按本轮内容自动回忆，可能不完整）");
+                    foreach (var memory in memories.Where(m => details.ContainsKey(m.SourceId)))
+                    {
+                        var detail = details[memory.SourceId];
+                        var label = detail.Scope == MemoryScope.Tenant ? "团队" : "我的";
+                        sb.AppendLine(CultureInfo.InvariantCulture, $"- [{label}，{detail.CreatedAt:yyyy-MM-dd}] {Truncate(memory.Content, 500)}（记忆 {memory.SourceId}）");
+                    }
+                }
+            }
+
+            if (useKnowledge)
+            {
+                var documents = await knowledge.SearchAsync(new KnowledgeSearchRequest
+                {
+                    Query = query.ToString(),
+                    IncludeMemories = false,
+                    Limit = RecalledDocuments,
+                }, cancellationToken).ConfigureAwait(false);
+                if (documents.Count > 0)
+                {
+                    var ids = documents.Select(d => d.SourceId).Distinct().ToList();
+                    var titles = await db.KnowledgeDocuments.AsNoTracking().Where(d => ids.Contains(d.Id))
+                        .ToDictionaryAsync(d => d.Id, d => d.Title, cancellationToken).ConfigureAwait(false);
+                    sb.AppendLine().AppendLine("## 知识库里可能相关的资料（需要全文用 knowledge_get_document）");
+                    foreach (var hit in documents.Where(d => titles.ContainsKey(d.SourceId)))
+                    {
+                        sb.AppendLine(CultureInfo.InvariantCulture, $"- 《{titles[hit.SourceId]}》（文档 {hit.SourceId}）：{Truncate(hit.Content.ReplaceLineEndings(" "), 300)}");
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Automatic recall failed for agent {AgentId}", agent.Id);
+        }
     }
 
     private async Task AppendFocusAsync(StringBuilder sb, WorkItem focus, bool checkedOut, CancellationToken cancellationToken)

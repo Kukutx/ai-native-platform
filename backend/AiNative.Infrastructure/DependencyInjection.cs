@@ -2,11 +2,13 @@ using AiNative.Application.Abstractions;
 using AiNative.Application.Agents;
 using AiNative.Application.Agents.Runtime;
 using AiNative.Application.Ai;
+using AiNative.Application.Knowledge;
 using AiNative.Application.Platform;
 using AiNative.Application.Work;
 using AiNative.Infrastructure.Agents;
 using AiNative.Infrastructure.Ai;
 using AiNative.Infrastructure.Dispatching;
+using AiNative.Infrastructure.Knowledge;
 using AiNative.Infrastructure.Persistence;
 using AiNative.Infrastructure.Security;
 using AiNative.Infrastructure.Work;
@@ -61,6 +63,13 @@ public static class DependencyInjection
         services.AddSingleton<IChatClientFactory, OpenAiChatClientFactory>();
         services.AddSingleton<IChatClientFactory, DemoChatClientFactory>();
         services.AddSingleton<IModelGateway, ModelGateway>();
+
+        // 知识与记忆：向量化、混合检索、后台补齐向量
+        services.AddSingleton<IEmbeddingService, EmbeddingService>();
+        services.AddScoped<IKnowledgeSearch, KnowledgeSearch>();
+        services.AddSingleton<KnowledgeIndexSignal>();
+        services.AddSingleton<IKnowledgeIndexSignal>(sp => sp.GetRequiredService<KnowledgeIndexSignal>());
+        services.AddHostedService<KnowledgeIndexer>();
 
         // 智能体调度
         services.AddOptions<AgentRunOptions>().BindConfiguration(AgentRunOptions.SectionName);

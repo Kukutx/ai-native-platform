@@ -13,6 +13,8 @@ public static class RealtimeEntities
     public const string Approval = "approval";
     public const string Conversation = "conversation";
     public const string Module = "module";
+    public const string KnowledgeDocument = "knowledge_document";
+    public const string Memory = "memory";
 }
 
 public static class RealtimeChangeKind

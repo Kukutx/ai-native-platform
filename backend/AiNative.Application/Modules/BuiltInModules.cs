@@ -28,6 +28,7 @@ internal sealed class PlatformCoreModule : IPlatformModule
         new(Access.Features.Platform.OrganizationsManage, "管理组织架构", ModuleKey),
         new(Access.Features.Platform.ModulesManage, "启用/停用模块", ModuleKey),
         new(Access.Features.Platform.UsageView, "查看用量与费用", ModuleKey),
+        new(Access.Features.Platform.ApiKeysUse, "创建个人 API 密钥（MCP 与外部集成）", ModuleKey),
     ];
 }
 
@@ -80,5 +81,31 @@ internal sealed class ChatModule : IPlatformModule
     public IReadOnlyList<FeatureDefinition> Features { get; } =
     [
         new(Access.Features.Chat.Use, "使用工作台对话", ModuleKey),
+    ];
+}
+
+/// <summary>
+/// 知识与记忆：知识库文档的混合检索（向量 + 关键词），以及人和智能体的长期记忆。
+/// </summary>
+internal sealed class KnowledgeModule : IPlatformModule
+{
+    public const string ModuleKey = "knowledge";
+
+    public string Key => ModuleKey;
+
+    public string Name => "知识与记忆";
+
+    public string Description => "把文档放进知识库，人、智能体和外部 MCP 客户端都能检索；智能体会记住工作中学到的事实与约定，下次被唤醒时自动回忆。";
+
+    public bool IsCore => false;
+
+    public bool EnabledByDefault => true;
+
+    public IReadOnlyList<FeatureDefinition> Features { get; } =
+    [
+        new(Access.Features.Knowledge.View, "检索与查看知识库", ModuleKey),
+        new(Access.Features.Knowledge.Manage, "管理知识库文档", ModuleKey),
+        new(Access.Features.Memory.Use, "使用长期记忆（记住与回忆）", ModuleKey),
+        new(Access.Features.Memory.Manage, "管理全部记忆（含智能体与其他成员的私有记忆）", ModuleKey),
     ];
 }

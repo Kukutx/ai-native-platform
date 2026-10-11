@@ -18,7 +18,7 @@ public enum ApprovalPolicy
 /// <summary>
 /// 动作执行时的上下文。身份与权限来自 ITenantContext，这里只放与本次调用相关的附加信息。
 /// </summary>
-public sealed record ActionContext(Actor Actor, Guid? RunId = null, Guid? ApprovalId = null);
+public sealed record ActionContext(Actor Actor, Guid? RunId = null, Guid? ApprovalId = null, Guid? WorkItemId = null);
 
 /// <summary>
 /// 平台动作：一次定义，同时供工作台界面、智能体工具调用、HTTP 与 MCP 使用。
