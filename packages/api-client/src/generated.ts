@@ -1596,7 +1596,7 @@ export class CrmCompaniesClient {
     }
 
     /**
-     * 客户列表，最近有往来的在前；search 匹配名称、行业、电话、官网。
+     * 客户列表，最近有往来的在前；search 匹配名称、行业、电话。
      * @param search (optional) 
      * @param ownerUserId (optional) 
      * @param tag (optional) 

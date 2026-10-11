@@ -1193,7 +1193,7 @@
         "tags": [
           "CrmCompanies"
         ],
-        "summary": "客户列表，最近有往来的在前；search 匹配名称、行业、电话、官网。",
+        "summary": "客户列表，最近有往来的在前；search 匹配名称、行业、电话。",
         "operationId": "CrmCompanies_List",
         "parameters": [
           {
