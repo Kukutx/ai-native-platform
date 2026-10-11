@@ -101,6 +101,9 @@ internal sealed class ApprovalHandlers(
             throw new ConflictException("approval.already_decided", "该审批已经处理过。");
         }
 
+        // 结论已经落定，之后不再响应请求取消：客户端断开也要把动作执行完并写回结果。
+        // 进程在这之间崩溃留下的"已批准、无结果"审批由心跳调度器标记为结果未知并通知申请人。
+        cancellationToken = CancellationToken.None;
         Agent? agent = null;
         if (approval.RequestedBy is { Kind: ActorKind.Agent, Id: { } agentId })
         {
@@ -113,7 +116,8 @@ internal sealed class ApprovalHandlers(
             await db.Approvals.Where(a => a.Id == approval.Id)
                 .ExecuteUpdateAsync(s => s
                     .SetProperty(a => a.ResultJson, approval.ResultJson)
-                    .SetProperty(a => a.ExecutionError, approval.ExecutionError), cancellationToken)
+                    .SetProperty(a => a.ExecutionError, approval.ExecutionError)
+                    .SetProperty(a => a.UpdatedAt, clock.GetUtcNow()), cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -148,22 +152,30 @@ internal sealed class ApprovalHandlers(
         // 以申请人的身份与权限、在独立作用域中执行；人工审批只解除"需要审批"这道闸，不放大权限。
         var actor = agent is null ? approval.RequestedBy : Actor.ForAgent(agent.Id);
         var features = agent?.Permissions ?? (IEnumerable<string>)tenant.Features;
-        var result = await ActionToolset.InvokeAsync(
-            scopes,
-            tenant.TenantId,
-            actor,
-            features,
-            approval.ActionKey,
-            JsonSerializer.Deserialize<Dictionary<string, object?>>(approval.InputJson, PlatformJson.Options),
-            new ActionInvocationOptions { RunId = approval.RunId, WorkItemId = approval.WorkItemId, ApprovedBy = approverId },
-            cancellationToken).ConfigureAwait(false);
-        if (result.IsSuccess)
+        try
         {
-            approval.ResultJson = result.Output?.GetRawText();
+            var result = await ActionToolset.InvokeAsync(
+                scopes,
+                tenant.TenantId,
+                actor,
+                features,
+                approval.ActionKey,
+                JsonSerializer.Deserialize<Dictionary<string, object?>>(approval.InputJson, PlatformJson.Options),
+                new ActionInvocationOptions { RunId = approval.RunId, WorkItemId = approval.WorkItemId, ApprovedBy = approverId },
+                cancellationToken).ConfigureAwait(false);
+            if (result.IsSuccess)
+            {
+                // 没有输出的动作也写入 JSON null：ResultJson 与 ExecutionError 都为空只表示"执行结果没有写回"。
+                approval.ResultJson = result.Output?.GetRawText() ?? "null";
+            }
+            else
+            {
+                approval.ExecutionError = result.Error ?? result.Status.ToString();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            approval.ExecutionError = result.Error ?? result.Status.ToString();
+            approval.ExecutionError = $"执行出错：{ex.Message}";
         }
     }
 }

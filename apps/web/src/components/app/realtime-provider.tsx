@@ -24,12 +24,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         void queryClient.invalidateQueries({ queryKey: key });
       }
     });
+    // 断线期间错过的变化不会补发，重新连上后把当前页面的数据全部重取一次。
+    const offResync = realtime.onResync(() => void queryClient.invalidateQueries());
     realtime.start().catch(() => {
-      // 自动重连会继续尝试；实时通道不可用时界面仍可手动刷新。
+      // 客户端会在后台按退避节奏重试；实时通道不可用时界面仍可手动刷新。
     });
 
     return () => {
       off();
+      offResync();
       void realtime.stop();
     };
   }, [token, queryClient]);

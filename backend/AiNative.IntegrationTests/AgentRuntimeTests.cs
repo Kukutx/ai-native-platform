@@ -182,4 +182,41 @@ public sealed class AgentRuntimeTests(PostgresFixture postgres) : IntegrationTes
         var loser = winners[0] == first ? second : first;
         (await TryCheckout(loser)).Should().BeTrue();
     }
+
+    [Fact]
+    public async Task Approval_interrupted_before_its_result_was_recorded_is_flagged_after_restart()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var agent = await StarterAgentAsync(client);
+        var approvalId = await WithDbAsync(async db =>
+        {
+            var approval = new Approval
+            {
+                TenantId = auth.Session.Tenant.Id,
+                ActionKey = "agents.hire",
+                RequestedBy = Actor.ForAgent(agent.Id),
+                Status = ApprovalStatus.Approved,
+                DecidedByUserId = auth.Session.User.Id,
+                DecidedAt = DateTimeOffset.UtcNow.AddHours(-1),
+            };
+            db.Approvals.Add(approval);
+            await db.SaveChangesAsync(Ct);
+            return approval.Id;
+        });
+        var connectionString = await WithDbAsync(db => Task.FromResult(db.Database.GetConnectionString()!));
+
+        // 模拟进程在审批落定后、结果写回前崩溃：重启后的调度器负责收尾。
+        await using var restarted = new ApiFactory(connectionString);
+        _ = restarted.Server;
+
+        var flagged = await EventuallyAsync(
+            () => WithDbAsync(db => db.Approvals.IgnoreQueryFilters().AsNoTracking().SingleAsync(a => a.Id == approvalId, Ct)),
+            a => a.ExecutionError is not null);
+        var wakeups = await WithDbAsync(db => db.WakeupRequests.IgnoreQueryFilters().AsNoTracking().Where(w => w.AgentId == agent.Id).ToListAsync(Ct));
+
+        flagged.ExecutionError.Should().Contain("结果未知");
+        flagged.ResultJson.Should().BeNull();
+        wakeups.SelectMany(w => w.Items).Should().Contain(i => i.ApprovalId == approvalId && i.Source == WakeupSource.Approval);
+    }
 }

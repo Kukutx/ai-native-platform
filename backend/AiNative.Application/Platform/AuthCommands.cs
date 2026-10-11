@@ -108,12 +108,14 @@ internal sealed class AuthHandlers(
 
         var token = tokens.Issue(user.Id, tenant.Id, membership.Id);
         var summary = new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, true);
+        List<string> enabled = [.. modules.Modules.Where(m => m.IsCore || m.EnabledByDefault).Select(m => m.Key)];
         var session = new SessionDto(
             new UserDto(user.Id, user.Email, user.DisplayName),
             summary,
             [summary],
             [FeatureMatcher.All],
-            [.. modules.Modules.Where(m => m.IsCore || m.EnabledByDefault).Select(m => m.Key)]);
+            enabled,
+            DisabledFeatures(enabled));
         return new AuthResponse(token.AccessToken, token.ExpiresAt, session);
     }
 
@@ -200,8 +202,12 @@ internal sealed class AuthHandlers(
             summaries.First(t => t.Id == current.TenantId),
             summaries,
             features,
-            enabled);
+            enabled,
+            DisabledFeatures(enabled));
     }
+
+    private List<string> DisabledFeatures(List<string> enabledModules)
+        => [.. modules.AllFeatures.Where(f => !enabledModules.Contains(f.ModuleKey)).Select(f => f.Key)];
 
     private static string Slugify(string name)
     {

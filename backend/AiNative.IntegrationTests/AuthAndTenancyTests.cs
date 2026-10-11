@@ -5,6 +5,7 @@ using AiNative.Contracts.Auth;
 using AiNative.Contracts.Common;
 using AiNative.Contracts.Platform;
 using AiNative.Contracts.Work;
+using AiNative.Domain.Identity;
 using AiNative.IntegrationTests.Infrastructure;
 
 namespace AiNative.IntegrationTests;
@@ -102,5 +103,49 @@ public sealed class AuthAndTenancyTests(PostgresFixture postgres) : IntegrationT
 
         blocked.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         core.IsSuccessStatusCode.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Session_lists_features_hidden_by_disabled_modules()
+    {
+        var owner = await RegisterAsync();
+        using var client = Client(owner.AccessToken);
+
+        owner.Session.DisabledFeatures.Should().NotContain("agents.view");
+        await PutAsync<ModuleDto>(client, "/api/modules/agents", new SetModuleEnabledRequest { Enabled = false });
+        var session = await GetAsync<SessionDto>(client, "/api/auth/session");
+
+        session.Features.Should().Contain("*");
+        session.DisabledFeatures.Should().Contain(["agents.view", "agents.manage"]);
+        session.DisabledFeatures.Should().NotContain("platform.members.view");
+    }
+
+    [Fact]
+    public async Task Suspended_or_removed_member_loses_access_on_the_next_request()
+    {
+        var owner = await RegisterAsync();
+        using var ownerClient = Client(owner.AccessToken);
+        var member = await PostAsync<MemberDto>(ownerClient, "/api/members", new AddMemberRequest
+        {
+            Email = "member@example.com",
+            DisplayName = "成员",
+            Password = "Passw0rd!x",
+            RoleIds = [(await GetAsync<List<RoleDto>>(ownerClient, "/api/roles")).Single(r => r.Key == "viewer").Id],
+        });
+        var login = await PostAsync<AuthResponse>(Client(), "/api/auth/login", new LoginRequest { Email = "member@example.com", Password = "Passw0rd!x" });
+        using var memberClient = Client(login.AccessToken);
+
+        var before = await memberClient.GetAsync(new Uri("/api/work-items", UriKind.Relative), Ct);
+        await PutAsync<MemberDto>(ownerClient, $"/api/members/{member.MembershipId}", new UpdateMemberRequest { RoleIds = member.RoleIds, Status = MembershipStatus.Suspended });
+        var suspended = await memberClient.GetAsync(new Uri("/api/work-items", UriKind.Relative), Ct);
+        await PutAsync<MemberDto>(ownerClient, $"/api/members/{member.MembershipId}", new UpdateMemberRequest { RoleIds = member.RoleIds, Status = MembershipStatus.Active });
+        var restored = await memberClient.GetAsync(new Uri("/api/work-items", UriKind.Relative), Ct);
+        (await ownerClient.DeleteAsync(new Uri($"/api/members/{member.MembershipId}", UriKind.Relative), Ct)).EnsureSuccessStatusCode();
+        var removed = await memberClient.GetAsync(new Uri("/api/work-items", UriKind.Relative), Ct);
+
+        before.StatusCode.Should().Be(HttpStatusCode.OK);
+        suspended.IsSuccessStatusCode.Should().BeFalse();
+        restored.StatusCode.Should().Be(HttpStatusCode.OK);
+        removed.IsSuccessStatusCode.Should().BeFalse();
     }
 }

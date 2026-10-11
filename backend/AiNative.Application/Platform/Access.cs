@@ -12,7 +12,7 @@ public sealed record ResolvedAccess(Guid TenantId, Guid UserId, Guid MembershipI
 
 /// <summary>
 /// 把令牌里的身份解析成当前权限：成员身份必须有效，权限 = 各角色功能键的并集，所有者拥有全部权限。
-/// 结果短暂缓存，角色调整在几秒内生效。
+/// 结果短暂缓存；成员与角色变更提交后会主动清除对应缓存。
 /// </summary>
 public interface IAccessResolver
 {
@@ -25,7 +25,7 @@ internal sealed class AccessResolver(IAppDbContext db, IMemoryCache cache) : IAc
 
     public async Task<ResolvedAccess?> ResolveAsync(Guid userId, Guid tenantId, Guid membershipId, CancellationToken cancellationToken = default)
     {
-        var key = $"access:{membershipId}";
+        var key = CacheKey(membershipId);
         if (cache.TryGetValue(key, out ResolvedAccess? cached) && cached is not null && cached.UserId == userId && cached.TenantId == tenantId)
         {
             return cached;
@@ -57,6 +57,30 @@ internal sealed class AccessResolver(IAppDbContext db, IMemoryCache cache) : IAc
         var access = new ResolvedAccess(tenantId, userId, membershipId, membership.IsOwner, features);
         cache.Set(key, access, CacheDuration);
         return access;
+    }
+
+    internal static string CacheKey(Guid membershipId) => $"access:{membershipId}";
+
+    /// <summary>
+    /// 成员被停用、移除或权限变化时调用：提交成功后清掉缓存，本实例下一个请求就按新权限鉴权
+    /// （多实例部署时其他实例最多再沿用一个缓存周期）。
+    /// </summary>
+    internal static void InvalidateAfterCommit(IMemoryCache cache, IPostCommitActions postCommit, IReadOnlyCollection<Guid> membershipIds)
+    {
+        if (membershipIds.Count == 0)
+        {
+            return;
+        }
+
+        postCommit.Enqueue(_ =>
+        {
+            foreach (var id in membershipIds)
+            {
+                cache.Remove(CacheKey(id));
+            }
+
+            return Task.CompletedTask;
+        });
     }
 }
 

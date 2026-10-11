@@ -19,6 +19,10 @@ interface Draft {
   tools: { callId: string; actionKey: string; status?: string }[];
 }
 
+function lastUserMessageIs(messages: ChatMessageDto[] | undefined, text: string) {
+  return [...(messages ?? [])].reverse().find((m) => m.role === 'user')?.text === text;
+}
+
 /**
  * 对话视图。conversationId 为空时是"新对话"：发送第一条消息时才创建会话，完成后通过 onCreated 切换地址。
  */
@@ -52,6 +56,7 @@ export function ConversationView({ conversationId, onCreated }: { conversationId
     const controller = new AbortController();
     abortRef.current = controller;
     let id = activeId;
+    let failed = false;
     try {
       if (!id) {
         id = (await api.conversations.create({ title: text.slice(0, 40) }, controller.signal)).id;
@@ -67,11 +72,13 @@ export function ConversationView({ conversationId, onCreated }: { conversationId
           const status = (event.data as { status?: string } | undefined)?.status;
           setDraft((d) => d && { ...d, tools: d.tools.map((t) => (t.callId === event.callId ? { ...t, status } : t)) });
         } else if (event.type === 'error') {
+          failed = true;
           toast.error(event.text ?? '对话出错了');
         }
       }
     } catch (error) {
       if (!controller.signal.aborted) {
+        failed = true;
         toast.error(error instanceof Error ? error.message : '对话出错了');
       }
     } finally {
@@ -81,6 +88,10 @@ export function ConversationView({ conversationId, onCreated }: { conversationId
       }
 
       setDraft(null);
+      // 消息没能保存（例如在别处发送的上一条还在回复中）时放回输入框，用户不用重新输入。
+      if (failed && !lastUserMessageIs(id ? queryClient.getQueryData<ChatMessageDto[]>(queryKeys.messages(id)) : undefined, text)) {
+        setInput((current) => current || text);
+      }
       if (id && !conversationId) {
         onCreated?.(id);
       }

@@ -116,6 +116,12 @@ internal sealed class WorkItemCommandHandlers(
     {
         var item = await FindAsync(request.Id, cancellationToken).ConfigureAwait(false);
         var r = request.Request;
+        var now = clock.GetUtcNow();
+        if (r.ExpectedUpdatedAt is { } expected)
+        {
+            await EnsureUnchangedSinceAsync(item.Id, expected, now, cancellationToken).ConfigureAwait(false);
+        }
+
         var previousAgent = item.AssigneeAgentId;
         var previousStatus = item.Status;
         await EnsureUserIsMemberAsync(r.AssigneeUserId, cancellationToken).ConfigureAwait(false);
@@ -134,6 +140,8 @@ internal sealed class WorkItemCommandHandlers(
             item.AssignToUser(null);
         }
 
+        // 显式写入，返回的 UpdatedAt 就是落库值，客户端可以直接用它作为下一次编辑的版本。
+        item.UpdatedAt = now;
         await workflow.OnAssignedAsync(item, previousAgent, tenant.Actor, cancellationToken).ConfigureAwait(false);
         await workflow.OnStatusChangedAsync(item, previousStatus, tenant.Actor, cancellationToken).ConfigureAwait(false);
         changes.Publish(RealtimeEntities.WorkItem, item.Id, RealtimeChangeKind.Updated);
@@ -210,6 +218,21 @@ internal sealed class WorkItemCommandHandlers(
         if (userId is { } id && !await db.Memberships.AnyAsync(m => m.UserId == id, cancellationToken).ConfigureAwait(false))
         {
             throw new NotFoundException("member", id);
+        }
+    }
+
+    /// <summary>
+    /// 乐观并发检查：条件更新同时锁住这一行直到事务提交，检查与写入之间不会再被别人改掉。
+    /// </summary>
+    private async Task EnsureUnchangedSinceAsync(Guid id, DateTimeOffset expected, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        // PostgreSQL 时间戳精确到微秒，客户端回传的值按同样精度比较。
+        var version = new DateTimeOffset(expected.UtcTicks - (expected.UtcTicks % 10), TimeSpan.Zero);
+        var matched = await db.WorkItems.Where(w => w.Id == id && w.UpdatedAt == version)
+            .ExecuteUpdateAsync(s => s.SetProperty(w => w.UpdatedAt, now), cancellationToken).ConfigureAwait(false);
+        if (matched == 0)
+        {
+            throw new ConflictException("work_item.modified", "任务刚被其他人或智能体修改过，已刷新为最新内容，请确认后再改。");
         }
     }
 

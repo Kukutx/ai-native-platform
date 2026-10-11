@@ -92,7 +92,7 @@ internal sealed class AgentRuntime(
             outcome = RunStatus.Failed;
             error = "本月预算已用完，智能体已自动暂停。调整预算后恢复即可继续。";
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             outcome = RunStatus.TimedOut;
             error = $"执行超过 {_options.RunTimeout.TotalMinutes:0} 分钟上限。";
