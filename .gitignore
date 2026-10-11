@@ -1,0 +1,48 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建产物
+dist/
+build/
+out/
+bin/
+obj/
+.next/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+artifacts/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.Local.json
+
+# IDE / 系统
+.idea/
+.vs/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.user
+*.rsuser
+.DS_Store
+Thumbs.db
+
+# 日志与测试报告
+*.log
+coverage/
+TestResults/
+*.trx
+
+# Tauri / Rust
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/build/
+apps/mobile/.flutter-plugins*
