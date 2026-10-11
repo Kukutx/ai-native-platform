@@ -10,13 +10,23 @@ public static class PlatformJson
 {
     public static readonly JsonSerializerOptions Options = Create();
 
+    /// <summary>
+    /// 把平台约定应用到框架自带的选项上（MVC、SignalR），保证所有出口序列化结果一致。
+    /// </summary>
+    public static void Apply(JsonSerializerOptions options)
+    {
+        options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        options.DictionaryKeyPolicy = null;
+        options.PropertyNameCaseInsensitive = true;
+        options.NumberHandling = JsonNumberHandling.AllowReadingFromString;
+        options.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+    }
+
     private static JsonSerializerOptions Create()
     {
-        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web)
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        };
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseLower));
+        var options = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+        Apply(options);
         options.MakeReadOnly(populateMissingResolver: true);
         return options;
     }

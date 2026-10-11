@@ -241,7 +241,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, ITenant
         where TEntity : class, ITenantScoped
     {
         Expression<Func<TEntity, bool>> filter = e => e.TenantId == CurrentTenantId;
-        modelBuilder.Entity<TEntity>().HasQueryFilter(filter);
-        modelBuilder.Entity<TEntity>().HasIndex(e => e.TenantId);
+        var entity = modelBuilder.Entity<TEntity>();
+        entity.HasQueryFilter(filter);
+
+        // 已有以 tenant_id 打头的复合索引时不再单独建索引。
+        var hasLeadingTenantIndex = entity.Metadata.GetIndexes()
+            .Any(i => i.Properties[0].Name == nameof(ITenantScoped.TenantId));
+        if (!hasLeadingTenantIndex)
+        {
+            entity.HasIndex(e => e.TenantId);
+        }
     }
 }

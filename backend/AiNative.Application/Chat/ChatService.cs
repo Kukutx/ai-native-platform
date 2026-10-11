@@ -1,10 +1,12 @@
 using System.Text;
 using System.Threading.Channels;
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Actions;
 using AiNative.Application.Agents.Runtime;
 using AiNative.Application.Ai;
 using AiNative.Application.Common;
+using AiNative.Application.Modules;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
 using AiNative.Contracts.Chat;
@@ -25,13 +27,29 @@ public interface IChatService
     IAsyncEnumerable<ChatStreamEvent> SendAsync(Guid conversationId, string text, CancellationToken cancellationToken);
 }
 
-internal sealed class ChatService(ITenantContext tenant, ITenantScopeFactory scopes, ILogger<ChatService> logger) : IChatService
+internal sealed class ChatService(ITenantContext tenant, IModuleAccess modules, ITenantScopeFactory scopes, ILogger<ChatService> logger) : IChatService
 {
+    private const int MaxMessageLength = 32_000;
+
     public async IAsyncEnumerable<ChatStreamEvent> SendAsync(
         Guid conversationId,
         string text,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        tenant.Demand(Features.Chat.Use);
+        if (string.IsNullOrWhiteSpace(text) || text.Length > MaxMessageLength)
+        {
+            throw new ValidationFailedException(new Dictionary<string, string[]>
+            {
+                ["text"] = [$"消息不能为空，且不超过 {MaxMessageLength} 个字符。"],
+            });
+        }
+
+        if (!await modules.IsEnabledAsync(ChatModule.ModuleKey, cancellationToken).ConfigureAwait(false))
+        {
+            throw new ForbiddenException("对话模块未在当前空间启用。");
+        }
+
         var channel = Channel.CreateUnbounded<ChatStreamEvent>(new UnboundedChannelOptions { SingleReader = true, SingleWriter = true });
         var tenantId = tenant.TenantId;
         var actor = tenant.Actor;

@@ -1,4 +1,5 @@
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Ai;
 using AiNative.Application.Common;
 using AiNative.Application.Realtime;
@@ -10,20 +11,28 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AiNative.Application.Agents;
 
+[RequireFeature(Features.Agents.Manage)]
 public sealed record CreateAgentCommand(SaveAgentRequest Request) : ICommand<AgentDto>;
 
+[RequireFeature(Features.Agents.Manage)]
 public sealed record UpdateAgentCommand(Guid Id, SaveAgentRequest Request) : ICommand<AgentDto>;
 
+[RequireFeature(Features.Agents.Manage)]
 public sealed record SetAgentPausedCommand(Guid Id, bool Paused) : ICommand<AgentDto>;
 
+[RequireFeature(Features.Agents.Manage)]
 public sealed record TerminateAgentCommand(Guid Id) : ICommand<AgentDto>;
 
+[RequireFeature(Features.Agents.Wake)]
 public sealed record WakeAgentCommand(Guid AgentId, WakeAgentRequest Request) : ICommand<WakeupDto>;
 
+[RequireFeature(Features.Agents.View)]
 public sealed record ListAgentsQuery : IQuery<IReadOnlyList<AgentDto>>;
 
+[RequireFeature(Features.Agents.View)]
 public sealed record GetAgentQuery(Guid Id) : IQuery<AgentDto>;
 
+[RequireFeature(Features.Agents.View)]
 public sealed record GetOrgChartQuery : IQuery<IReadOnlyList<OrgChartNodeDto>>;
 
 public sealed class SaveAgentRequestValidator : AbstractValidator<SaveAgentRequest>

@@ -1,4 +1,5 @@
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Common;
 using AiNative.Application.Modules;
 using AiNative.Application.Realtime;
@@ -12,28 +13,39 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AiNative.Application.Platform;
 
+[RequireFeature(Features.Platform.MembersView)]
 public sealed record ListMembersQuery : IQuery<IReadOnlyList<MemberDto>>;
 
+[RequireFeature(Features.Platform.MembersManage)]
 public sealed record AddMemberCommand(AddMemberRequest Request) : ICommand<MemberDto>;
 
+[RequireFeature(Features.Platform.MembersManage)]
 public sealed record UpdateMemberCommand(Guid MembershipId, UpdateMemberRequest Request) : ICommand<MemberDto>;
 
+[RequireFeature(Features.Platform.MembersManage)]
 public sealed record RemoveMemberCommand(Guid MembershipId) : ICommand<Unit>;
 
+[RequireFeature(Features.Platform.MembersView)]
 public sealed record ListRolesQuery : IQuery<IReadOnlyList<RoleDto>>;
 
+[RequireFeature(Features.Platform.RolesManage)]
 public sealed record CreateRoleCommand(SaveRoleRequest Request) : ICommand<RoleDto>;
 
+[RequireFeature(Features.Platform.RolesManage)]
 public sealed record UpdateRoleCommand(Guid Id, SaveRoleRequest Request) : ICommand<RoleDto>;
 
+[RequireFeature(Features.Platform.RolesManage)]
 public sealed record DeleteRoleCommand(Guid Id) : ICommand<Unit>;
 
+[RequireFeature(Features.Platform.MembersView)]
 public sealed record ListOrganizationsQuery : IQuery<IReadOnlyList<OrganizationDto>>;
 
+[RequireFeature(Features.Platform.OrganizationsManage)]
 public sealed record CreateOrganizationCommand(CreateOrganizationRequest Request) : ICommand<OrganizationDto>;
 
 public sealed record ListModulesQuery : IQuery<IReadOnlyList<ModuleDto>>;
 
+[RequireFeature(Features.Platform.ModulesManage)]
 public sealed record SetModuleEnabledCommand(string Key, bool Enabled) : ICommand<ModuleDto>;
 
 public sealed class AddMemberCommandValidator : AbstractValidator<AddMemberCommand>

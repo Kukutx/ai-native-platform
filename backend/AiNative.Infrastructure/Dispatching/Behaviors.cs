@@ -1,11 +1,49 @@
 using System.Diagnostics;
+using System.Reflection;
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Common;
+using AiNative.Application.Modules;
+using AiNative.Application.Tenancy;
 using AiNative.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.Extensions.Logging;
 
 namespace AiNative.Infrastructure.Dispatching;
+
+/// <summary>
+/// 检查请求上声明的 <see cref="RequireFeatureAttribute"/>：必须在租户上下文中、拥有该功能权限，且功能所属模块已启用。
+/// </summary>
+internal sealed class AuthorizationBehavior<TRequest, TResponse>(ITenantContext tenant, IModuleAccess modules, IModuleCatalog catalog)
+    : IRequestPipelineBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
+{
+    private static readonly string[] RequiredFeatures =
+        [.. typeof(TRequest).GetCustomAttributes<RequireFeatureAttribute>(inherit: false).Select(a => a.Feature)];
+
+    public async Task<TResponse> HandleAsync(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
+    {
+        if (RequiredFeatures.Length > 0)
+        {
+            if (!tenant.HasTenant)
+            {
+                throw new UnauthorizedException("当前操作需要登录到某个空间。");
+            }
+
+            foreach (var feature in RequiredFeatures)
+            {
+                tenant.Demand(feature);
+                var moduleKey = catalog.AllFeatures.FirstOrDefault(f => f.Key == feature)?.ModuleKey;
+                if (moduleKey is not null && !await modules.IsEnabledAsync(moduleKey, cancellationToken).ConfigureAwait(false))
+                {
+                    throw new ForbiddenException($"模块 {moduleKey} 未在当前空间启用。");
+                }
+            }
+        }
+
+        return await next().ConfigureAwait(false);
+    }
+}
 
 /// <summary>
 /// 执行 FluentValidation 校验，失败统一抛 ValidationFailedException（API 映射为 400）。

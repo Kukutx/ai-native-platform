@@ -37,10 +37,11 @@ public static class DependencyInjection
         });
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-        // 请求管道：校验 → 日志 → 事务 → 处理器
+        // 请求管道：权限 → 校验 → 日志 → 事务 → 处理器（按注册顺序由外到内）
         services.AddScoped<PostCommitActions>();
         services.AddScoped<IPostCommitActions>(sp => sp.GetRequiredService<PostCommitActions>());
         services.AddScoped<IRequestDispatcher, RequestDispatcher>();
+        services.AddScoped(typeof(IRequestPipelineBehavior<,>), typeof(AuthorizationBehavior<,>));
         services.AddScoped(typeof(IRequestPipelineBehavior<,>), typeof(ValidationBehavior<,>));
         services.AddScoped(typeof(IRequestPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddScoped(typeof(IRequestPipelineBehavior<,>), typeof(TransactionBehavior<,>));

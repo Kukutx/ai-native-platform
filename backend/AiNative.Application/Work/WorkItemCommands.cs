@@ -1,4 +1,5 @@
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Common;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
@@ -11,16 +12,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AiNative.Application.Work;
 
+[RequireFeature(Features.Tasks.Manage)]
 public sealed record CreateWorkItemCommand(CreateWorkItemRequest Request) : ICommand<WorkItemDto>;
 
+[RequireFeature(Features.Tasks.Manage)]
 public sealed record UpdateWorkItemCommand(Guid Id, UpdateWorkItemRequest Request) : ICommand<WorkItemDto>;
 
+[RequireFeature(Features.Tasks.Manage)]
 public sealed record ChangeWorkItemStatusCommand(Guid Id, WorkItemStatus Status, string? Comment = null, Guid? RunId = null) : ICommand<WorkItemDto>;
 
+[RequireFeature(Features.Tasks.Manage)]
 public sealed record AssignWorkItemCommand(Guid Id, Guid? AgentId, Guid? UserId) : ICommand<WorkItemDto>;
 
+[RequireFeature(Features.Tasks.Comment)]
 public sealed record AddCommentCommand(Guid WorkItemId, string Body, Guid? RunId = null) : ICommand<CommentDto>;
 
+[RequireFeature(Features.Tasks.View)]
 public sealed record ListWorkItemsQuery(
     WorkItemStatus? Status = null,
     Guid? AssigneeAgentId = null,
@@ -30,6 +37,7 @@ public sealed record ListWorkItemsQuery(
     int Page = 1,
     int PageSize = 50) : IQuery<PagedResult<WorkItemDto>>;
 
+[RequireFeature(Features.Tasks.View)]
 public sealed record GetWorkItemQuery(Guid Id) : IQuery<WorkItemDetailDto>;
 
 public sealed class CreateWorkItemCommandValidator : AbstractValidator<CreateWorkItemCommand>

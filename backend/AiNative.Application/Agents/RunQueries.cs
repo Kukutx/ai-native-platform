@@ -1,4 +1,5 @@
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Common;
 using AiNative.Contracts.Agents;
 using AiNative.Contracts.Common;
@@ -6,8 +7,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AiNative.Application.Agents;
 
+[RequireFeature(Features.Runs.View)]
 public sealed record ListRunsQuery(Guid? AgentId = null, int Page = 1, int PageSize = 30) : IQuery<PagedResult<RunDto>>;
 
+[RequireFeature(Features.Runs.View)]
 public sealed record GetRunQuery(Guid Id) : IQuery<RunDetailDto>;
 
 internal sealed class RunQueryHandlers(IAppDbContext db) :

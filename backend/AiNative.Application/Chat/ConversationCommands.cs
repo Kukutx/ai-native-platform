@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Actions;
 using AiNative.Application.Common;
 using AiNative.Application.Tenancy;
@@ -10,12 +11,16 @@ using Microsoft.Extensions.AI;
 
 namespace AiNative.Application.Chat;
 
+[RequireFeature(Features.Chat.Use)]
 public sealed record ListConversationsQuery : IQuery<IReadOnlyList<ConversationDto>>;
 
+[RequireFeature(Features.Chat.Use)]
 public sealed record CreateConversationCommand(CreateConversationRequest Request) : ICommand<ConversationDto>;
 
+[RequireFeature(Features.Chat.Use)]
 public sealed record DeleteConversationCommand(Guid Id) : ICommand<Unit>;
 
+[RequireFeature(Features.Chat.Use)]
 public sealed record GetConversationMessagesQuery(Guid ConversationId) : IQuery<IReadOnlyList<ChatMessageDto>>;
 
 internal static class ChatMapping
@@ -66,10 +71,18 @@ internal static class ChatMapping
         return dtos;
     }
 
-    public static ChatMessage? Deserialize(ConversationMessage row)
-        => JsonSerializer.Deserialize<ChatMessage>(row.ContentJson, AIJsonUtilities.DefaultOptions);
+    /// <summary>
+    /// 消息以 jsonb 存储，PostgreSQL 会重排对象键，多态内容的 $type 不再是第一个属性，读取时需要放宽这一限制。
+    /// </summary>
+    private static readonly JsonSerializerOptions MessageJson = new(AIJsonUtilities.DefaultOptions)
+    {
+        AllowOutOfOrderMetadataProperties = true,
+    };
 
-    public static string Serialize(ChatMessage message) => JsonSerializer.Serialize(message, AIJsonUtilities.DefaultOptions);
+    public static ChatMessage? Deserialize(ConversationMessage row)
+        => JsonSerializer.Deserialize<ChatMessage>(row.ContentJson, MessageJson);
+
+    public static string Serialize(ChatMessage message) => JsonSerializer.Serialize(message, MessageJson);
 }
 
 internal sealed class ConversationHandlers(IAppDbContext db, ITenantContext tenant, IActionInvoker actions, TimeProvider clock) :

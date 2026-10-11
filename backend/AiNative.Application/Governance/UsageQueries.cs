@@ -1,10 +1,12 @@
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Agents;
 using AiNative.Contracts.Platform;
 using Microsoft.EntityFrameworkCore;
 
 namespace AiNative.Application.Governance;
 
+[RequireFeature(Features.Platform.UsageView)]
 public sealed record GetUsageSummaryQuery : IQuery<UsageSummaryDto>;
 
 internal sealed class UsageQueryHandler(IAppDbContext db, TimeProvider clock) : IRequestHandler<GetUsageSummaryQuery, UsageSummaryDto>

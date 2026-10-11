@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AiNative.Application.Abstractions;
+using AiNative.Application.Access;
 using AiNative.Application.Actions;
 using AiNative.Application.Agents;
 using AiNative.Application.Common;
@@ -13,11 +14,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AiNative.Application.Governance;
 
+[RequireFeature(Features.Approvals.View)]
 public sealed record ListApprovalsQuery(ApprovalStatus? Status = null) : IQuery<IReadOnlyList<ApprovalDto>>;
 
 /// <summary>
 /// 不走统一事务：先落定审批结论，再在独立作用域里执行动作，最后回写结果，避免一次失败让结论和执行结果互相牵连。
 /// </summary>
+[RequireFeature(Features.Approvals.Decide)]
 public sealed record DecideApprovalCommand(Guid Id, DecideApprovalRequest Request) : IRequest<ApprovalDto>;
 
 internal static class ApprovalMapping

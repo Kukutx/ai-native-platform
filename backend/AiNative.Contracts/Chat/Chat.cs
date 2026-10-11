@@ -11,6 +11,11 @@ public sealed record CreateConversationRequest
     public string? Title { get; init; }
 }
 
+public sealed record SendMessageRequest
+{
+    public required string Text { get; init; }
+}
+
 public sealed record ToolCallDto(string CallId, string ActionKey, JsonElement Arguments, JsonElement? Result, string? Status);
 
 public sealed record ChatMessageDto(Guid Id, int Seq, string Role, string Text, IReadOnlyList<ToolCallDto> ToolCalls, DateTimeOffset CreatedAt);
