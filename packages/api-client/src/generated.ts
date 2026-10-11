@@ -2540,6 +2540,1386 @@ export class CrmStagesClient {
     }
 }
 
+export class ErpProductsClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 产品列表，按编码排序；search 匹配名称和编码，默认不含停用的产品。库存数量为全部仓库合计。
+     * @param search (optional) 
+     * @param category (optional) 
+     * @param lowStockOnly (optional) 
+     * @param includeInactive (optional) 
+     * @param page (optional) 
+     * @param pageSize (optional) 
+     */
+    list(search?: string | null | undefined, category?: string | null | undefined, lowStockOnly?: boolean | undefined, includeInactive?: boolean | undefined, page?: number | undefined, pageSize?: number | undefined, signal?: AbortSignal): Promise<PagedResultOfErpProductDto> {
+        let url_ = this.baseUrl + "/api/erp/products?";
+        if (search !== undefined && search !== null)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (category !== undefined && category !== null)
+            url_ += "category=" + encodeURIComponent("" + category) + "&";
+        if (lowStockOnly === null)
+            throw new globalThis.Error("The parameter 'lowStockOnly' cannot be null.");
+        else if (lowStockOnly !== undefined)
+            url_ += "lowStockOnly=" + encodeURIComponent("" + lowStockOnly) + "&";
+        if (includeInactive === null)
+            throw new globalThis.Error("The parameter 'includeInactive' cannot be null.");
+        else if (includeInactive !== undefined)
+            url_ += "includeInactive=" + encodeURIComponent("" + includeInactive) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processList(_response);
+        });
+    }
+
+    protected processList(response: Response): Promise<PagedResultOfErpProductDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PagedResultOfErpProductDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<PagedResultOfErpProductDto>(null as any);
+    }
+
+    create(request: SaveErpProductRequest, signal?: AbortSignal): Promise<ErpProductDto> {
+        let url_ = this.baseUrl + "/api/erp/products";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreate(_response);
+        });
+    }
+
+    protected processCreate(response: Response): Promise<ErpProductDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpProductDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpProductDto>(null as any);
+    }
+
+    /**
+     * 已用过的产品分类，供筛选和录入时选择。
+     */
+    categories(signal?: AbortSignal): Promise<string[]> {
+        let url_ = this.baseUrl + "/api/erp/products/categories";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCategories(_response);
+        });
+    }
+
+    protected processCategories(response: Response): Promise<string[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as string[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<string[]>(null as any);
+    }
+
+    /**
+     * 产品详情：各仓库库存与最近 50 条出入库流水。
+     */
+    get(id: string, signal?: AbortSignal): Promise<ErpProductDetailDto> {
+        let url_ = this.baseUrl + "/api/erp/products/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGet(_response);
+        });
+    }
+
+    protected processGet(response: Response): Promise<ErpProductDetailDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpProductDetailDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpProductDetailDto>(null as any);
+    }
+
+    update(id: string, request: SaveErpProductRequest, signal?: AbortSignal): Promise<ErpProductDto> {
+        let url_ = this.baseUrl + "/api/erp/products/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdate(_response);
+        });
+    }
+
+    protected processUpdate(response: Response): Promise<ErpProductDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpProductDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpProductDto>(null as any);
+    }
+
+    /**
+     * 删除从没用过的产品；已有订单或库存记录时返回 409，可以改为停用。
+     */
+    delete(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/erp/products/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+}
+
+export class ErpWarehousesClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 仓库列表，默认仓库在前。
+     */
+    list(signal?: AbortSignal): Promise<ErpWarehouseDto[]> {
+        let url_ = this.baseUrl + "/api/erp/warehouses";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processList(_response);
+        });
+    }
+
+    protected processList(response: Response): Promise<ErpWarehouseDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpWarehouseDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpWarehouseDto[]>(null as any);
+    }
+
+    create(request: SaveErpWarehouseRequest, signal?: AbortSignal): Promise<ErpWarehouseDto> {
+        let url_ = this.baseUrl + "/api/erp/warehouses";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreate(_response);
+        });
+    }
+
+    protected processCreate(response: Response): Promise<ErpWarehouseDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpWarehouseDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpWarehouseDto>(null as any);
+    }
+
+    update(id: string, request: SaveErpWarehouseRequest, signal?: AbortSignal): Promise<ErpWarehouseDto> {
+        let url_ = this.baseUrl + "/api/erp/warehouses/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdate(_response);
+        });
+    }
+
+    protected processUpdate(response: Response): Promise<ErpWarehouseDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpWarehouseDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpWarehouseDto>(null as any);
+    }
+
+    /**
+     * 删除空仓库；默认仓库、还有库存或用过的仓库返回 409。
+     */
+    delete(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/erp/warehouses/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+}
+
+export class ErpStockClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 各产品在各仓库的库存（只含管库存的产品），按编码排序。
+     * @param warehouseId (optional) 
+     * @param productId (optional) 
+     * @param search (optional) 
+     * @param lowStockOnly (optional) 
+     * @param page (optional) 
+     * @param pageSize (optional) 
+     */
+    levels(warehouseId?: string | null | undefined, productId?: string | null | undefined, search?: string | null | undefined, lowStockOnly?: boolean | undefined, page?: number | undefined, pageSize?: number | undefined, signal?: AbortSignal): Promise<PagedResultOfErpStockLevelDto> {
+        let url_ = this.baseUrl + "/api/erp/stock?";
+        if (warehouseId !== undefined && warehouseId !== null)
+            url_ += "warehouseId=" + encodeURIComponent("" + warehouseId) + "&";
+        if (productId !== undefined && productId !== null)
+            url_ += "productId=" + encodeURIComponent("" + productId) + "&";
+        if (search !== undefined && search !== null)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (lowStockOnly === null)
+            throw new globalThis.Error("The parameter 'lowStockOnly' cannot be null.");
+        else if (lowStockOnly !== undefined)
+            url_ += "lowStockOnly=" + encodeURIComponent("" + lowStockOnly) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processLevels(_response);
+        });
+    }
+
+    protected processLevels(response: Response): Promise<PagedResultOfErpStockLevelDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PagedResultOfErpStockLevelDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<PagedResultOfErpStockLevelDto>(null as any);
+    }
+
+    /**
+     * 出入库流水，最新的在前。
+     * @param productId (optional) 
+     * @param warehouseId (optional) 
+     * @param kind (optional) 
+     * @param page (optional) 
+     * @param pageSize (optional) 
+     */
+    movements(productId?: string | null | undefined, warehouseId?: string | null | undefined, kind?: ErpStockMovementKind | null | undefined, page?: number | undefined, pageSize?: number | undefined, signal?: AbortSignal): Promise<PagedResultOfErpStockMovementDto> {
+        let url_ = this.baseUrl + "/api/erp/stock/movements?";
+        if (productId !== undefined && productId !== null)
+            url_ += "productId=" + encodeURIComponent("" + productId) + "&";
+        if (warehouseId !== undefined && warehouseId !== null)
+            url_ += "warehouseId=" + encodeURIComponent("" + warehouseId) + "&";
+        if (kind !== undefined && kind !== null)
+            url_ += "kind=" + encodeURIComponent("" + kind) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processMovements(_response);
+        });
+    }
+
+    protected processMovements(response: Response): Promise<PagedResultOfErpStockMovementDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PagedResultOfErpStockMovementDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<PagedResultOfErpStockMovementDto>(null as any);
+    }
+
+    /**
+     * 手工调整（期初、盘点、报损）。在库不够减时返回 409。
+     */
+    adjust(request: AdjustErpStockRequest, signal?: AbortSignal): Promise<ErpStockLevelDto> {
+        let url_ = this.baseUrl + "/api/erp/stock/adjust";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processAdjust(_response);
+        });
+    }
+
+    protected processAdjust(response: Response): Promise<ErpStockLevelDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpStockLevelDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpStockLevelDto>(null as any);
+    }
+
+    /**
+     * 仓库之间调拨，只能调出可用数量。返回调出、调入两个仓库调拨后的库存。
+     */
+    transfer(request: TransferErpStockRequest, signal?: AbortSignal): Promise<ErpStockLevelDto[]> {
+        let url_ = this.baseUrl + "/api/erp/stock/transfer";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processTransfer(_response);
+        });
+    }
+
+    protected processTransfer(response: Response): Promise<ErpStockLevelDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpStockLevelDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpStockLevelDto[]>(null as any);
+    }
+}
+
+export class ErpSalesOrdersClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 销售订单，最新的在前；search 匹配订单号和客户名称。
+     * @param search (optional) 
+     * @param status (optional) 
+     * @param companyId (optional) 
+     * @param dealId (optional) 
+     * @param ownerUserId (optional) 
+     * @param page (optional) 
+     * @param pageSize (optional) 
+     */
+    list(search?: string | null | undefined, status?: ErpSalesOrderStatus | null | undefined, companyId?: string | null | undefined, dealId?: string | null | undefined, ownerUserId?: string | null | undefined, page?: number | undefined, pageSize?: number | undefined, signal?: AbortSignal): Promise<PagedResultOfErpSalesOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/sales-orders?";
+        if (search !== undefined && search !== null)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (status !== undefined && status !== null)
+            url_ += "status=" + encodeURIComponent("" + status) + "&";
+        if (companyId !== undefined && companyId !== null)
+            url_ += "companyId=" + encodeURIComponent("" + companyId) + "&";
+        if (dealId !== undefined && dealId !== null)
+            url_ += "dealId=" + encodeURIComponent("" + dealId) + "&";
+        if (ownerUserId !== undefined && ownerUserId !== null)
+            url_ += "ownerUserId=" + encodeURIComponent("" + ownerUserId) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processList(_response);
+        });
+    }
+
+    protected processList(response: Response): Promise<PagedResultOfErpSalesOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PagedResultOfErpSalesOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<PagedResultOfErpSalesOrderDto>(null as any);
+    }
+
+    /**
+     * 新建销售订单（草稿）。confirm=true 时建好立即确认并预留库存，库存不够返回 409 且不建单。
+     * @param confirm (optional) 
+     */
+    create(request: SaveErpSalesOrderRequest, confirm?: boolean | undefined, signal?: AbortSignal): Promise<ErpSalesOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/sales-orders?";
+        if (confirm === null)
+            throw new globalThis.Error("The parameter 'confirm' cannot be null.");
+        else if (confirm !== undefined)
+            url_ += "confirm=" + encodeURIComponent("" + confirm) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreate(_response);
+        });
+    }
+
+    protected processCreate(response: Response): Promise<ErpSalesOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpSalesOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpSalesOrderDto>(null as any);
+    }
+
+    get(id: string, signal?: AbortSignal): Promise<ErpSalesOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/sales-orders/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGet(_response);
+        });
+    }
+
+    protected processGet(response: Response): Promise<ErpSalesOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpSalesOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpSalesOrderDto>(null as any);
+    }
+
+    /**
+     * 修改草稿订单；不是草稿或已被别人修改时返回 409。
+     */
+    update(id: string, request: SaveErpSalesOrderRequest, signal?: AbortSignal): Promise<ErpSalesOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/sales-orders/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdate(_response);
+        });
+    }
+
+    protected processUpdate(response: Response): Promise<ErpSalesOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpSalesOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpSalesOrderDto>(null as any);
+    }
+
+    /**
+     * 删除草稿或已取消的订单。
+     */
+    delete(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/erp/sales-orders/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * 确认订单并预留库存；可用数量不够时返回 409，列出缺货的产品。
+     */
+    confirm(id: string, signal?: AbortSignal): Promise<ErpSalesOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/sales-orders/{id}/confirm";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processConfirm(_response);
+        });
+    }
+
+    protected processConfirm(response: Response): Promise<ErpSalesOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpSalesOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpSalesOrderDto>(null as any);
+    }
+
+    /**
+     * 发货：扣减库存并记出库流水。
+     */
+    ship(id: string, signal?: AbortSignal): Promise<ErpSalesOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/sales-orders/{id}/ship";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processShip(_response);
+        });
+    }
+
+    protected processShip(response: Response): Promise<ErpSalesOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpSalesOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpSalesOrderDto>(null as any);
+    }
+
+    /**
+     * 取消草稿或已确认的订单（释放预留）。
+     */
+    cancel(id: string, signal?: AbortSignal): Promise<ErpSalesOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/sales-orders/{id}/cancel";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCancel(_response);
+        });
+    }
+
+    protected processCancel(response: Response): Promise<ErpSalesOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpSalesOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpSalesOrderDto>(null as any);
+    }
+}
+
+export class ErpPurchaseOrdersClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 采购订单，最新的在前；search 匹配订单号和供应商名称。
+     * @param search (optional) 
+     * @param status (optional) 
+     * @param supplierId (optional) 
+     * @param page (optional) 
+     * @param pageSize (optional) 
+     */
+    list(search?: string | null | undefined, status?: ErpPurchaseOrderStatus | null | undefined, supplierId?: string | null | undefined, page?: number | undefined, pageSize?: number | undefined, signal?: AbortSignal): Promise<PagedResultOfErpPurchaseOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/purchase-orders?";
+        if (search !== undefined && search !== null)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (status !== undefined && status !== null)
+            url_ += "status=" + encodeURIComponent("" + status) + "&";
+        if (supplierId !== undefined && supplierId !== null)
+            url_ += "supplierId=" + encodeURIComponent("" + supplierId) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processList(_response);
+        });
+    }
+
+    protected processList(response: Response): Promise<PagedResultOfErpPurchaseOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PagedResultOfErpPurchaseOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<PagedResultOfErpPurchaseOrderDto>(null as any);
+    }
+
+    create(request: SaveErpPurchaseOrderRequest, signal?: AbortSignal): Promise<ErpPurchaseOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/purchase-orders";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreate(_response);
+        });
+    }
+
+    protected processCreate(response: Response): Promise<ErpPurchaseOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpPurchaseOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpPurchaseOrderDto>(null as any);
+    }
+
+    get(id: string, signal?: AbortSignal): Promise<ErpPurchaseOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/purchase-orders/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGet(_response);
+        });
+    }
+
+    protected processGet(response: Response): Promise<ErpPurchaseOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpPurchaseOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpPurchaseOrderDto>(null as any);
+    }
+
+    update(id: string, request: SaveErpPurchaseOrderRequest, signal?: AbortSignal): Promise<ErpPurchaseOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/purchase-orders/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdate(_response);
+        });
+    }
+
+    protected processUpdate(response: Response): Promise<ErpPurchaseOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpPurchaseOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpPurchaseOrderDto>(null as any);
+    }
+
+    delete(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/erp/purchase-orders/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * 下单（已发给供应商），之后不能再修改。
+     */
+    place(id: string, signal?: AbortSignal): Promise<ErpPurchaseOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/purchase-orders/{id}/place";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processPlace(_response);
+        });
+    }
+
+    protected processPlace(response: Response): Promise<ErpPurchaseOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpPurchaseOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpPurchaseOrderDto>(null as any);
+    }
+
+    /**
+     * 到货：全部入库并记入库流水。
+     */
+    receive(id: string, signal?: AbortSignal): Promise<ErpPurchaseOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/purchase-orders/{id}/receive";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processReceive(_response);
+        });
+    }
+
+    protected processReceive(response: Response): Promise<ErpPurchaseOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpPurchaseOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpPurchaseOrderDto>(null as any);
+    }
+
+    cancel(id: string, signal?: AbortSignal): Promise<ErpPurchaseOrderDto> {
+        let url_ = this.baseUrl + "/api/erp/purchase-orders/{id}/cancel";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCancel(_response);
+        });
+    }
+
+    protected processCancel(response: Response): Promise<ErpPurchaseOrderDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpPurchaseOrderDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpPurchaseOrderDto>(null as any);
+    }
+}
+
+export class ErpSummaryClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 进销存概况：本月发货与到货金额、待处理的订单、低库存产品数。
+     */
+    get(signal?: AbortSignal): Promise<ErpSummaryDto> {
+        let url_ = this.baseUrl + "/api/erp/summary";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGet(_response);
+        });
+    }
+
+    protected processGet(response: Response): Promise<ErpSummaryDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ErpSummaryDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ErpSummaryDto>(null as any);
+    }
+}
+
 export class KnowledgeClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -3804,6 +5184,7 @@ export interface ModuleDto {
     isCore: boolean;
     enabled: boolean;
     features: FeatureDto[];
+    dependsOn: string[];
 }
 
 export interface SetModuleEnabledRequest {
@@ -4259,6 +5640,256 @@ export interface SaveCrmStageItem {
     name: string;
     probability?: number;
     kind?: CrmStageKind;
+}
+
+export interface PagedResultOfErpProductDto {
+    items: ErpProductDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+export interface ErpProductDto {
+    id: string;
+    sku: string;
+    name: string;
+    unit: string;
+    category: string;
+    description: string;
+    price?: number | undefined;
+    cost?: number | undefined;
+    currency: string;
+    trackInventory: boolean;
+    reorderPoint?: number | undefined;
+    isActive: boolean;
+    onHand: number;
+    reserved: number;
+    available: number;
+    lowStock: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface ErpProductDetailDto {
+    product: ErpProductDto;
+    levels: ErpStockLevelDto[];
+    movements: ErpStockMovementDto[];
+}
+
+export interface ErpStockLevelDto {
+    productId: string;
+    sku: string;
+    productName: string;
+    unit: string;
+    warehouseId: string;
+    warehouseName: string;
+    onHand: number;
+    reserved: number;
+    available: number;
+    updatedAt: string;
+}
+
+export interface ErpStockMovementDto {
+    id: string;
+    productId: string;
+    sku: string;
+    productName: string;
+    unit: string;
+    warehouseId: string;
+    warehouseName: string;
+    kind: ErpStockMovementKind;
+    quantity: number;
+    balanceAfter: number;
+    note: string;
+    salesOrderId?: string | undefined;
+    salesOrderNumber?: string | undefined;
+    purchaseOrderId?: string | undefined;
+    purchaseOrderNumber?: string | undefined;
+    actor: ActorDto;
+    createdAt: string;
+}
+
+export type ErpStockMovementKind = "purchase" | "sale" | "adjustment" | "transfer_in" | "transfer_out";
+
+export interface SaveErpProductRequest {
+    sku: string;
+    name: string;
+    unit?: string;
+    category?: string;
+    description?: string;
+    price?: number | undefined;
+    cost?: number | undefined;
+    currency?: string;
+    trackInventory?: boolean;
+    reorderPoint?: number | undefined;
+    isActive?: boolean;
+    expectedUpdatedAt?: string | undefined;
+}
+
+export interface ErpWarehouseDto {
+    id: string;
+    name: string;
+    address: string;
+    isDefault: boolean;
+    createdAt: string;
+}
+
+export interface SaveErpWarehouseRequest {
+    name: string;
+    address?: string;
+    isDefault?: boolean;
+}
+
+export interface PagedResultOfErpStockLevelDto {
+    items: ErpStockLevelDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+export interface PagedResultOfErpStockMovementDto {
+    items: ErpStockMovementDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+export interface AdjustErpStockRequest {
+    productId: string;
+    warehouseId?: string | undefined;
+    quantity?: number | undefined;
+    countedQuantity?: number | undefined;
+    note?: string;
+}
+
+export interface TransferErpStockRequest {
+    productId: string;
+    fromWarehouseId: string;
+    toWarehouseId: string;
+    quantity: number;
+    note?: string;
+}
+
+export interface PagedResultOfErpSalesOrderDto {
+    items: ErpSalesOrderDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+export interface ErpSalesOrderDto {
+    id: string;
+    number: string;
+    status: ErpSalesOrderStatus;
+    companyId?: string | undefined;
+    companyName?: string | undefined;
+    contactId?: string | undefined;
+    contactName?: string | undefined;
+    dealId?: string | undefined;
+    dealTitle?: string | undefined;
+    warehouseId: string;
+    warehouseName: string;
+    currency: string;
+    orderDate: string;
+    note: string;
+    total: number;
+    lines: ErpOrderLineDto[];
+    owner?: ActorDto | undefined;
+    createdBy: ActorDto;
+    createdAt: string;
+    updatedAt: string;
+    confirmedAt?: string | undefined;
+    shippedAt?: string | undefined;
+    cancelledAt?: string | undefined;
+}
+
+export type ErpSalesOrderStatus = "draft" | "confirmed" | "shipped" | "cancelled";
+
+export interface ErpOrderLineDto {
+    productId: string;
+    sku: string;
+    productName: string;
+    unit: string;
+    quantity: number;
+    unitPrice: number;
+    amount: number;
+}
+
+export interface SaveErpSalesOrderRequest {
+    companyId?: string | undefined;
+    contactId?: string | undefined;
+    dealId?: string | undefined;
+    warehouseId?: string | undefined;
+    currency?: string | undefined;
+    orderDate?: string | undefined;
+    note?: string;
+    ownerUserId?: string | undefined;
+    lines: ErpOrderLineRequest[];
+    expectedUpdatedAt?: string | undefined;
+}
+
+export interface ErpOrderLineRequest {
+    productId: string;
+    quantity: number;
+    unitPrice?: number | undefined;
+}
+
+export interface PagedResultOfErpPurchaseOrderDto {
+    items: ErpPurchaseOrderDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+export interface ErpPurchaseOrderDto {
+    id: string;
+    number: string;
+    status: ErpPurchaseOrderStatus;
+    supplierId?: string | undefined;
+    supplierName?: string | undefined;
+    warehouseId: string;
+    warehouseName: string;
+    currency: string;
+    orderDate: string;
+    expectedDate?: string | undefined;
+    note: string;
+    total: number;
+    lines: ErpOrderLineDto[];
+    createdBy: ActorDto;
+    createdAt: string;
+    updatedAt: string;
+    orderedAt?: string | undefined;
+    receivedAt?: string | undefined;
+    cancelledAt?: string | undefined;
+}
+
+export type ErpPurchaseOrderStatus = "draft" | "ordered" | "received" | "cancelled";
+
+export interface SaveErpPurchaseOrderRequest {
+    supplierId: string;
+    warehouseId?: string | undefined;
+    currency?: string;
+    orderDate?: string | undefined;
+    expectedDate?: string | undefined;
+    note?: string;
+    lines: ErpOrderLineRequest[];
+    expectedUpdatedAt?: string | undefined;
+}
+
+export interface ErpSummaryDto {
+    shippedThisMonth: ErpAmountDto[];
+    receivedThisMonth: ErpAmountDto[];
+    draftSalesOrders: number;
+    toShipSalesOrders: number;
+    toShipTotals: ErpAmountDto[];
+    openPurchaseOrders: number;
+    activeProducts: number;
+    lowStockProducts: number;
+}
+
+export interface ErpAmountDto {
+    currency: string;
+    amount: number;
 }
 
 export interface KnowledgeDocumentDto {
