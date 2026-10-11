@@ -6,6 +6,7 @@ using AiNative.Domain.Modules;
 using AiNative.Domain.Tenancy;
 using AiNative.Domain.Work;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace AiNative.Application.Abstractions;
@@ -48,6 +49,9 @@ public interface IAppDbContext
     DbSet<ConversationMessage> ConversationMessages { get; }
 
     DatabaseFacade Database { get; }
+
+    EntityEntry<TEntity> Entry<TEntity>(TEntity entity)
+        where TEntity : class;
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -59,8 +59,15 @@ internal sealed class AgentRuntime(
         timeout.CancelAfter(_options.RunTimeout);
         var outcome = RunStatus.Succeeded;
         string? error = null;
+        var budgetExhausted = false;
         try
         {
+            // 领取到开始执行之间，智能体可能刚被暂停或终止。
+            if (!agent.CanWork)
+            {
+                throw new OperationCanceledException("智能体已暂停或终止。");
+            }
+
             run.Status = RunStatus.Running;
             run.StartedAt ??= clock.GetUtcNow();
             run.Provider = agent.ModelProvider;
@@ -73,7 +80,6 @@ internal sealed class AgentRuntime(
             var spentAtStart = await AgentSpend.ForAgentAsync(db, agent.Id, clock.GetUtcNow(), cancellationToken).ConfigureAwait(false);
             if (agent.MonthlyBudgetUsd > 0 && spentAtStart >= agent.MonthlyBudgetUsd)
             {
-                agent.Pause("本月预算已用完");
                 throw new BudgetExhaustedException();
             }
 
@@ -82,6 +88,7 @@ internal sealed class AgentRuntime(
         }
         catch (BudgetExhaustedException)
         {
+            budgetExhausted = true;
             outcome = RunStatus.Failed;
             error = "本月预算已用完，智能体已自动暂停。调整预算后恢复即可继续。";
         }
@@ -90,10 +97,10 @@ internal sealed class AgentRuntime(
             outcome = RunStatus.TimedOut;
             error = $"执行超过 {_options.RunTimeout.TotalMinutes:0} 分钟上限。";
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             outcome = RunStatus.Cancelled;
-            error = "服务停止，执行被取消。";
+            error = cancellationToken.IsCancellationRequested ? "服务停止，执行被取消。" : ex.Message;
         }
         catch (Exception ex)
         {
@@ -102,7 +109,7 @@ internal sealed class AgentRuntime(
             error = ex.Message;
         }
 
-        await FinishAsync(tenantId, agent, run, wakeup, recorder, outcome, error).ConfigureAwait(false);
+        await FinishAsync(tenantId, agent, run, wakeup, recorder, outcome, error, budgetExhausted).ConfigureAwait(false);
     }
 
     private async Task<WorkItem?> CheckoutFocusAsync(Agent agent, HeartbeatRun run, WakeupRequest? wakeup, CancellationToken cancellationToken)
@@ -186,7 +193,6 @@ internal sealed class AgentRuntime(
 
             if (agent.MonthlyBudgetUsd > 0 && spentAtStart + run.CostUsd >= agent.MonthlyBudgetUsd)
             {
-                agent.Pause("本月预算已用完");
                 throw new BudgetExhaustedException();
             }
 
@@ -304,7 +310,15 @@ internal sealed class AgentRuntime(
         await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task FinishAsync(Guid tenantId, Agent agent, HeartbeatRun run, WakeupRequest? wakeup, RunRecorder recorder, RunStatus outcome, string? error)
+    private async Task FinishAsync(
+        Guid tenantId,
+        Agent agent,
+        HeartbeatRun run,
+        WakeupRequest? wakeup,
+        RunRecorder recorder,
+        RunStatus outcome,
+        string? error,
+        bool budgetExhausted)
     {
         // 收尾不受调用方取消影响，保证状态一定落库、领取锁一定释放。
         var ct = CancellationToken.None;
@@ -312,9 +326,24 @@ internal sealed class AgentRuntime(
         run.Status = outcome;
         run.Error = error;
         run.FinishedAt = now;
+
+        // 执行期间管理员可能暂停或终止了智能体，先取最新状态，不能用本轮开始时的快照覆盖。
+        try
+        {
+            await db.Entry(agent).ReloadAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to reload agent {AgentId} before finishing run {RunId}", agent.Id, run.Id);
+        }
+
         agent.LastHeartbeatAt = now;
         agent.LastError = outcome == RunStatus.Succeeded ? null : error;
-        if (agent.Status == AgentStatus.Running)
+        if (budgetExhausted && agent.CanWork)
+        {
+            agent.Pause("本月预算已用完");
+        }
+        else if (agent.Status == AgentStatus.Running)
         {
             agent.Status = outcome == RunStatus.Failed ? AgentStatus.Error : AgentStatus.Idle;
         }

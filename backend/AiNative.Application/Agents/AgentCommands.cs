@@ -115,6 +115,11 @@ internal sealed class AgentCommandHandlers(
         var agent = await FindAsync(request.Id, cancellationToken).ConfigureAwait(false);
         agent.Status = AgentStatus.Terminated;
         agent.PauseReason = "已终止";
+        var now = clock.GetUtcNow();
+        await db.WakeupRequests
+            .Where(w => w.AgentId == agent.Id && w.Status == WakeupStatus.Queued)
+            .ExecuteUpdateAsync(s => s.SetProperty(w => w.Status, WakeupStatus.Cancelled).SetProperty(w => w.FinishedAt, now), cancellationToken)
+            .ConfigureAwait(false);
 
         // 下属改为向被终止者的上级汇报，组织不断链。
         var reports = await db.Agents.Where(a => a.ReportsToId == agent.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
