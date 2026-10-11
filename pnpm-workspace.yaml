@@ -13,3 +13,23 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - '@tauri-apps/cli-darwin-arm64@2.12.2'
+  - '@tauri-apps/cli-darwin-x64@2.12.2'
+  - '@tauri-apps/cli-linux-arm-gnueabihf@2.12.2'
+  - '@tauri-apps/cli-linux-arm64-gnu@2.12.2'
+  - '@tauri-apps/cli-linux-arm64-musl@2.12.2'
+  - '@tauri-apps/cli-linux-riscv64-gnu@2.12.2'
+  - '@tauri-apps/cli-linux-x64-gnu@2.12.2'
+  - '@tauri-apps/cli-linux-x64-musl@2.12.2'
+  - '@tauri-apps/cli-win32-arm64-msvc@2.12.2'
+  - '@tauri-apps/cli-win32-ia32-msvc@2.12.2'
+  - '@tauri-apps/cli-win32-x64-msvc@2.12.2'
+  - '@tauri-apps/cli@2.12.2'
+
+# 全仓库只保留一份 React 类型：Web（React 19.3）和移动端（Expo 锁定的 React 19.2）共用一个 pnpm 仓库，
+# 很多库的类型声明 import "react" 却不声明 @types/react，两份并存会在隐藏提升目录里互相污染。
+overrides:
+  '@types/react': 19.3.0
+  '@types/react-dom': 19.3.0

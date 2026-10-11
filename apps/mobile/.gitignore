@@ -1,0 +1,7 @@
+.expo/
+dist/
+web-build/
+# expo prebuild 生成的原生工程（按需在本机生成）
+/ios
+/android
+dist-web/

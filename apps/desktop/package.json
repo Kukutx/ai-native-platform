@@ -1,0 +1,15 @@
+{
+  "name": "@ainative/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "桌面端：Tauri 2 包装 Web 工作台的静态导出",
+  "scripts": {
+    "dev": "tauri dev",
+    "bundle": "tauri build",
+    "icon": "tauri icon app-icon.png",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.2"
+  }
+}

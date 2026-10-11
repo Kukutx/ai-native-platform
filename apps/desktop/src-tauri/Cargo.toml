@@ -1,0 +1,27 @@
+[package]
+name = "ainative-desktop"
+version = "0.1.0"
+description = "AI 原生工作台桌面端"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+
+[lib]
+name = "ainative_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-window-state = "2"
+tauri-plugin-single-instance = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

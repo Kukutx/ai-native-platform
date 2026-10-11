@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: 后端构建与测试
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DOTNET_NOLOGO: 1
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      AINATIVE_TEST_POSTGRES: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - name: 构建
+        run: dotnet build backend/AiNative.slnx -c Release
+      - name: 测试
+        run: dotnet test --solution backend/AiNative.slnx -c Release --no-build
+      - name: 检查生成的 TS 客户端是否最新
+        run: |
+          node tools/generate-api-client.mjs
+          git diff --exit-code -- packages/api-client
+
+  frontend:
+    name: 前端类型检查、lint 与构建
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm type-check
+      - run: pnpm lint
+      - name: 构建 Web（含静态导出）
+        run: |
+          pnpm --filter @ainative/web build
+          pnpm --filter @ainative/web build:static
+      - name: 打包移动端 JS（Android）
+        run: pnpm --filter @ainative/mobile bundle:check
+        env:
+          EXPO_OFFLINE: 1
+
+  desktop:
+    name: 桌面端编译检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: 安装 WebKitGTK 依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev librsvg2-dev libxdo-dev libssl-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: 静态导出 Web（Tauri 编译时内嵌）
+        run: pnpm --filter @ainative/web build:static
+      - name: cargo check
+        working-directory: apps/desktop/src-tauri
+        run: cargo check --locked
