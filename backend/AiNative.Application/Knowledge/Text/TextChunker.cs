@@ -52,7 +52,10 @@ public static class TextChunker
             }
 
             var budget = maxChars - currentHeading.Length - 1;
-            foreach (var piece in SplitLong(block, budget))
+
+            // 超长段落切出的片段给重叠留出空间，否则上一片段的尾部放不下，最需要重叠的地方反而没有重叠。
+            var pieceBudget = block.Length > budget ? budget - overlapChars - 2 : budget;
+            foreach (var piece in SplitLong(block, pieceBudget))
             {
                 if (current.Length > 0 && current.Length + piece.Length + 2 > budget)
                 {

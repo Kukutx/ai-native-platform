@@ -47,6 +47,7 @@ internal sealed class MemoryHandlers(
     ITenantContext tenant,
     IKnowledgeIndexSignal indexSignal,
     IPostCommitActions postCommit,
+    ITransactionLock locks,
     IChangeFeed changes) :
     IRequestHandler<RetainMemoryCommand, MemoryDto>,
     IRequestHandler<ListMemoriesQuery, PagedResult<MemoryDto>>,
@@ -59,13 +60,25 @@ internal sealed class MemoryHandlers(
         var (scope, ownerId) = MemoryEntry.OwnedBy(tenant.Actor, request.Shared);
         var tags = KnowledgeValidation.NormalizeTags(request.Tags);
 
+        // 同一归属下记同一件事在事务内串行化：并发写入时后到的一方会读到先到的记忆并合并，而不是撞唯一索引。
+        await locks.AcquireAsync($"memory:{tenant.TenantId}:{scope}:{ownerId}:{hash}", cancellationToken).ConfigureAwait(false);
+
         var existing = await db.MemoryEntries
             .FirstOrDefaultAsync(m => m.Scope == scope && m.OwnerId == ownerId && m.ContentHash == hash, cancellationToken)
             .ConfigureAwait(false);
         if (existing is not null)
         {
             // 重复记下说明这件事仍然重要：合并标签并刷新时间，回忆时的时间排序会把它往前放。
-            existing.Tags = KnowledgeValidation.NormalizeTags(existing.Tags.Concat(tags));
+            var merged = KnowledgeValidation.NormalizeTags(existing.Tags.Concat(tags));
+            if (merged.Count != existing.Tags.Count)
+            {
+                existing.Tags = merged;
+                var searchText = KnowledgeChunkFactory.MemorySearchText(existing);
+                await db.KnowledgeChunks.Where(c => c.MemoryId == existing.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(c => c.SearchText, searchText), cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
             db.Entry(existing).Property(m => m.UpdatedAt).IsModified = true;
             changes.Publish(RealtimeEntities.Memory, existing.Id, RealtimeChangeKind.Updated);
             return (await MemoryMapping.ToDtosAsync(db, [existing], cancellationToken).ConfigureAwait(false))[0];

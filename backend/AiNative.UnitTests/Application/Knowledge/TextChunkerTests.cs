@@ -47,4 +47,22 @@ public sealed class TextChunkerTests
             chunks[i].Should().Contain(tail, "相邻片段之间保留重叠，避免句子被切断后检索不到");
         }
     }
+
+    [Fact]
+    public void Hard_cut_sentences_still_overlap_within_the_size_limit()
+    {
+        // 没有任何句末标点的超长段落只能硬切，每片都接近上限。
+        var text = string.Concat(Enumerable.Range(0, 900).Select(i => (char)('一' + (i % 400))));
+
+        var chunks = TextChunker.Split(text, maxChars: 200, overlapChars: 40);
+
+        chunks.Should().HaveCountGreaterThan(4);
+        chunks.Should().OnlyContain(c => c.Length <= 200);
+        for (var i = 1; i < chunks.Count; i++)
+        {
+            chunks[i].Should().StartWith(chunks[i - 1][^40..]);
+        }
+
+        chunks[^1].Should().EndWith(text[^20..]);
+    }
 }

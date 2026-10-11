@@ -93,8 +93,13 @@ internal static class KnowledgeChunkFactory
         OwnerId = memory.OwnerId,
         Seq = 0,
         Content = memory.Content,
-        SearchText = TextTokenizer.ToSearchText($"{memory.Content}\n{string.Join(' ', memory.Tags)}"),
+        SearchText = MemorySearchText(memory),
     };
+
+    /// <summary>
+    /// 记忆的标签只通过检索文本参与关键词匹配，标签变化时需要用它重建片段的检索文本。
+    /// </summary>
+    public static string MemorySearchText(MemoryEntry memory) => TextTokenizer.ToSearchText($"{memory.Content}\n{string.Join(' ', memory.Tags)}");
 }
 
 internal sealed class KnowledgeDocumentHandlers(

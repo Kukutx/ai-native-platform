@@ -207,6 +207,24 @@ public sealed class KnowledgeTests(PostgresFixture postgres) : IntegrationTest(p
         asManager.Should().Contain(h => h.SourceId == retained.Id);
     }
 
+    [Fact]
+    public async Task Concurrent_retains_of_the_same_memory_merge_and_new_tags_become_searchable()
+    {
+        var owner = await RegisterAsync();
+        using var client = Client(owner.AccessToken);
+        const string content = "团队周会固定在周一上午十点";
+
+        var results = await Task.WhenAll(Enumerable.Range(1, 6).Select(i =>
+            client.PostAsJsonAsync("/api/memories", new CreateMemoryRequest { Content = content, Shared = true, Tags = [$"标签{i}"] }, PlatformJson.Options, Ct)));
+        var later = await PostAsync<MemoryDto>(client, "/api/memories", new CreateMemoryRequest { Content = content, Shared = true, Tags = ["季度复盘"] });
+        var byNewTag = await SearchAsync(client, "季度复盘");
+
+        results.Should().OnlyContain(r => r.IsSuccessStatusCode, "并发记下同一件事应合并，而不是撞唯一索引");
+        (await GetAsync<PagedResult<MemoryDto>>(client, "/api/memories")).Total.Should().Be(1);
+        later.Tags.Should().HaveCount(7);
+        byNewTag.Select(h => h.SourceId).Should().Equal(later.Id);
+    }
+
     private static Task<List<KnowledgeHitDto>> SearchAsync(HttpClient client, string query)
         => GetAsync<List<KnowledgeHitDto>>(client, $"/api/knowledge/search?q={Uri.EscapeDataString(query)}");
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useDeferredValue, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { MemoryDto, MemoryScope } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { useSession } from '@/components/app/session-provider';
@@ -17,6 +17,7 @@ import { formatTime, memoryScope } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
 const ALL = 'all';
+const PAGE_SIZE = 50;
 
 export function MemoriesTab() {
   const { can, session } = useSession();
@@ -28,10 +29,15 @@ export function MemoriesTab() {
   const [content, setContent] = useState('');
   const [shared, setShared] = useState(false);
   const filters = { scope, search: term };
-  const memories = useQuery({
+  // 记忆会持续积累，按页加载，滚到底部点"加载更多"。
+  const memories = useInfiniteQuery({
     queryKey: queryKeys.memories(filters),
-    queryFn: ({ signal }) => api.memories.list(scope === ALL ? undefined : scope, undefined, term || undefined, 1, 100, signal),
+    queryFn: ({ pageParam, signal }) => api.memories.list(scope === ALL ? undefined : scope, undefined, term || undefined, pageParam, PAGE_SIZE, signal),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
   });
+  const items = memories.data?.pages.flatMap((p) => p.items) ?? [];
+  const total = memories.data?.pages[0]?.total;
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['memories'] });
   const create = useMutation({
     mutationFn: (text: string) => api.memories.create({ content: text, shared, tags: [] }),
@@ -87,13 +93,13 @@ export function MemoriesTab() {
             {manage ? <SelectItem value='agent'>智能体记忆</SelectItem> : null}
           </SelectContent>
         </Select>
-        {memories.data ? <span className='text-muted-foreground text-sm'>共 {memories.data.total} 条</span> : null}
+        {total !== undefined ? <span className='text-muted-foreground text-sm'>共 {total} 条</span> : null}
       </div>
       {memories.isPending ? (
         <Skeleton className='h-40 w-full' />
-      ) : memories.data?.items.length ? (
+      ) : items.length ? (
         <ul className='divide-y rounded-xl border'>
-          {memories.data.items.map((m) => (
+          {items.map((m) => (
             <li key={m.id} className='flex items-start gap-3 p-3'>
               <Badge variant={memoryScope[m.scope].tone} className='mt-0.5 shrink-0'>
                 {memoryScope[m.scope].label}
@@ -114,6 +120,13 @@ export function MemoriesTab() {
               ) : null}
             </li>
           ))}
+          {memories.hasNextPage ? (
+            <li className='p-2 text-center'>
+              <Button size='sm' variant='ghost' disabled={memories.isFetchingNextPage} onClick={() => void memories.fetchNextPage()}>
+                {memories.isFetchingNextPage ? '加载中…' : `加载更多（还有 ${(total ?? 0) - items.length} 条）`}
+              </Button>
+            </li>
+          ) : null}
         </ul>
       ) : (
         <EmptyState

@@ -43,7 +43,8 @@ internal sealed class EmbeddingService : IEmbeddingService, IDisposable
 
         var key = string.IsNullOrWhiteSpace(provider.ApiKey) ? "not-required" : provider.ApiKey;
         _generator = new OpenAIClient(new ApiKeyCredential(key), clientOptions).GetEmbeddingClient(_options.Model).AsIEmbeddingGenerator();
-        ModelId = $"{providerName}/{_options.Model}";
+        // 请求维度会改变向量空间，也算模型标识的一部分：只改维度同样会触发旧向量重建。
+        ModelId = _options.RequestDimensions is { } dimensions ? $"{providerName}/{_options.Model}@{dimensions}" : $"{providerName}/{_options.Model}";
     }
 
     public string ModelId { get; }

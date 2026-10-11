@@ -102,13 +102,9 @@ internal sealed class KnowledgeIndexer(
             return rows;
         }, cancellationToken).ConfigureAwait(false);
 
-        if (pending.Count < BatchSize)
-        {
-            _staleScanDone = true;
-        }
-
         if (pending.Count == 0)
         {
+            _staleScanDone = true;
             return 0;
         }
 
@@ -129,6 +125,12 @@ internal sealed class KnowledgeIndexer(
             command.Parameters.Add(new NpgsqlParameter("vectors", NpgsqlDbType.Array | NpgsqlDbType.Text) { Value = literals });
             return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
+
+        // 最后一批旧向量写回成功后才切换到只看新片段；中途出错时下一轮仍会重新扫描旧向量。
+        if (pending.Count < BatchSize)
+        {
+            _staleScanDone = true;
+        }
 
         logger.LogDebug("Embedded {Count} knowledge chunks with {Model}", pending.Count, model);
         return pending.Count;
