@@ -56,7 +56,7 @@ dotnet ef migrations add <名称> --project AiNative.Infrastructure --startup-pr
 4. 类放进已注册的程序集即可被扫描；独立程序集用 `services.AddPlatformModuleAssembly(assembly)`。
 5. 补测试：权限、租户隔离、关键状态流转至少各一条。
 
-同一个动作定义同时服务于界面（`/api/actions`）、智能体工具调用和对话，权限与审批在调用入口统一检查，不要在各处重复实现。
+同一个动作定义同时服务于界面（`/api/actions`）、智能体工具调用、对话和 MCP 服务（`/mcp`），权限与审批在调用入口统一检查，不要在各处重复实现。
 
 ## 接口与前端
 
