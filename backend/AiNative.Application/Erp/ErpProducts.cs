@@ -27,9 +27,6 @@ public sealed record ListErpCategoriesQuery : IQuery<IReadOnlyList<string>>;
 [RequireFeature(ErpFeatures.View)]
 public sealed record GetErpProductQuery(Guid Id) : IQuery<ErpProductDetailDto>;
 
-[RequireFeature(ErpFeatures.View)]
-public sealed record FindErpProductBySkuQuery(string Sku) : IQuery<ErpProductDto?>;
-
 [RequireFeature(ErpFeatures.Inventory)]
 public sealed record CreateErpProductCommand(SaveErpProductRequest Request) : ICommand<ErpProductDto>;
 
@@ -63,9 +60,13 @@ public sealed class SaveErpProductRequestValidator : AbstractValidator<SaveErpPr
         RuleFor(x => x.Description).Text(10_000, "描述").OverridePropertyName("description");
         RuleFor(x => x.Currency).Currency().OverridePropertyName("currency");
         RuleFor(x => x.Price).GreaterThanOrEqualTo(0).LessThan(ErpValidation.MaxPrice).When(x => x.Price.HasValue)
-            .WithMessage("售价必须是不小于 0 的数字。").OverridePropertyName("price");
+            .WithMessage("售价必须是不小于 0 的数字。")
+            .Must(v => ErpValidation.HasPriceScale(v!.Value)).When(x => x.Price.HasValue).WithMessage("售价最多 4 位小数。")
+            .OverridePropertyName("price");
         RuleFor(x => x.Cost).GreaterThanOrEqualTo(0).LessThan(ErpValidation.MaxPrice).When(x => x.Cost.HasValue)
-            .WithMessage("采购价必须是不小于 0 的数字。").OverridePropertyName("cost");
+            .WithMessage("采购价必须是不小于 0 的数字。")
+            .Must(v => ErpValidation.HasPriceScale(v!.Value)).When(x => x.Cost.HasValue).WithMessage("采购价最多 4 位小数。")
+            .OverridePropertyName("cost");
         RuleFor(x => x.ReorderPoint).GreaterThanOrEqualTo(0).LessThan(ErpValidation.MaxQuantity).When(x => x.ReorderPoint.HasValue)
             .WithMessage("补货提醒线必须是不小于 0 的数字。")
             .Must(v => ErpValidation.HasQuantityScale(v!.Value)).When(x => x.ReorderPoint.HasValue).WithMessage("补货提醒线最多 4 位小数。")
@@ -113,7 +114,6 @@ internal sealed class ErpProductHandlers(
     IRequestHandler<ListErpProductsQuery, PagedResult<ErpProductDto>>,
     IRequestHandler<ListErpCategoriesQuery, IReadOnlyList<string>>,
     IRequestHandler<GetErpProductQuery, ErpProductDetailDto>,
-    IRequestHandler<FindErpProductBySkuQuery, ErpProductDto?>,
     IRequestHandler<CreateErpProductCommand, ErpProductDto>,
     IRequestHandler<UpdateErpProductCommand, ErpProductDto>,
     IRequestHandler<DeleteErpProductCommand, Unit>
@@ -173,13 +173,6 @@ internal sealed class ErpProductHandlers(
             await ErpMapping.MovementsAsync(db, movements, cancellationToken).ConfigureAwait(false));
     }
 
-    public async Task<ErpProductDto?> HandleAsync(FindErpProductBySkuQuery request, CancellationToken cancellationToken)
-    {
-        var sku = NormalizeSku(request.Sku);
-        var product = await db.ErpProducts.AsNoTracking().FirstOrDefaultAsync(p => p.Sku == sku, cancellationToken).ConfigureAwait(false);
-        return product is null ? null : (await ErpMapping.ProductsAsync(db, [product], cancellationToken).ConfigureAwait(false))[0];
-    }
-
     public async Task<ErpProductDto> HandleAsync(CreateErpProductCommand request, CancellationToken cancellationToken)
     {
         var sku = NormalizeSku(request.Request.Sku);
@@ -194,6 +187,11 @@ internal sealed class ErpProductHandlers(
     public async Task<ErpProductDto> HandleAsync(UpdateErpProductCommand request, CancellationToken cancellationToken)
     {
         var r = request.Request;
+
+        // 先给产品行加排他锁再读：确认订单、收货、调整库存会对产品行加共享锁后读取"是否管库存"，
+        // 两边互相等待，下面切换前的检查一定能看到对方已提交的结果。
+        await db.ErpProducts.Where(p => p.Id == request.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.TrackInventory, p => p.TrackInventory), cancellationToken).ConfigureAwait(false);
         var product = await records.ProductAsync(request.Id, cancellationToken).ConfigureAwait(false);
         var now = clock.GetUtcNow();
         if (r.ExpectedUpdatedAt is { } expected)

@@ -4,6 +4,7 @@ using AiNative.Application.Actions;
 using AiNative.Application.Common;
 using AiNative.Contracts.Erp;
 using AiNative.Domain.Erp;
+using Microsoft.EntityFrameworkCore;
 
 namespace AiNative.Application.Erp.Actions;
 
@@ -51,7 +52,7 @@ public sealed class GetErpProductStockInput
     public Guid? ProductId { get; init; }
 }
 
-internal sealed class GetErpProductStockAction(IRequestDispatcher dispatcher) : PlatformAction<GetErpProductStockInput, ErpProductDetailDto>
+internal sealed class GetErpProductStockAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<GetErpProductStockInput, ErpProductDetailDto>
 {
     public override string Key => "erp.get_product_stock";
 
@@ -67,7 +68,7 @@ internal sealed class GetErpProductStockAction(IRequestDispatcher dispatcher) : 
 
     protected override async Task<ErpProductDetailDto> ExecuteAsync(GetErpProductStockInput input, ActionContext context, CancellationToken cancellationToken)
         => await dispatcher.SendAsync(
-            new GetErpProductQuery(await ErpRefs.ProductAsync(dispatcher, input.ProductId, input.Sku, "sku", cancellationToken).ConfigureAwait(false)),
+            new GetErpProductQuery(await refs.ProductAsync(input.ProductId, input.Sku, "sku", cancellationToken).ConfigureAwait(false)),
             cancellationToken).ConfigureAwait(false);
 }
 
@@ -150,7 +151,7 @@ public sealed class ErpOrderRefInput
     public required string Order { get; init; }
 }
 
-internal sealed class GetErpSalesOrderAction(IRequestDispatcher dispatcher) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
+internal sealed class GetErpSalesOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
 {
     public override string Key => "erp.get_sales_order";
 
@@ -164,8 +165,9 @@ internal sealed class GetErpSalesOrderAction(IRequestDispatcher dispatcher) : Pl
 
     public override bool IsMutation => false;
 
-    protected override Task<ErpSalesOrderDto> ExecuteAsync(ErpOrderRefInput input, ActionContext context, CancellationToken cancellationToken)
-        => ErpRefs.SalesOrderAsync(dispatcher, input.Order, cancellationToken);
+    protected override async Task<ErpSalesOrderDto> ExecuteAsync(ErpOrderRefInput input, ActionContext context, CancellationToken cancellationToken)
+        => await dispatcher.SendAsync(new GetErpSalesOrderQuery(await refs.SalesOrderAsync(input.Order, cancellationToken).ConfigureAwait(false)), cancellationToken)
+            .ConfigureAwait(false);
 }
 
 public sealed class CreateErpSalesOrderInput
@@ -195,7 +197,7 @@ public sealed class CreateErpSalesOrderInput
     public bool Confirm { get; init; }
 }
 
-internal sealed class CreateErpSalesOrderAction(IRequestDispatcher dispatcher) : PlatformAction<CreateErpSalesOrderInput, ErpSalesOrderDto>
+internal sealed class CreateErpSalesOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<CreateErpSalesOrderInput, ErpSalesOrderDto>
 {
     public override string Key => "erp.create_sales_order";
 
@@ -213,14 +215,14 @@ internal sealed class CreateErpSalesOrderAction(IRequestDispatcher dispatcher) :
             DealId = input.DealId,
             CompanyId = input.CompanyId,
             ContactId = input.ContactId,
-            WarehouseId = await ErpRefs.WarehouseAsync(dispatcher, input.Warehouse, cancellationToken).ConfigureAwait(false),
+            WarehouseId = await refs.WarehouseAsync(input.Warehouse, cancellationToken).ConfigureAwait(false),
             Currency = input.Currency,
             Note = input.Note,
-            Lines = await ErpRefs.LinesAsync(dispatcher, input.Lines, cancellationToken).ConfigureAwait(false),
+            Lines = await refs.LinesAsync(input.Lines, cancellationToken).ConfigureAwait(false),
         }, input.Confirm), cancellationToken).ConfigureAwait(false);
 }
 
-internal sealed class ConfirmErpSalesOrderAction(IRequestDispatcher dispatcher) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
+internal sealed class ConfirmErpSalesOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
 {
     public override string Key => "erp.confirm_sales_order";
 
@@ -234,12 +236,12 @@ internal sealed class ConfirmErpSalesOrderAction(IRequestDispatcher dispatcher) 
 
     protected override async Task<ErpSalesOrderDto> ExecuteAsync(ErpOrderRefInput input, ActionContext context, CancellationToken cancellationToken)
     {
-        var order = await ErpRefs.SalesOrderAsync(dispatcher, input.Order, cancellationToken).ConfigureAwait(false);
-        return await dispatcher.SendAsync(new ConfirmErpSalesOrderCommand(order.Id), cancellationToken).ConfigureAwait(false);
+        var orderId = await refs.SalesOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new ConfirmErpSalesOrderCommand(orderId), cancellationToken).ConfigureAwait(false);
     }
 }
 
-internal sealed class ShipErpSalesOrderAction(IRequestDispatcher dispatcher) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
+internal sealed class ShipErpSalesOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
 {
     public override string Key => "erp.ship_sales_order";
 
@@ -253,12 +255,12 @@ internal sealed class ShipErpSalesOrderAction(IRequestDispatcher dispatcher) : P
 
     protected override async Task<ErpSalesOrderDto> ExecuteAsync(ErpOrderRefInput input, ActionContext context, CancellationToken cancellationToken)
     {
-        var order = await ErpRefs.SalesOrderAsync(dispatcher, input.Order, cancellationToken).ConfigureAwait(false);
-        return await dispatcher.SendAsync(new ShipErpSalesOrderCommand(order.Id, context.RunId), cancellationToken).ConfigureAwait(false);
+        var orderId = await refs.SalesOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new ShipErpSalesOrderCommand(orderId, context.RunId), cancellationToken).ConfigureAwait(false);
     }
 }
 
-internal sealed class CancelErpSalesOrderAction(IRequestDispatcher dispatcher) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
+internal sealed class CancelErpSalesOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
 {
     public override string Key => "erp.cancel_sales_order";
 
@@ -274,8 +276,8 @@ internal sealed class CancelErpSalesOrderAction(IRequestDispatcher dispatcher) :
 
     protected override async Task<ErpSalesOrderDto> ExecuteAsync(ErpOrderRefInput input, ActionContext context, CancellationToken cancellationToken)
     {
-        var order = await ErpRefs.SalesOrderAsync(dispatcher, input.Order, cancellationToken).ConfigureAwait(false);
-        return await dispatcher.SendAsync(new CancelErpSalesOrderCommand(order.Id), cancellationToken).ConfigureAwait(false);
+        var orderId = await refs.SalesOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new CancelErpSalesOrderCommand(orderId), cancellationToken).ConfigureAwait(false);
     }
 }
 
@@ -335,7 +337,7 @@ public sealed class CreateErpPurchaseOrderInput
     public required List<ErpOrderLineInput> Lines { get; init; }
 }
 
-internal sealed class CreateErpPurchaseOrderAction(IRequestDispatcher dispatcher) : PlatformAction<CreateErpPurchaseOrderInput, ErpPurchaseOrderDto>
+internal sealed class CreateErpPurchaseOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<CreateErpPurchaseOrderInput, ErpPurchaseOrderDto>
 {
     public override string Key => "erp.create_purchase_order";
 
@@ -351,15 +353,15 @@ internal sealed class CreateErpPurchaseOrderAction(IRequestDispatcher dispatcher
         => await dispatcher.SendAsync(new CreateErpPurchaseOrderCommand(new SaveErpPurchaseOrderRequest
         {
             SupplierId = input.SupplierId,
-            WarehouseId = await ErpRefs.WarehouseAsync(dispatcher, input.Warehouse, cancellationToken).ConfigureAwait(false),
+            WarehouseId = await refs.WarehouseAsync(input.Warehouse, cancellationToken).ConfigureAwait(false),
             Currency = input.Currency,
             ExpectedDate = input.ExpectedDate,
             Note = input.Note,
-            Lines = await ErpRefs.LinesAsync(dispatcher, input.Lines, cancellationToken).ConfigureAwait(false),
+            Lines = await refs.LinesAsync(input.Lines, cancellationToken).ConfigureAwait(false),
         }), cancellationToken).ConfigureAwait(false);
 }
 
-internal sealed class PlaceErpPurchaseOrderAction(IRequestDispatcher dispatcher) : PlatformAction<ErpOrderRefInput, ErpPurchaseOrderDto>
+internal sealed class PlaceErpPurchaseOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpPurchaseOrderDto>
 {
     public override string Key => "erp.place_purchase_order";
 
@@ -375,12 +377,12 @@ internal sealed class PlaceErpPurchaseOrderAction(IRequestDispatcher dispatcher)
 
     protected override async Task<ErpPurchaseOrderDto> ExecuteAsync(ErpOrderRefInput input, ActionContext context, CancellationToken cancellationToken)
     {
-        var order = await ErpRefs.PurchaseOrderAsync(dispatcher, input.Order, cancellationToken).ConfigureAwait(false);
-        return await dispatcher.SendAsync(new PlaceErpPurchaseOrderCommand(order.Id), cancellationToken).ConfigureAwait(false);
+        var orderId = await refs.PurchaseOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new PlaceErpPurchaseOrderCommand(orderId), cancellationToken).ConfigureAwait(false);
     }
 }
 
-internal sealed class ReceiveErpPurchaseOrderAction(IRequestDispatcher dispatcher) : PlatformAction<ErpOrderRefInput, ErpPurchaseOrderDto>
+internal sealed class ReceiveErpPurchaseOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpPurchaseOrderDto>
 {
     public override string Key => "erp.receive_purchase_order";
 
@@ -394,8 +396,8 @@ internal sealed class ReceiveErpPurchaseOrderAction(IRequestDispatcher dispatche
 
     protected override async Task<ErpPurchaseOrderDto> ExecuteAsync(ErpOrderRefInput input, ActionContext context, CancellationToken cancellationToken)
     {
-        var order = await ErpRefs.PurchaseOrderAsync(dispatcher, input.Order, cancellationToken).ConfigureAwait(false);
-        return await dispatcher.SendAsync(new ReceiveErpPurchaseOrderCommand(order.Id, context.RunId), cancellationToken).ConfigureAwait(false);
+        var orderId = await refs.PurchaseOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new ReceiveErpPurchaseOrderCommand(orderId, context.RunId), cancellationToken).ConfigureAwait(false);
     }
 }
 
@@ -420,7 +422,7 @@ public sealed class AdjustErpStockInput
     public required string Note { get; init; }
 }
 
-internal sealed class AdjustErpStockAction(IRequestDispatcher dispatcher) : PlatformAction<AdjustErpStockInput, ErpStockLevelDto>
+internal sealed class AdjustErpStockAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<AdjustErpStockInput, ErpStockLevelDto>
 {
     public override string Key => "erp.adjust_stock";
 
@@ -437,8 +439,8 @@ internal sealed class AdjustErpStockAction(IRequestDispatcher dispatcher) : Plat
     protected override async Task<ErpStockLevelDto> ExecuteAsync(AdjustErpStockInput input, ActionContext context, CancellationToken cancellationToken)
         => await dispatcher.SendAsync(new AdjustErpStockCommand(new AdjustErpStockRequest
         {
-            ProductId = await ErpRefs.ProductAsync(dispatcher, input.ProductId, input.Sku, "sku", cancellationToken).ConfigureAwait(false),
-            WarehouseId = await ErpRefs.WarehouseAsync(dispatcher, input.Warehouse, cancellationToken).ConfigureAwait(false),
+            ProductId = await refs.ProductAsync(input.ProductId, input.Sku, "sku", cancellationToken).ConfigureAwait(false),
+            WarehouseId = await refs.WarehouseAsync(input.Warehouse, cancellationToken).ConfigureAwait(false),
             Quantity = input.Quantity,
             CountedQuantity = input.CountedQuantity,
             Note = input.Note,
@@ -508,10 +510,12 @@ internal sealed class CreateErpProductAction(IRequestDispatcher dispatcher) : Pl
 
 /// <summary>
 /// 动作里用编码、名称、订单号指代记录，这里统一解析成 ID，找不到时给出模型能据此改正的提示。
+/// 直接在当前空间里查，不经过需要查看权限的查询：动作入口已按动作声明的权限检查过，
+/// 例如只有库存权限的成员用编码调整库存，和用产品 ID 一样能执行。
 /// </summary>
-internal static class ErpRefs
+internal sealed class ErpRefs(IAppDbContext db)
 {
-    public static async Task<Guid> ProductAsync(IRequestDispatcher dispatcher, Guid? productId, string? sku, string field, CancellationToken cancellationToken)
+    public async Task<Guid> ProductAsync(Guid? productId, string? sku, string field, CancellationToken cancellationToken)
     {
         if (productId is { } id)
         {
@@ -523,18 +527,20 @@ internal static class ErpRefs
             throw Invalid(field, "请提供产品编码（sku）或产品 ID。");
         }
 
-        var product = await dispatcher.SendAsync(new FindErpProductBySkuQuery(sku), cancellationToken).ConfigureAwait(false);
-        return product?.Id ?? throw Invalid(field, $"找不到编码为「{sku.Trim()}」的产品，可以先用 erp.search_products 按名称搜索。");
+        var normalized = ErpProductHandlers.NormalizeSku(sku);
+        return await db.ErpProducts.AsNoTracking().Where(p => p.Sku == normalized).Select(p => (Guid?)p.Id)
+                   .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+               ?? throw Invalid(field, $"找不到编码为「{sku.Trim()}」的产品，可以先用 erp.search_products 按名称搜索。");
     }
 
-    public static async Task<IReadOnlyList<ErpOrderLineRequest>> LinesAsync(IRequestDispatcher dispatcher, IReadOnlyList<ErpOrderLineInput> lines, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<ErpOrderLineRequest>> LinesAsync(IReadOnlyList<ErpOrderLineInput> lines, CancellationToken cancellationToken)
     {
         var result = new List<ErpOrderLineRequest>(lines.Count);
         foreach (var line in lines)
         {
             result.Add(new ErpOrderLineRequest
             {
-                ProductId = await ProductAsync(dispatcher, line.ProductId, line.Sku, "lines", cancellationToken).ConfigureAwait(false),
+                ProductId = await ProductAsync(line.ProductId, line.Sku, "lines", cancellationToken).ConfigureAwait(false),
                 Quantity = line.Quantity,
                 UnitPrice = line.UnitPrice,
             });
@@ -543,28 +549,51 @@ internal static class ErpRefs
         return result;
     }
 
-    public static async Task<Guid?> WarehouseAsync(IRequestDispatcher dispatcher, string? name, CancellationToken cancellationToken)
+    public async Task<Guid?> WarehouseAsync(string? name, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
             return null;
         }
 
-        var warehouses = await dispatcher.SendAsync(new ListErpWarehousesQuery(), cancellationToken).ConfigureAwait(false);
+        var warehouses = await db.ErpWarehouses.AsNoTracking().OrderByDescending(w => w.IsDefault).ThenBy(w => w.CreatedAt)
+            .Select(w => new { w.Id, w.Name }).ToListAsync(cancellationToken).ConfigureAwait(false);
         var wanted = name.Trim();
         return warehouses.FirstOrDefault(w => string.Equals(w.Name, wanted, StringComparison.OrdinalIgnoreCase))?.Id
                ?? throw Invalid("warehouse", $"没有名为「{wanted}」的仓库，可选：{string.Join("、", warehouses.Select(w => w.Name))}。");
     }
 
-    public static Task<ErpSalesOrderDto> SalesOrderAsync(IRequestDispatcher dispatcher, string reference, CancellationToken cancellationToken)
-        => Guid.TryParse(reference, out var id)
-            ? dispatcher.SendAsync(new GetErpSalesOrderQuery(id), cancellationToken)
-            : dispatcher.SendAsync(new FindErpSalesOrderQuery(reference), cancellationToken);
+    /// <summary>
+    /// 订单号（例如 SO-0001，不区分大小写）或订单 ID。
+    /// </summary>
+    public async Task<Guid> SalesOrderAsync(string reference, CancellationToken cancellationToken)
+    {
+        if (Guid.TryParse(reference, out var id))
+        {
+            return id;
+        }
 
-    public static Task<ErpPurchaseOrderDto> PurchaseOrderAsync(IRequestDispatcher dispatcher, string reference, CancellationToken cancellationToken)
-        => Guid.TryParse(reference, out var id)
-            ? dispatcher.SendAsync(new GetErpPurchaseOrderQuery(id), cancellationToken)
-            : dispatcher.SendAsync(new FindErpPurchaseOrderQuery(reference), cancellationToken);
+        var number = reference.Trim().ToUpperInvariant();
+        return await db.ErpSalesOrders.AsNoTracking().Where(o => o.Number == number).Select(o => (Guid?)o.Id)
+                   .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+               ?? throw new NotFoundException("erp_sales_order", number);
+    }
+
+    /// <summary>
+    /// 订单号（例如 PO-0001，不区分大小写）或订单 ID。
+    /// </summary>
+    public async Task<Guid> PurchaseOrderAsync(string reference, CancellationToken cancellationToken)
+    {
+        if (Guid.TryParse(reference, out var id))
+        {
+            return id;
+        }
+
+        var number = reference.Trim().ToUpperInvariant();
+        return await db.ErpPurchaseOrders.AsNoTracking().Where(o => o.Number == number).Select(o => (Guid?)o.Id)
+                   .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+               ?? throw new NotFoundException("erp_purchase_order", number);
+    }
 
     private static ValidationFailedException Invalid(string field, string message) => new(new Dictionary<string, string[]> { [field] = [message] });
 }

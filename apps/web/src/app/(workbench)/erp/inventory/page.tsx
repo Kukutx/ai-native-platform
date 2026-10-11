@@ -87,10 +87,17 @@ function Inventory() {
   );
 }
 
+/** 页码随上层的筛选条件（仓库、产品）重置：条件变了自动回到第 1 页，不会停在超出范围的页码上。 */
+function usePage(scope: string) {
+  const [state, setState] = useState({ scope, page: 1 });
+  const page = state.scope === scope ? state.page : 1;
+  return [page, (next: number) => setState({ scope, page: next })] as const;
+}
+
 function Levels({ warehouseId, lowOnly: initialLow }: { warehouseId?: string; lowOnly: boolean }) {
   const [search, setSearch] = useState('');
   const [lowOnly, setLowOnly] = useState(initialLow);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = usePage(warehouseId ?? '');
   const term = useDeferredValue(search.trim());
   const levels = useQuery({
     queryKey: queryKeys.erpStock({ warehouseId, search: term, lowOnly, page }),
@@ -173,7 +180,7 @@ function Levels({ warehouseId, lowOnly: initialLow }: { warehouseId?: string; lo
 
 function Movements({ warehouseId, productId }: { warehouseId?: string; productId?: string }) {
   const [kind, setKind] = useState<ErpStockMovementKind | undefined>();
-  const [page, setPage] = useState(1);
+  const [page, setPage] = usePage(`${warehouseId ?? ''}:${productId ?? ''}`);
   const movements = useQuery({
     queryKey: queryKeys.erpMovements({ warehouseId, productId, kind, page }),
     queryFn: ({ signal }) => api.erp.stock.movements(productId, warehouseId, kind, page, PAGE_SIZE, signal),

@@ -107,12 +107,13 @@
 
 - **模块依赖**：模块用 `DependsOn` 声明依赖，`IModuleCatalog.ResolveEnabled` 计算实际生效的模块，依赖没启用的模块视为停用（权限、接口、动作、事件一并关闭）。启用时依赖必须已启用（409 `module.dependency_disabled`），停用时不能有已启用的模块依赖它（409 `module.required_by`），在 `modules:{tenant}` advisory lock 下判断。
 - **数据**：产品（编码唯一、单位、分类、售价与采购价、是否管理库存、补货提醒线、在售或停售）、仓库（每个空间有且只有一个默认仓库，部分唯一索引保证）、库存（产品 × 仓库的现有和已预留数量，可用 = 现有 − 已预留）、库存流水（每笔变动的数量和变动后结存，关联订单）、销售订单、采购订单。订单明细是订单的从属集合，单独成表。订单号按空间连续编号（`SO-0001`、`PO-0001`），由 `tenant_sequences` 表的 `INSERT … ON CONFLICT DO UPDATE … RETURNING` 原子分配，随事务回滚。
-- **库存一致性**：所有数量变化都经过 `IStockLedger`：一条带条件的 `UPDATE … RETURNING`（例如"现有 − 已预留 ≥ 本次数量"）同时完成检查和修改，不先读后写，所以并发下单不会超卖；库存行第一次用到时 `INSERT … ON CONFLICT DO NOTHING` 补出来。一次操作涉及多行时按产品、仓库排序加锁，避免死锁。
+- **库存一致性**：所有数量变化都经过 `IStockLedger`：一条带条件的 `UPDATE … RETURNING`（例如"现有 − 已预留 ≥ 本次数量"）同时完成检查和修改，不先读后写，所以并发下单不会超卖；库存行第一次用到时 `INSERT … ON CONFLICT DO NOTHING` 补出来。一次操作涉及多行时按产品、仓库排序加锁，避免死锁。"是否管理库存"决定确认、发货、收货、调整动不动库存：这些操作先对产品行加共享锁再读取它，修改产品时对产品行加排他锁，切换前的检查（有没有已确认未发货的订单、还有没有库存）不会和它们交错。
+- **金额与精度**：数量、单价最多 4 位小数（与 `numeric(18,4)` 一致）；行金额和订单合计在保存前检查不超过 `numeric(18,2)` 能存的范围，超出时返回 400。
 - **销售订单**：草稿 → 已确认（按明细预留库存，任一产品不够则整单不确认，错误里列出全部缺货）→ 已发货（扣减现有和预留，写出库流水）；草稿、已确认可以取消（已确认的释放预留）。状态流转以"状态仍是读到的那个"为条件先锁住订单，并发的重复确认、发货返回 409。从商机生成时带出客户、联系人和货币，商机必须属于所选客户；单价默认取产品售价，货币不同时必须手填。
 - **采购订单**：草稿 → 已下单 → 已收货（按明细入库，写入库流水）；草稿、已下单可以取消。供应商是客户管理里的公司。
-- **库存调整与调拨**：按增减数量，或按盘点后的实际数量调整（锁住库存行后计算差额）；调拨在两个仓库之间移动可用数量。不管理库存的产品（服务等）下单、发货不检查也不记录数量。
+- **库存调整与调拨**：按增减数量，或按盘点后的实际数量调整（锁住库存行后计算差额）；调拨在两个仓库之间移动可用数量。不管理库存的产品（服务等）下单、发货不检查也不记录数量。库存列表按"管库存的产品 × 仓库"列出，没有记录的组合按 0 计，新产品不会漏掉。
 - **补货提醒**：发货、调整、调拨让产品的可用总数从提醒线以上降到提醒线及以下时，发布一次 `erp.stock_low`。
-- **动作**：`erp.search_products`、`erp.get_product_stock`、`erp.get_summary`、`erp.create_product`、`erp.adjust_stock`、`erp.list_sales_orders`、`erp.get_sales_order`、`erp.create_sales_order`（可以直接确认）、`erp.confirm_sales_order`、`erp.ship_sales_order`、`erp.cancel_sales_order`、`erp.list_purchase_orders`、`erp.create_purchase_order`、`erp.place_purchase_order`、`erp.receive_purchase_order`。产品按编码、仓库按名称、订单按单号指定，找不到时错误里提示怎么查；取消销售订单、向供应商下单、调整库存对智能体要求人工审批。
+- **动作**：`erp.search_products`、`erp.get_product_stock`、`erp.get_summary`、`erp.create_product`、`erp.adjust_stock`、`erp.list_sales_orders`、`erp.get_sales_order`、`erp.create_sales_order`（可以直接确认）、`erp.confirm_sales_order`、`erp.ship_sales_order`、`erp.cancel_sales_order`、`erp.list_purchase_orders`、`erp.create_purchase_order`、`erp.place_purchase_order`、`erp.receive_purchase_order`。产品按编码、仓库按名称、订单按单号指定，找不到时错误里提示怎么查（解析直接查当前空间，不要求额外的查看权限）；取消销售订单、向供应商下单、调整库存对智能体要求人工审批。
 - **事件**：`erp.sales_order_confirmed`、`erp.sales_order_shipped`、`erp.purchase_order_received`、`erp.stock_low`，例如"库存低于提醒线时让智能体起草采购单，交给人确认下单"。
 
 ## 对话

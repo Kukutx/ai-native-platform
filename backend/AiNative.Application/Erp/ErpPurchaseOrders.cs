@@ -23,12 +23,6 @@ public sealed record ListErpPurchaseOrdersQuery(
 [RequireFeature(ErpFeatures.View)]
 public sealed record GetErpPurchaseOrderQuery(Guid Id) : IQuery<ErpPurchaseOrderDto>;
 
-/// <summary>
-/// 按订单号（例如 PO-0001，不区分大小写）查找。
-/// </summary>
-[RequireFeature(ErpFeatures.View)]
-public sealed record FindErpPurchaseOrderQuery(string Number) : IQuery<ErpPurchaseOrderDto>;
-
 [RequireFeature(ErpFeatures.Purchase)]
 public sealed record CreateErpPurchaseOrderCommand(SaveErpPurchaseOrderRequest Request) : ICommand<ErpPurchaseOrderDto>;
 
@@ -53,8 +47,6 @@ public sealed class SaveErpPurchaseOrderRequestValidator : AbstractValidator<Sav
     {
         RuleFor(x => x.Currency).Currency().OverridePropertyName("currency");
         RuleFor(x => x.Note).Text(2_000, "备注").OverridePropertyName("note");
-        RuleFor(x => x.ExpectedDate).GreaterThanOrEqualTo(x => x.OrderDate!.Value).When(x => x.ExpectedDate.HasValue && x.OrderDate.HasValue)
-            .WithMessage("预计到货日期不能早于下单日期。").OverridePropertyName("expectedDate");
         this.Lines(x => x.Lines);
     }
 }
@@ -78,7 +70,6 @@ internal sealed class ErpPurchaseOrderHandlers(
     TimeProvider clock) :
     IRequestHandler<ListErpPurchaseOrdersQuery, PagedResult<ErpPurchaseOrderDto>>,
     IRequestHandler<GetErpPurchaseOrderQuery, ErpPurchaseOrderDto>,
-    IRequestHandler<FindErpPurchaseOrderQuery, ErpPurchaseOrderDto>,
     IRequestHandler<CreateErpPurchaseOrderCommand, ErpPurchaseOrderDto>,
     IRequestHandler<UpdateErpPurchaseOrderCommand, ErpPurchaseOrderDto>,
     IRequestHandler<PlaceErpPurchaseOrderCommand, ErpPurchaseOrderDto>,
@@ -119,14 +110,6 @@ internal sealed class ErpPurchaseOrderHandlers(
     {
         var order = await db.ErpPurchaseOrders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == request.Id, cancellationToken).ConfigureAwait(false)
                     ?? throw new NotFoundException("erp_purchase_order", request.Id);
-        return (await ErpMapping.PurchaseOrdersAsync(db, [order], cancellationToken).ConfigureAwait(false))[0];
-    }
-
-    public async Task<ErpPurchaseOrderDto> HandleAsync(FindErpPurchaseOrderQuery request, CancellationToken cancellationToken)
-    {
-        var number = request.Number.Trim().ToUpperInvariant();
-        var order = await db.ErpPurchaseOrders.AsNoTracking().FirstOrDefaultAsync(o => o.Number == number, cancellationToken).ConfigureAwait(false)
-                    ?? throw new NotFoundException("erp_purchase_order", number);
         return (await ErpMapping.PurchaseOrdersAsync(db, [order], cancellationToken).ConfigureAwait(false))[0];
     }
 
@@ -186,10 +169,8 @@ internal sealed class ErpPurchaseOrderHandlers(
     {
         var now = clock.GetUtcNow();
         var order = await LockAsync(request.Id, [ErpPurchaseOrderStatus.Ordered], "收货", cancellationToken).ConfigureAwait(false);
-        var ids = order.Lines.Select(l => l.ProductId).Distinct().ToList();
-        var tracked = await db.ErpProducts.AsNoTracking().Where(p => ids.Contains(p.Id) && p.TrackInventory).Select(p => p.Id)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
-        foreach (var line in order.Lines.Where(l => tracked.Contains(l.ProductId)).OrderBy(l => l.ProductId))
+        var tracked = await records.TrackedProductsAsync(order.Lines.Select(l => l.ProductId), cancellationToken).ConfigureAwait(false);
+        foreach (var line in order.Lines.Where(l => tracked.ContainsKey(l.ProductId)).OrderBy(l => l.ProductId))
         {
             _ = await records.MoveStockAsync(
                     line.ProductId, order.WarehouseId, ErpStockMovementKind.Purchase, line.Quantity, 0, false, $"采购订单 {order.Number} 到货", null, order.Id, request.RunId, cancellationToken)
@@ -240,6 +221,13 @@ internal sealed class ErpPurchaseOrderHandlers(
 
     private async Task ApplyAsync(ErpPurchaseOrder order, SaveErpPurchaseOrderRequest r, CancellationToken cancellationToken)
     {
+        // 下单日期省略时取今天，预计到货日期按实际保存的下单日期检查。
+        var orderDate = r.OrderDate ?? DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+        if (r.ExpectedDate < orderDate)
+        {
+            throw new ValidationFailedException(new Dictionary<string, string[]> { ["expectedDate"] = ["预计到货日期不能早于下单日期。"] });
+        }
+
         if (!await db.CrmCompanies.AnyAsync(c => c.Id == r.SupplierId, cancellationToken).ConfigureAwait(false))
         {
             throw new NotFoundException("crm_company", r.SupplierId);
@@ -250,7 +238,7 @@ internal sealed class ErpPurchaseOrderHandlers(
         var (lines, _) = await records.BuildLinesAsync(r.Lines, order.Currency, p => p.Cost, cancellationToken).ConfigureAwait(false);
         order.SupplierId = r.SupplierId;
         order.WarehouseId = warehouse.Id;
-        order.OrderDate = r.OrderDate ?? DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+        order.OrderDate = orderDate;
         order.ExpectedDate = r.ExpectedDate;
         order.Note = r.Note.Trim();
         order.SetLines(lines);

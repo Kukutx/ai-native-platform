@@ -25,12 +25,6 @@ public sealed record ListErpSalesOrdersQuery(
 [RequireFeature(ErpFeatures.View)]
 public sealed record GetErpSalesOrderQuery(Guid Id) : IQuery<ErpSalesOrderDto>;
 
-/// <summary>
-/// 按订单号（例如 SO-0001，不区分大小写）查找。
-/// </summary>
-[RequireFeature(ErpFeatures.View)]
-public sealed record FindErpSalesOrderQuery(string Number) : IQuery<ErpSalesOrderDto>;
-
 [RequireFeature(ErpFeatures.Sales)]
 /// <param name="Confirm">建好后立即确认（预留库存），库存不够时整单不建。</param>
 public sealed record CreateErpSalesOrderCommand(SaveErpSalesOrderRequest Request, bool Confirm = false) : ICommand<ErpSalesOrderDto>;
@@ -99,7 +93,6 @@ internal sealed class ErpSalesOrderHandlers(
     TimeProvider clock) :
     IRequestHandler<ListErpSalesOrdersQuery, PagedResult<ErpSalesOrderDto>>,
     IRequestHandler<GetErpSalesOrderQuery, ErpSalesOrderDto>,
-    IRequestHandler<FindErpSalesOrderQuery, ErpSalesOrderDto>,
     IRequestHandler<CreateErpSalesOrderCommand, ErpSalesOrderDto>,
     IRequestHandler<UpdateErpSalesOrderCommand, ErpSalesOrderDto>,
     IRequestHandler<ConfirmErpSalesOrderCommand, ErpSalesOrderDto>,
@@ -150,14 +143,6 @@ internal sealed class ErpSalesOrderHandlers(
     {
         var order = await db.ErpSalesOrders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == request.Id, cancellationToken).ConfigureAwait(false)
                     ?? throw new NotFoundException("erp_sales_order", request.Id);
-        return (await ErpMapping.SalesOrdersAsync(db, [order], cancellationToken).ConfigureAwait(false))[0];
-    }
-
-    public async Task<ErpSalesOrderDto> HandleAsync(FindErpSalesOrderQuery request, CancellationToken cancellationToken)
-    {
-        var number = request.Number.Trim().ToUpperInvariant();
-        var order = await db.ErpSalesOrders.AsNoTracking().FirstOrDefaultAsync(o => o.Number == number, cancellationToken).ConfigureAwait(false)
-                    ?? throw new NotFoundException("erp_sales_order", number);
         return (await ErpMapping.SalesOrdersAsync(db, [order], cancellationToken).ConfigureAwait(false))[0];
     }
 
@@ -330,12 +315,8 @@ internal sealed class ErpSalesOrderHandlers(
     private static ConflictException StatusChanged(ErpSalesOrderStatus status, string action)
         => new("erp_sales_order.status_changed", $"订单当前是「{ErpLabels.Of(status)}」，不能{action}。已刷新为最新状态。");
 
-    private async Task<Dictionary<Guid, ErpProduct>> TrackedProductsAsync(ErpSalesOrder order, CancellationToken cancellationToken)
-    {
-        var ids = order.Lines.Select(l => l.ProductId).Distinct().ToList();
-        return await db.ErpProducts.AsNoTracking().Where(p => ids.Contains(p.Id) && p.TrackInventory)
-            .ToDictionaryAsync(p => p.Id, cancellationToken).ConfigureAwait(false);
-    }
+    private Task<Dictionary<Guid, ErpProduct>> TrackedProductsAsync(ErpSalesOrder order, CancellationToken cancellationToken)
+        => records.TrackedProductsAsync(order.Lines.Select(l => l.ProductId), cancellationToken);
 
     /// <summary>
     /// 管库存的订单行，按产品 ID 排序：并发订单按同样的顺序锁库存行，不会互相等待成死锁。

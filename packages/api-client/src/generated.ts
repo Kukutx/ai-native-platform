@@ -2982,7 +2982,7 @@ export class ErpStockClient {
     }
 
     /**
-     * 各产品在各仓库的库存（只含管库存的产品），按编码排序。
+     * 各产品在各仓库的库存（只含管库存的产品，没有记录的组合按 0 列出），按编码排序。
      * @param warehouseId (optional) 
      * @param productId (optional) 
      * @param search (optional) 

@@ -40,7 +40,7 @@ public sealed class AdjustErpStockCommandValidator : AbstractValidator<AdjustErp
         RuleFor(x => x.Request).Must(r => r.Quantity.HasValue != r.CountedQuantity.HasValue)
             .WithMessage("请填写变化数量或盘点后的实际数量（二选一）。").OverridePropertyName("quantity");
         RuleFor(x => x.Request.Quantity!.Value).NotEqual(0).WithMessage("变化数量不能为 0。")
-            .Must(q => Math.Abs(q) < ErpValidation.MaxQuantity).WithMessage("数量太大。")
+            .Must(q => q > -ErpValidation.MaxQuantity && q < ErpValidation.MaxQuantity).WithMessage("数量太大。")
             .Must(ErpValidation.HasQuantityScale).WithMessage("数量最多 4 位小数。")
             .When(x => x.Request.Quantity.HasValue).OverridePropertyName("quantity");
         RuleFor(x => x.Request.CountedQuantity!.Value).GreaterThanOrEqualTo(0).WithMessage("实际数量不能为负数。")
@@ -69,6 +69,10 @@ internal sealed class ErpStockHandlers(IAppDbContext db, ErpRecords records, ISt
     IRequestHandler<AdjustErpStockCommand, ErpStockLevelDto>,
     IRequestHandler<TransferErpStockCommand, IReadOnlyList<ErpStockLevelDto>>
 {
+    /// <summary>
+    /// 按"管库存的产品 × 仓库"列出库存，没有库存记录的组合按 0 计：选了仓库时列出全部管库存的产品在该仓库的数量；
+    /// 不选仓库时列出已有记录的组合，从没动过库存的产品在默认仓库显示一行 0，新产品也不会漏掉。
+    /// </summary>
     public async Task<PagedResult<ErpStockLevelDto>> HandleAsync(ListErpStockLevelsQuery request, CancellationToken cancellationToken)
     {
         var (page, pageSize) = ErpRecords.Paging(request.Page, request.PageSize);
@@ -78,32 +82,50 @@ internal sealed class ErpStockHandlers(IAppDbContext db, ErpRecords records, ISt
             products = text.WhereContains(products, request.Search, p => p.Name, p => p.Sku);
         }
 
-        var levels = db.ErpStockLevels.AsNoTracking();
-        if (request.WarehouseId is { } warehouseId)
-        {
-            levels = levels.Where(l => l.WarehouseId == warehouseId);
-        }
-
         if (request.ProductId is { } productId)
         {
-            levels = levels.Where(l => l.ProductId == productId);
+            products = products.Where(p => p.Id == productId);
         }
 
-        var rows = from l in levels
-                   join p in products on l.ProductId equals p.Id
-                   select new { Level = l, p.Sku, p.ReorderPoint };
         if (request.LowStockOnly)
         {
-            // 补货提醒线按产品的全部仓库合计判断，列出这些产品在各仓库的库存。
-            rows = rows.Where(r => r.ReorderPoint != null
-                && (db.ErpStockLevels.Where(x => x.ProductId == r.Level.ProductId).Sum(x => (decimal?)(x.OnHand - x.Reserved)) ?? 0) <= r.ReorderPoint);
+            // 与产品列表、概况的低库存口径一致：在售产品按全部仓库的可用合计与补货提醒线比较。
+            products = products.Where(p => p.IsActive && p.ReorderPoint != null
+                && (db.ErpStockLevels.Where(x => x.ProductId == p.Id).Sum(x => (decimal?)(x.OnHand - x.Reserved)) ?? 0) <= p.ReorderPoint);
+        }
+
+        var warehouses = db.ErpWarehouses.AsNoTracking();
+        if (request.WarehouseId is { } warehouseId)
+        {
+            warehouses = warehouses.Where(w => w.Id == warehouseId);
+        }
+
+        var rows = from p in products
+                   from w in warehouses
+                   join l in db.ErpStockLevels.AsNoTracking() on new { ProductId = p.Id, WarehouseId = w.Id } equals new { l.ProductId, l.WarehouseId } into matched
+                   from l in matched.DefaultIfEmpty()
+                   select new { Product = p, Warehouse = w, Level = l };
+        if (request.WarehouseId is null)
+        {
+            rows = rows.Where(r => r.Level != null || (r.Warehouse.IsDefault && !db.ErpStockLevels.Any(x => x.ProductId == r.Product.Id)));
         }
 
         var total = await rows.CountAsync(cancellationToken).ConfigureAwait(false);
-        var items = await rows.OrderBy(r => r.Sku).ThenBy(r => r.Level.WarehouseId)
-            .Skip((page - 1) * pageSize).Take(pageSize).Select(r => r.Level)
+        var items = await rows.OrderBy(r => r.Product.Sku).ThenBy(r => r.Warehouse.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(r => new ErpStockLevelDto(
+                r.Product.Id,
+                r.Product.Sku,
+                r.Product.Name,
+                r.Product.Unit,
+                r.Warehouse.Id,
+                r.Warehouse.Name,
+                r.Level == null ? 0 : r.Level.OnHand,
+                r.Level == null ? 0 : r.Level.Reserved,
+                r.Level == null ? 0 : r.Level.OnHand - r.Level.Reserved,
+                r.Level == null ? r.Product.CreatedAt : r.Level.UpdatedAt))
             .ToListAsync(cancellationToken).ConfigureAwait(false);
-        return new PagedResult<ErpStockLevelDto>(await ErpMapping.LevelsAsync(db, items, cancellationToken).ConfigureAwait(false), total, page, pageSize);
+        return new PagedResult<ErpStockLevelDto>(items, total, page, pageSize);
     }
 
     public async Task<PagedResult<ErpStockMovementDto>> HandleAsync(ListErpStockMovementsQuery request, CancellationToken cancellationToken)
@@ -213,6 +235,8 @@ internal sealed class ErpStockHandlers(IAppDbContext db, ErpRecords records, ISt
 
     private async Task<ErpProduct> TrackedProductAsync(Guid id, CancellationToken cancellationToken)
     {
+        // 共享锁住产品后再读，调整期间不会被改成不管库存。
+        await ledger.LockProductsAsync([id], cancellationToken).ConfigureAwait(false);
         var product = await records.ProductAsync(id, cancellationToken).ConfigureAwait(false);
         return product.TrackInventory
             ? product

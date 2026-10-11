@@ -83,7 +83,7 @@ public sealed class ErpWarehousesController : ApiControllerBase
 public sealed class ErpStockController : ApiControllerBase
 {
     /// <summary>
-    /// 各产品在各仓库的库存（只含管库存的产品），按编码排序。
+    /// 各产品在各仓库的库存（只含管库存的产品，没有记录的组合按 0 列出），按编码排序。
     /// </summary>
     [HttpGet]
     public Task<PagedResult<ErpStockLevelDto>> Levels(

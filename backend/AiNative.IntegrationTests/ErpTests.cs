@@ -176,6 +176,132 @@ public sealed class ErpTests(PostgresFixture postgres) : IntegrationTest(postgre
     }
 
     [Fact]
+    public async Task Switching_inventory_tracking_never_interleaves_with_confirmation()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var product = await PostAsync<ErpProductDto>(client, "/api/erp/products", new SaveErpProductRequest { Sku = "SVC", Name = "安装服务", Price = 1, TrackInventory = false });
+        var orders = new List<ErpSalesOrderDto>();
+        for (var i = 0; i < 4; i++)
+        {
+            orders.Add(await PostAsync<ErpSalesOrderDto>(client, "/api/erp/sales-orders", new SaveErpSalesOrderRequest { Lines = [Line(product.Id, 1)] }));
+        }
+
+        // 确认订单与"改为管库存"同时发生：先确认的按不管库存确认、切换被拒；先切换的按管库存预留（库存为 0，确认失败）。
+        var confirms = orders.Select(o => client.PostAsJsonAsync($"/api/erp/sales-orders/{o.Id}/confirm", new { }, PlatformJson.Options, Ct));
+        var toggle = client.PutAsJsonAsync($"/api/erp/products/{product.Id}", Save(product) with { TrackInventory = true }, PlatformJson.Options, Ct);
+        var responses = await Task.WhenAll([.. confirms, toggle]);
+        responses.Should().OnlyContain(r => r.StatusCode == HttpStatusCode.OK || r.StatusCode == HttpStatusCode.Conflict);
+
+        // 无论先后，已确认的订单都能正常取消：预留与库存始终一致。
+        var confirmed = await GetAsync<PagedResult<ErpSalesOrderDto>>(client, "/api/erp/sales-orders?status=confirmed");
+        foreach (var order in confirmed.Items)
+        {
+            (await PostAsync<ErpSalesOrderDto>(client, $"/api/erp/sales-orders/{order.Id}/cancel", new { })).Status.Should().Be(ErpSalesOrderStatus.Cancelled);
+        }
+
+        (await ProductDetailAsync(client, product.Id)).Product.Reserved.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Stock_list_includes_products_that_never_moved()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var fresh = await ProductAsync(client, "NEW-1", "新品", reorderPoint: 5);
+        var moved = await ProductAsync(client, "OLD-1", "老品");
+        await AdjustAsync(client, moved.Id, 3, "期初");
+        var second = await PostAsync<ErpWarehouseDto>(client, "/api/erp/warehouses", new SaveErpWarehouseRequest { Name = "二号仓" });
+
+        // 不选仓库：从没动过库存的新品在默认仓库显示 0，并计入"需要补货"，与概况的计数一致。
+        var all = await GetAsync<PagedResult<ErpStockLevelDto>>(client, "/api/erp/stock");
+        all.Items.Select(l => (l.Sku, l.WarehouseName, l.OnHand)).Should().Equal(("NEW-1", "默认仓库", 0m), ("OLD-1", "默认仓库", 3m));
+        var low = await GetAsync<PagedResult<ErpStockLevelDto>>(client, "/api/erp/stock?lowStockOnly=true");
+        low.Items.Should().ContainSingle(l => l.ProductId == fresh.Id);
+        (await GetAsync<ErpSummaryDto>(client, "/api/erp/summary")).LowStockProducts.Should().Be(1);
+
+        // 选了仓库：列出全部管库存的产品在该仓库的数量。
+        var inSecond = await GetAsync<PagedResult<ErpStockLevelDto>>(client, $"/api/erp/stock?warehouseId={second.Id}");
+        inSecond.Items.Select(l => (l.Sku, l.WarehouseName, l.OnHand)).Should().Equal(("NEW-1", "二号仓", 0m), ("OLD-1", "二号仓", 0m));
+        (await GetAsync<PagedResult<ErpStockLevelDto>>(client, $"/api/erp/stock?productId={moved.Id}")).Items.Should().ContainSingle(l => l.OnHand == 3);
+    }
+
+    [Fact]
+    public async Task Amounts_prices_and_dates_are_validated_before_saving()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var widget = await ProductAsync(client, "W-1", "螺丝", price: 1);
+        var supplier = await PostAsync<CrmCompanyDto>(client, "/api/crm/companies", new SaveCrmCompanyRequest { Name = "供应商" });
+
+        // 单价、售价最多 4 位小数，与数据库精度一致。
+        var fine = await client.PostAsJsonAsync("/api/erp/sales-orders", new SaveErpSalesOrderRequest
+        {
+            Lines = [new ErpOrderLineRequest { ProductId = widget.Id, Quantity = 100_000, UnitPrice = 0.000009m }],
+        }, PlatformJson.Options, Ct);
+        fine.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var price = await client.PostAsJsonAsync("/api/erp/products", new SaveErpProductRequest { Sku = "P-1", Name = "x", Price = 0.00001m, Cost = 0.00001m }, PlatformJson.Options, Ct);
+        var priceErrors = (await price.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("errors");
+        priceErrors.TryGetProperty("price", out _).Should().BeTrue();
+        priceErrors.TryGetProperty("cost", out _).Should().BeTrue();
+
+        // 金额超出数据库能保存的范围时返回 400，而不是保存时报错。
+        var huge = await client.PostAsJsonAsync("/api/erp/sales-orders", new SaveErpSalesOrderRequest
+        {
+            Lines = [new ErpOrderLineRequest { ProductId = widget.Id, Quantity = 999_999_999m, UnitPrice = 999_999_999_999m }],
+        }, PlatformJson.Options, Ct);
+        huge.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await huge.Content.ReadAsStringAsync(Ct)).Should().Contain("金额太大");
+        var many = await client.PostAsJsonAsync("/api/erp/purchase-orders", new SaveErpPurchaseOrderRequest
+        {
+            SupplierId = supplier.Id,
+            Lines = [.. Enumerable.Range(0, 3).Select(_ => new ErpOrderLineRequest { ProductId = widget.Id, Quantity = 999_999_999m, UnitPrice = 1m })],
+        }, PlatformJson.Options, Ct);
+        many.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await many.Content.ReadAsStringAsync(Ct)).Should().Contain("数量太大");
+
+        // 极端的负数同样是 400。
+        var minimum = await client.PostAsJsonAsync("/api/erp/stock/adjust", new AdjustErpStockRequest { ProductId = widget.Id, Quantity = decimal.MinValue, Note = "x" }, PlatformJson.Options, Ct);
+        minimum.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // 不填下单日期时按今天检查预计到货日期（智能体起草采购单就是这样）。
+        var late = await PostAsync<InvokeActionResponse>(client, "/api/actions/erp.create_purchase_order/invoke", new
+        {
+            supplierId = supplier.Id,
+            expectedDate = DateOnly.FromDateTime(DateTime.Now).AddDays(-2),
+            lines = new[] { new { sku = "W-1", quantity = 1 } },
+        });
+        late.Status.Should().Be("invalid_input");
+        late.Error.Should().Contain("预计到货日期");
+    }
+
+    [Fact]
+    public async Task Action_references_resolve_under_the_action_permission()
+    {
+        var owner = await RegisterAsync();
+        using var ownerClient = Client(owner.AccessToken);
+        var widget = await ProductAsync(ownerClient, "W-1", "螺丝", price: 2);
+        await PostAsync<ErpWarehouseDto>(ownerClient, "/api/erp/warehouses", new SaveErpWarehouseRequest { Name = "二号仓" });
+        var storekeeper = await PostAsync<RoleDto>(ownerClient, "/api/roles", new SaveRoleRequest { Key = "storekeeper", Name = "库管", Features = ["erp.inventory"] });
+        var seller = await PostAsync<RoleDto>(ownerClient, "/api/roles", new SaveRoleRequest { Key = "seller", Name = "销售", Features = ["erp.sales"] });
+        using var storekeeperClient = Client(await AddMemberAsync(ownerClient, "store@example.com", storekeeper.Id));
+        using var sellerClient = Client(await AddMemberAsync(ownerClient, "seller@example.com", seller.Id));
+
+        // 只有库存权限、没有查看权限：用编码和仓库名称调整库存，与用 ID 一样能执行。
+        var adjusted = await InvokeAsync(storekeeperClient, "erp.adjust_stock", new { sku = "w-1", warehouse = "二号仓", quantity = 5, note = "期初" });
+        adjusted.GetProperty("warehouseName").GetString().Should().Be("二号仓");
+        adjusted.GetProperty("onHand").GetDecimal().Should().Be(5);
+
+        // 只有销售权限：用编码下单、用订单号确认。
+        var order = await InvokeAsync(sellerClient, "erp.create_sales_order", new { warehouse = "二号仓", lines = new[] { new { sku = "W-1", quantity = 2 } } });
+        var number = order.GetProperty("number").GetString()!;
+        (await InvokeAsync(sellerClient, "erp.confirm_sales_order", new { order = number })).GetProperty("status").GetString().Should().Be("confirmed");
+        var missing = await PostAsync<InvokeActionResponse>(sellerClient, "/api/actions/erp.confirm_sales_order/invoke", new { order = "SO-9999" });
+        missing.Status.Should().NotBe("succeeded");
+        (await ProductDetailAsync(ownerClient, widget.Id)).Product.Reserved.Should().Be(2);
+    }
+
+    [Fact]
     public async Task Purchase_receipts_add_stock_and_low_stock_triggers_a_workflow_once()
     {
         var auth = await RegisterAsync();

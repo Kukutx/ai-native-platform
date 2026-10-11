@@ -45,6 +45,20 @@ internal sealed class StockLedger(AppDbContext db, ITenantContext tenant, TimePr
         return rows.Count == 1 ? new StockBalance(rows[0].OnHand, rows[0].Reserved) : null;
     }
 
+    public Task LockProductsAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken)
+    {
+        // 按 ID 排序加锁；共享锁之间不冲突，只和修改产品的排他锁互相等待。
+        var ids = productIds.Distinct().Order().ToArray();
+        return ids.Length == 0
+            ? Task.CompletedTask
+            : db.Database.ExecuteSqlAsync($"""
+                SELECT 1 FROM erp_products
+                WHERE tenant_id = {tenant.TenantId} AND id = ANY({ids})
+                ORDER BY id
+                FOR SHARE
+                """, cancellationToken);
+    }
+
     /// <summary>
     /// 第一次碰到某个产品与仓库的组合时补一行 0；并发插入由唯一索引兜底，后到的什么都不做。
     /// </summary>

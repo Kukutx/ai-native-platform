@@ -42,6 +42,12 @@ public interface IStockLedger
         decimal reservedDelta,
         bool requireAvailable,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 以共享方式锁住这些产品行直到事务结束，之后读到的"是否管库存"在本事务内不会再变。
+    /// 凡是按"是否管库存"决定动不动库存的操作都先调用它；修改产品时对产品行加排他锁，两者互相等待而不是交错。
+    /// </summary>
+    Task LockProductsAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -321,6 +327,17 @@ internal sealed class ErpRecords(
         => await db.ErpProducts.FirstOrDefaultAsync(p => p.Id == id, cancellationToken).ConfigureAwait(false)
            ?? throw new NotFoundException("erp_product", id);
 
+    /// <summary>
+    /// 先以共享锁锁住这些产品，再返回其中管库存的产品：到事务结束前它们是否管库存不会被修改产品的操作改掉。
+    /// </summary>
+    public async Task<Dictionary<Guid, ErpProduct>> TrackedProductsAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken)
+    {
+        var ids = productIds.Distinct().ToList();
+        await ledger.LockProductsAsync(ids, cancellationToken).ConfigureAwait(false);
+        return await db.ErpProducts.AsNoTracking().Where(p => ids.Contains(p.Id) && p.TrackInventory)
+            .ToDictionaryAsync(p => p.Id, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<ErpWarehouse> WarehouseAsync(Guid id, CancellationToken cancellationToken)
         => await db.ErpWarehouses.FirstOrDefaultAsync(w => w.Id == id, cancellationToken).ConfigureAwait(false)
            ?? throw new NotFoundException("erp_warehouse", id);
@@ -403,7 +420,26 @@ internal sealed class ErpRecords(
                 }
             }
 
-            lines.Add(ErpOrderLine.Create(product.Id, quantity, price.Value));
+            // 同一产品的多行合并后数量也不能超过上限；金额按单价算出后同样要放得进数据库。
+            if (quantity >= ErpValidation.MaxQuantity)
+            {
+                errors.Add($"产品「{product.Name}」的数量太大。");
+                continue;
+            }
+
+            var line = ErpOrderLine.Create(product.Id, quantity, price.Value);
+            if (line.Amount >= ErpValidation.MaxAmount)
+            {
+                errors.Add($"产品「{product.Name}」的金额太大。");
+                continue;
+            }
+
+            lines.Add(line);
+        }
+
+        if (errors.Count == 0 && lines.Sum(l => l.Amount) >= ErpValidation.MaxAmount)
+        {
+            errors.Add("订单合计金额太大，请拆成多张订单。");
         }
 
         if (errors.Count > 0)
@@ -518,6 +554,12 @@ internal static partial class ErpValidation
 {
     public const decimal MaxQuantity = 1_000_000_000m;
     public const decimal MaxPrice = 1_000_000_000_000m;
+
+    /// <summary>
+    /// 行金额与订单合计的上限。数据库按 numeric(18,2) 保存（整数部分最多 16 位），留出余量。
+    /// </summary>
+    public const decimal MaxAmount = 1_000_000_000_000_000m;
+
     public const int MaxLines = 200;
 
     public static IRuleBuilderOptions<T, string> Currency<T>(this IRuleBuilder<T, string> rule)
@@ -528,6 +570,11 @@ internal static partial class ErpValidation
     /// </summary>
     public static bool HasQuantityScale(decimal value) => decimal.Round(value, 4) == value;
 
+    /// <summary>
+    /// 单价最多 4 位小数，与数据库精度一致；否则保存后单价被截断，金额就无法由数量和单价算出。
+    /// </summary>
+    public static bool HasPriceScale(decimal value) => decimal.Round(value, 4) == value;
+
     public static void Lines<T>(this AbstractValidator<T> validator, System.Linq.Expressions.Expression<Func<T, IEnumerable<ErpOrderLineRequest>>> lines)
     {
         validator.RuleFor(lines).NotEmpty().WithMessage("订单至少需要一行产品。")
@@ -537,7 +584,8 @@ internal static partial class ErpValidation
             line.RuleFor(l => l.Quantity).GreaterThan(0).WithMessage("数量必须大于 0。")
                 .LessThan(MaxQuantity).WithMessage("数量太大。")
                 .Must(HasQuantityScale).WithMessage("数量最多 4 位小数。");
-            line.RuleFor(l => l.UnitPrice).GreaterThanOrEqualTo(0).LessThan(MaxPrice).When(l => l.UnitPrice.HasValue).WithMessage("单价必须是不小于 0 的数字。");
+            line.RuleFor(l => l.UnitPrice).GreaterThanOrEqualTo(0).LessThan(MaxPrice).When(l => l.UnitPrice.HasValue).WithMessage("单价必须是不小于 0 的数字。")
+                .Must(p => HasPriceScale(p!.Value)).When(l => l.UnitPrice.HasValue).WithMessage("单价最多 4 位小数。");
         }).OverridePropertyName("lines");
     }
 
