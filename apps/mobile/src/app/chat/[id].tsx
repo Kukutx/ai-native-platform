@@ -4,7 +4,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { ChatMessageDto } from '@ainative/api-client';
+import { sessionCan, type ChatMessageDto } from '@ainative/api-client';
 import { Muted } from '@/components/ui';
 import { getApi, streamChat } from '@/lib/api';
 import { toolStatus } from '@/lib/labels';
@@ -43,6 +43,9 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const session = useQuery({ queryKey: ['session'], queryFn: ({ signal }) => getApi().auth.session(signal) });
+  const models = useQuery({ queryKey: ['models'], queryFn: ({ signal }) => getApi().models.catalog(signal), enabled: sessionCan(session.data, 'agents.view') });
+  const demo = models.data?.providers.find((m) => m.name === models.data.defaultProvider)?.kind === 'demo';
   const [conversationId, setConversationId] = useState(params.id === 'new' ? null : params.id);
   const [input, setInput] = useState('');
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -127,7 +130,11 @@ export default function ChatScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={{ color: p.text, fontSize: 16, fontWeight: '600' }}>有什么可以帮你？</Text>
-            <Muted style={{ marginTop: 6, textAlign: 'center' }}>试试：“帮我建一个任务：整理本周客户反馈，交给小智”</Muted>
+            <Muted style={{ marginTop: 6, textAlign: 'center' }}>
+              {demo
+                ? '当前使用内置演示模型，它只会复述你的话，不会真的执行操作。配置模型密钥后，就可以让我建任务、规划项目、查客户。'
+                : '试试：“帮我建一个任务：整理本周客户反馈，交给小智”'}
+            </Muted>
           </View>
         }
         renderItem={({ item }) => (

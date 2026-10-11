@@ -12,6 +12,7 @@ using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
 using AiNative.Domain.Knowledge;
 using AiNative.Domain.Modules;
+using AiNative.Domain.Projects;
 using AiNative.Domain.Tenancy;
 using AiNative.Domain.Work;
 using AiNative.Domain.Workflows;
@@ -103,6 +104,12 @@ public sealed class AppDbContext : DbContext, IAppDbContext
     public DbSet<ErpSalesOrder> ErpSalesOrders => Set<ErpSalesOrder>();
 
     public DbSet<ErpPurchaseOrder> ErpPurchaseOrders => Set<ErpPurchaseOrder>();
+
+    public DbSet<Project> Projects => Set<Project>();
+
+    public DbSet<ProjectMilestone> ProjectMilestones => Set<ProjectMilestone>();
+
+    public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
 
     /// <summary>
     /// 查询过滤器引用的当前租户；EF 按上下文实例参数化，未进入租户时为空 Guid，什么都查不到。
@@ -259,9 +266,53 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => new { x.TenantId, x.AssigneeAgentId, x.Status });
             b.HasIndex(x => x.ParentId);
             b.HasIndex(x => x.CheckoutRunId);
+            b.HasIndex(x => new { x.ProjectId, x.Status });
+            b.HasIndex(x => x.MilestoneId);
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<WorkItem>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Agent>().WithMany().HasForeignKey(x => x.AssigneeAgentId).OnDelete(DeleteBehavior.SetNull);
+
+            // 删除项目或里程碑时任务保留，只是不再归属。
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<ProjectMilestone>().WithMany().HasForeignKey(x => x.MilestoneId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<Project>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.Description).HasMaxLength(10_000);
+            b.ComplexProperty(x => x.CreatedBy);
+
+            // 名称在空间内唯一（不区分大小写，处理器在事务锁下检查），智能体可以按名称指代项目。
+            b.HasIndex(x => new { x.TenantId, x.Status });
+            b.HasIndex(x => x.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
+            b.HasIndex(x => x.LeadAgentId);
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.LeadUserId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<Agent>().WithMany().HasForeignKey(x => x.LeadAgentId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ProjectMilestone>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.Description).HasMaxLength(2_000);
+            b.HasIndex(x => new { x.ProjectId, x.DueDate });
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ProjectMember>(b =>
+        {
+            b.Property(x => x.Responsibility).HasMaxLength(100);
+
+            // 同一个人或智能体在一个项目里只出现一次；成员与智能体二选一。
+            b.HasIndex(x => new { x.ProjectId, x.UserId }).IsUnique().HasFilter("user_id IS NOT NULL");
+            b.HasIndex(x => new { x.ProjectId, x.AgentId }).IsUnique().HasFilter("agent_id IS NOT NULL");
+            b.HasIndex(x => x.UserId);
+            b.HasIndex(x => x.AgentId);
+            b.ToTable(t => t.HasCheckConstraint("ck_project_members_one_member", "(user_id IS NULL) <> (agent_id IS NULL)"));
+            b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<Agent>().WithMany().HasForeignKey(x => x.AgentId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<WorkItemComment>(b =>

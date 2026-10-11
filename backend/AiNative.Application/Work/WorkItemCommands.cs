@@ -2,6 +2,7 @@ using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
 using AiNative.Application.Common;
 using AiNative.Application.Modules;
+using AiNative.Application.Projects;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
 using AiNative.Contracts.Common;
@@ -36,7 +37,9 @@ public sealed record ListWorkItemsQuery(
     string? Search = null,
     bool OpenOnly = false,
     int Page = 1,
-    int PageSize = 50) : IQuery<PagedResult<WorkItemDto>>;
+    int PageSize = 50,
+    Guid? ProjectId = null,
+    Guid? MilestoneId = null) : IQuery<PagedResult<WorkItemDto>>;
 
 [RequireFeature(Features.Tasks.View)]
 public sealed record GetWorkItemQuery(Guid Id) : IQuery<WorkItemDetailDto>;
@@ -73,6 +76,7 @@ internal sealed class WorkItemCommandHandlers(
     ITenantContext tenant,
     IWorkItemNumbers numbers,
     WorkItemWorkflow workflow,
+    ProjectPlacement placement,
     IChangeFeed changes,
     IPlatformEvents events,
     TimeProvider clock) :
@@ -85,12 +89,22 @@ internal sealed class WorkItemCommandHandlers(
     public async Task<WorkItemDto> HandleAsync(CreateWorkItemCommand request, CancellationToken cancellationToken)
     {
         var r = request.Request;
-        if (r.ParentId is { } parentId && !await db.WorkItems.AnyAsync(w => w.Id == parentId, cancellationToken).ConfigureAwait(false))
+        var (projectId, milestoneId) = (r.ProjectId, r.MilestoneId);
+        if (r.ParentId is { } parentId)
         {
-            throw new NotFoundException("work_item", parentId);
+            var parent = await db.WorkItems.Where(w => w.Id == parentId).Select(w => new { w.ProjectId, w.MilestoneId })
+                             .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+                         ?? throw new NotFoundException("work_item", parentId);
+
+            // 子任务默认跟上级任务在同一个项目和里程碑里。
+            if (projectId is null && milestoneId is null)
+            {
+                (projectId, milestoneId) = (parent.ProjectId, parent.MilestoneId);
+            }
         }
 
         await EnsureUserIsMemberAsync(r.AssigneeUserId, cancellationToken).ConfigureAwait(false);
+        var placed = await placement.ResolveAsync(projectId, milestoneId, null, null, cancellationToken).ConfigureAwait(false);
 
         var item = new WorkItem
         {
@@ -99,8 +113,10 @@ internal sealed class WorkItemCommandHandlers(
             Description = r.Description.Trim(),
             Priority = r.Priority,
             ParentId = r.ParentId,
+            DueDate = r.DueDate,
             CreatedBy = tenant.Actor,
         };
+        item.PlaceIn(placed.ProjectId, placed.MilestoneId);
         item.ChangeStatus(r.Status, clock.GetUtcNow());
         item.AssignToAgent(r.AssigneeAgentId);
         if (r.AssigneeUserId is not null)
@@ -131,10 +147,13 @@ internal sealed class WorkItemCommandHandlers(
         var previousAgent = item.AssigneeAgentId;
         var previousStatus = item.Status;
         await EnsureUserIsMemberAsync(r.AssigneeUserId, cancellationToken).ConfigureAwait(false);
+        var placed = await placement.ResolveAsync(r.ProjectId, r.MilestoneId, item.ProjectId, item.MilestoneId, cancellationToken).ConfigureAwait(false);
 
         item.Title = r.Title.Trim();
         item.Description = r.Description.Trim();
         item.Priority = r.Priority;
+        item.PlaceIn(placed.ProjectId, placed.MilestoneId);
+        item.DueDate = r.DueDate;
         item.ChangeStatus(r.Status, clock.GetUtcNow());
         item.AssignToAgent(r.AssigneeAgentId);
         if (r.AssigneeUserId is not null)
@@ -299,6 +318,16 @@ internal sealed class WorkItemQueryHandlers(IAppDbContext db) :
         if (request.ParentId is { } parentId)
         {
             query = query.Where(w => w.ParentId == parentId);
+        }
+
+        if (request.ProjectId is { } projectId)
+        {
+            query = query.Where(w => w.ProjectId == projectId);
+        }
+
+        if (request.MilestoneId is { } milestoneId)
+        {
+            query = query.Where(w => w.MilestoneId == milestoneId);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Search))

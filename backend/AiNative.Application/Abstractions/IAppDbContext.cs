@@ -6,6 +6,7 @@ using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
 using AiNative.Domain.Knowledge;
 using AiNative.Domain.Modules;
+using AiNative.Domain.Projects;
 using AiNative.Domain.Tenancy;
 using AiNative.Domain.Work;
 using AiNative.Domain.Workflows;
@@ -88,6 +89,12 @@ public interface IAppDbContext
     DbSet<ErpSalesOrder> ErpSalesOrders { get; }
 
     DbSet<ErpPurchaseOrder> ErpPurchaseOrders { get; }
+
+    DbSet<Project> Projects { get; }
+
+    DbSet<ProjectMilestone> ProjectMilestones { get; }
+
+    DbSet<ProjectMember> ProjectMembers { get; }
 
     DatabaseFacade Database { get; }
 

@@ -1,6 +1,7 @@
 using AiNative.Application.Abstractions;
 using AiNative.Application.Agents;
 using AiNative.Application.Common;
+using AiNative.Application.Projects;
 using AiNative.Application.Realtime;
 using AiNative.Contracts.Common;
 using AiNative.Contracts.Work;
@@ -24,6 +25,9 @@ internal static class WorkItemMapping
         item.Status,
         item.Priority,
         item.ParentId,
+        item.ProjectId,
+        item.MilestoneId,
+        item.DueDate,
         item.AssigneeAgentId,
         item.AssigneeUserId,
         item.CheckoutRunId,
@@ -56,10 +60,11 @@ public interface IWorkItemCheckout
 }
 
 /// <summary>
-/// 工作项变化引发的协作：指派即唤醒、评论通知负责人、子任务完成通知上级任务负责人。
+/// 工作项变化引发的协作：指派即唤醒、评论通知负责人、子任务完成通知上级任务负责人，
+/// 项目里的任务状态变化交给 <see cref="ProjectWorkflow"/> 通知项目负责人。
 /// 自己触发的变化不唤醒自己，避免智能体自我循环。
 /// </summary>
-internal sealed class WorkItemWorkflow(IAppDbContext db, IWakeupQueue wakeups, IChangeFeed changes, TimeProvider clock)
+internal sealed class WorkItemWorkflow(IAppDbContext db, IWakeupQueue wakeups, IChangeFeed changes, ProjectWorkflow projects, TimeProvider clock)
 {
     public async Task OnAssignedAsync(WorkItem item, Guid? previousAgentId, Actor actor, CancellationToken cancellationToken)
     {
@@ -99,7 +104,13 @@ internal sealed class WorkItemWorkflow(IAppDbContext db, IWakeupQueue wakeups, I
 
     public async Task OnStatusChangedAsync(WorkItem item, WorkItemStatus previous, Actor actor, CancellationToken cancellationToken)
     {
-        if (previous == item.Status || !item.IsClosed || item.ParentId is not { } parentId)
+        if (previous == item.Status)
+        {
+            return;
+        }
+
+        await projects.OnTaskStatusChangedAsync(item, previous, actor, cancellationToken).ConfigureAwait(false);
+        if (!item.IsClosed || item.ParentId is not { } parentId)
         {
             return;
         }

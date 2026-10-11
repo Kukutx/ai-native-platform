@@ -29,6 +29,8 @@ export const queryKeys = {
   workflowCatalog: ['workflows', 'catalog'] as const,
   workflowRuns: (filters?: object) => ['workflow-runs', filters ?? {}] as const,
   workflowRun: (id: string) => ['workflow-run', id] as const,
+  projects: (filters?: object) => ['projects', filters ?? {}] as const,
+  project: (id: string) => ['project', id] as const,
   // 客户管理的数据互相关联（金额、计数、最近往来），任何 crm_* 变化都整体失效 ['crm']。
   crmPipeline: (ownerUserId?: string) => ['crm', 'pipeline', ownerUserId ?? 'all'] as const,
   crmStages: ['crm', 'stages'] as const,
@@ -56,7 +58,10 @@ export const queryKeys = {
 /** 实体变化 → 需要失效的查询前缀。 */
 export const invalidationMap: Record<string, (id: string) => readonly (readonly unknown[])[]> = {
   agent: () => [['agents'], ['runs']],
-  work_item: (id) => [['work-items'], ['work-item', id]],
+  // 任务变化会改变项目和里程碑的进度。
+  work_item: (id) => [['work-items'], ['work-item', id], ['projects'], ['project']],
+  // 删除项目或里程碑会把任务移出来，任务列表一并刷新。
+  project: (id) => [['projects'], ['project', id], ['work-items']],
   run: (id) => [['runs'], ['run', id], ['agents']],
   approval: () => [['approvals']],
   conversation: () => [['conversations']],

@@ -74,6 +74,8 @@ export default function RootLayout() {
               <Stack.Screen name='erp/sales-orders/[id]' options={{ title: '销售订单' }} />
               <Stack.Screen name='erp/purchase-orders/[id]' options={{ title: '采购订单' }} />
               <Stack.Screen name='erp/products/[id]' options={{ title: '产品' }} />
+              <Stack.Screen name='projects/index' options={{ title: '项目' }} />
+              <Stack.Screen name='projects/[id]' options={{ title: '项目' }} />
             </Stack.Protected>
             <Stack.Protected guard={!token}>
               <Stack.Screen name='login' options={{ headerShown: false }} />

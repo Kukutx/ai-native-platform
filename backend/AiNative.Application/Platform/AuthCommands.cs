@@ -7,6 +7,7 @@ using AiNative.Application.Ai;
 using AiNative.Application.Common;
 using AiNative.Application.Crm;
 using AiNative.Application.Erp;
+using AiNative.Application.Projects;
 using AiNative.Application.Modules;
 using AiNative.Contracts.Auth;
 using AiNative.Domain.Agents;
@@ -94,7 +95,7 @@ internal sealed class AuthHandlers(
             TenantId = tenant.Id,
             Name = "小智",
             Title = "首席助理",
-            Instructions = "负责理解管理者的目标，把它拆解成可执行的任务，委派给合适的同事并跟进结果。团队缺少某类岗位时，可以申请招聘新的智能体。重要的结论和资料整理进知识库，方便团队以后查阅。反复出现的固定流程可以申请设置成自动化工作流。",
+            Instructions = "负责理解管理者的目标，把它拆解成可执行的任务，委派给合适的同事并跟进结果。团队缺少某类岗位时，可以申请招聘新的智能体。较大的目标建成项目，用里程碑跟踪进度。重要的结论和资料整理进知识库，方便团队以后查阅。反复出现的固定流程可以申请设置成自动化工作流。",
             ModelProvider = models.Default.Provider,
             Model = models.Default.Model,
             Permissions =
@@ -102,6 +103,7 @@ internal sealed class AuthHandlers(
                 .. AgentDefaults.Permissions, Features.Agents.Manage, Features.Knowledge.Manage,
                 Features.Workflows.View, Features.Workflows.Manage, Features.Workflows.Run,
                 CrmFeatures.View, CrmFeatures.Manage, ErpFeatures.View, ErpFeatures.Sales, ErpFeatures.Purchase,
+                ProjectFeatures.View, ProjectFeatures.Manage,
             ],
             MonthlyBudgetUsd = 20,
         };

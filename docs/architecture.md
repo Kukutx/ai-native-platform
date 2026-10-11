@@ -38,13 +38,13 @@
 3. **日志**：慢请求告警。
 4. **事务**：只包写操作。处理器结束后统一保存并提交，提交成功才执行登记的后续动作（实时推送、唤醒信号），失败则全部回滚。
 
-错误统一为 ProblemDetails，附带机器可读的 `code`（如 `approval.already_decided`），前端直接展示中文 `title`。
+错误统一为 ProblemDetails，附带机器可读的 `code`（如 `approval.already_decided`），前端直接展示中文 `title`。请求日志放在异常处理之外，记录的是最终状态码；客户端中途断开的请求记为 499 而不是 500。启动时自动迁移会先建好迁移历史表，空库首次启动不会出现查询失败的错误日志。
 
 ## 模块与平台动作
 
 - **模块**声明自己的功能权限，可按空间启用或停用；核心模块不可停用。模块可以声明依赖的其他模块，依赖没启用时它也不生效（见进销存）。
 - **平台动作**是一次定义、多处使用的业务操作：界面（`/api/actions`）、智能体工具调用、对话中的模型调用走同一个入口。输入类型自动生成 JSON Schema 给模型；入口统一做权限检查和审批判断，动作在独立的依赖注入作用域里执行。
-- 现有动作：`tasks.list/get/create/update_status/assign/comment`，`agents.list_team/wake/hire`，`knowledge.search/get_document/create_document`，`memory.retain/recall/forget`，`workflows.list/list_events/get/create/update/run/get_run`。`agents.hire`、`workflows.create/update` 对智能体要求人工审批。
+- 现有动作：`tasks.list/get/create/schedule/update_status/assign/comment`，`agents.list_team/wake/hire`，`knowledge.search/get_document/create_document`，`memory.retain/recall/forget`，`workflows.list/list_events/get/create/update/run/get_run`。`agents.hire`、`workflows.create/update` 对智能体要求人工审批。
 - 模块还可以声明自己发布的**平台事件**（`PlatformEventDefinition`，附载荷字段说明），供工作流订阅，见下文。
 - 新模块和动作按约定自动注册，外部程序集用 `AddPlatformModuleAssembly` 接入。
 
@@ -116,6 +116,18 @@
 - **动作**：`erp.search_products`、`erp.get_product_stock`、`erp.get_summary`、`erp.create_product`、`erp.adjust_stock`、`erp.list_sales_orders`、`erp.get_sales_order`、`erp.create_sales_order`（可以直接确认）、`erp.confirm_sales_order`、`erp.ship_sales_order`、`erp.cancel_sales_order`、`erp.list_purchase_orders`、`erp.create_purchase_order`、`erp.place_purchase_order`、`erp.receive_purchase_order`。产品按编码、仓库按名称、订单按单号指定，找不到时错误里提示怎么查（解析直接查当前空间，不要求额外的查看权限）；取消销售订单、向供应商下单、调整库存对智能体要求人工审批。
 - **事件**：`erp.sales_order_confirmed`、`erp.sales_order_shipped`、`erp.purchase_order_received`、`erp.stock_low`，例如"库存低于提醒线时让智能体起草采购单，交给人确认下单"。
 
+## 项目管理
+
+第三个业务模块，把已有的任务组织成项目。模块键 `projects`，依赖 `agents`（任务属于智能体团队模块）。权限 `projects.view`、`projects.manage`；内置"成员"可管理、"只读"可查看，首席助理默认可管理，已有空间和智能体由迁移补齐。
+
+- **数据**：项目（名称在空间内不区分大小写唯一、目标、状态、负责人、开始和目标日期）、里程碑（有序、截止日期、完成时间）、项目成员（成员或智能体，附职责说明）。任务新增可选的 `projectId`、`milestoneId` 和截止日期；子任务不指定时沿用父任务的项目和里程碑。负责人可以是成员或智能体，设为负责人时自动成为项目成员，负责人不能被移出项目。
+- **状态**：规划中 → 进行中 ⇄ 暂停 → 已完成 / 已取消。还有未关闭任务时不能完成项目（409 `project.open_tasks`），里程碑同理（409 `project_milestone.open_tasks`）；已完成或已取消的项目不能再加任务和改里程碑（409 `project.closed`），已完成的里程碑不能再加任务。删除项目时任务保留，只是解除归属。
+- **进度**：项目和里程碑的进度都由所属任务实时统计（总数、完成、进行中、阻塞、逾期、完成百分比），已取消的任务不计入；在数据库里分组聚合，列表一次查询算完。
+- **并发**：任务加入项目、完成项目或里程碑、改里程碑、调整负责人都在 `project:{id}` advisory lock 下判断，"完成里程碑"和"往里程碑加任务"不会交错（有测试在去掉锁时稳定复现竞争）；项目重名检查在 `project-names:{tenant}` 锁下进行。编辑项目带 `expectedUpdatedAt` 检测冲突。
+- **与智能体协作**：负责人是智能体时，被设为负责人、项目里的任务被阻塞、某个里程碑或整个项目的任务全部关闭时会唤醒它（操作者就是负责人本人或项目已关闭时不唤醒）。智能体的提示词里列出它负责的项目和进度，当前任务附带所属项目、里程碑、项目目标和截止日期（逾期会注明）。
+- **动作**：`projects.list`、`projects.get`、`projects.create`（可以一次带上里程碑，同一事务创建，所以在工作流步骤里也能用）、`projects.update`、`projects.add_milestone`、`projects.complete_milestone`、`projects.add_member`，以及任务侧的 `tasks.schedule`（调整任务的项目、里程碑和截止日期）。项目、里程碑都可以按名称指定，解析直接查当前空间。
+- **事件**：`projects.project_created`、`projects.project_status_changed`、`projects.milestone_completed`，例如"项目完成后让智能体写一份复盘文档"。
+
 ## 对话
 
 对话是用户与平台的直接入口：用户消息和模型回复（含工具调用与结果）按序存储在 `conversation_messages`（jsonb）。每一轮在当前用户的身份与权限下调用平台动作，所以对话里能做的事和界面上完全一致。客户端可以用 SSE（`POST /api/conversations/{id}/messages`）或 SignalR 的 `StreamChat` 接收流式事件。
@@ -137,7 +149,7 @@
 
 ## 实时通道
 
-写操作提交后发布 **实体变更**（agent、work_item、run、approval、conversation、module、knowledge_document、memory、workflow、workflow_run），SignalR 按租户分组推送；客户端据此让对应查询失效重取，三端都不轮询。查看某次执行时可订阅该执行的分组，接收逐字输出和新事件；客户端会在断线重连后自动重新订阅，并把当前查询全部重取一次补上断线期间的变化。连接的启动与断开按调用顺序串行执行（切换空间时不会卡在断开中），首次连接失败会按退避节奏继续重试。
+写操作提交后发布 **实体变更**（agent、work_item、run、approval、conversation、module、knowledge_document、memory、workflow、workflow_run，以及各业务模块的实体，如 project），SignalR 按租户分组推送；客户端据此让对应查询失效重取，三端都不轮询。查看某次执行时可订阅该执行的分组，接收逐字输出和新事件；客户端会在断线重连后自动重新订阅，并把当前查询全部重取一次补上断线期间的变化。连接的启动与断开按调用顺序串行执行（切换空间时不会卡在断开中），首次连接失败会按退避节奏继续重试。
 
 编辑类接口带上读取时的 `updatedAt`（例如 `UpdateWorkItemRequest.expectedUpdatedAt`），期间被别人或智能体改过就返回 409，而不是用旧数据覆盖。成员被停用、移除或角色权限变化后，本实例的权限缓存在提交后立即清除。
 
@@ -155,13 +167,13 @@
 
 - **Web**：Next.js App Router + shadcn/ui；TanStack Query 管理服务端状态，查询键集中定义，实时变更映射到查询失效。可通过 `NEXT_OUTPUT=export` 静态导出。
 - **桌面**：Tauri 2 只做原生外壳，加载 Web 静态导出；单实例、窗口状态记忆、外链用系统浏览器打开；CSP 限制脚本只能来自应用本身。
-- **移动**：Expo Router；令牌存系统安全存储；对话用 `expo/fetch` 读流，任务与审批通过 SignalR 实时刷新；知识页可以检索文档和记忆；“我的”里可以查看、启停和手动运行工作流；“客户”页可以查商机、客户和联系人，一键拨号或发邮件，推进商机、随手记录跟进。
+- **移动**：Expo Router；令牌存系统安全存储；对话用 `expo/fetch` 读流，任务与审批通过 SignalR 实时刷新；知识页可以检索文档和记忆；“我的”里可以查看、启停和手动运行工作流；“客户”页可以查商机、客户和联系人，一键拨号或发邮件，推进商机、随手记录跟进；“我的”里还能查看项目进度、完成或重新打开里程碑。
 - 三端共用 `@ainative/api-client` 里的 `sessionCan`，按与后端相同的通配规则决定显示哪些入口。
 
 ## 测试
 
 - 单元测试：领域不变量（含商机状态与结束时间）、权限通配、JSON 约定、动作工具集、模型网关、分词与切分、向量归一化、API 密钥格式、工作流表达式与模板、cron 计算（含夏令时）。
-- 集成测试：真实 PostgreSQL（Testcontainers 或已有实例），覆盖注册登录、租户隔离、角色权限、成员停用即时生效、模块停用、智能体评论执行、唤醒合并、招聘审批与中断恢复、预算暂停、任务领取冲突、编辑冲突、对话串行与历史上限、实时通道、知识库检索与隔离、记忆可见性、智能体自动回忆、API 密钥、MCP 客户端调用，以及工作流的手动运行与模板、事件过滤、等待智能体完成、智能体所有的工作流走审批、取消运行驳回审批并发出审批结论事件、动作执行中拒绝取消、所有者失去事件权限后不再触发、崩溃运行的补跑、防自触发、定时触发、延时、版本冲突、定义校验、权限与租户隔离；客户管理的阶段推进与看板合计、阶段配置（占用保护、类型同步）、编辑冲突、角色与模块权限、租户隔离、通配符搜索、删除时的关联处理、赢单触发工作流、按名称操作的动作。
+- 集成测试：真实 PostgreSQL（Testcontainers 或已有实例），覆盖注册登录、租户隔离、角色权限、成员停用即时生效、模块停用、智能体评论执行、唤醒合并、招聘审批与中断恢复、预算暂停、任务领取冲突、编辑冲突、对话串行与历史上限、实时通道、知识库检索与隔离、记忆可见性、智能体自动回忆、API 密钥、MCP 客户端调用，以及工作流的手动运行与模板、事件过滤、等待智能体完成、智能体所有的工作流走审批、取消运行驳回审批并发出审批结论事件、动作执行中拒绝取消、所有者失去事件权限后不再触发、崩溃运行的补跑、防自触发、定时触发、延时、版本冲突、定义校验、权限与租户隔离；客户管理的阶段推进与看板合计、阶段配置（占用保护、类型同步）、编辑冲突、角色与模块权限、租户隔离、通配符搜索、删除时的关联处理、赢单触发工作流、按名称操作的动作；项目管理的进度统计、关闭后的归属限制、完成里程碑与加任务的并发、负责人智能体的唤醒、按名称排期的动作、工作流里一次建好项目和里程碑。
 - 每个集成测试用独立数据库，结束时清空连接池并删库，避免并行时连接数耗尽。
 
 ## 后续方向
@@ -169,5 +181,5 @@
 - 知识库进阶：PDF/Word 等文件解析、按文档权限过滤、重排序模型、记忆整理（合并、过期）。
 - 接入外部 MCP 服务：让智能体调用外部 MCP 工具。
 - 工作流进阶：分支与并行、循环处理列表、外部 Webhook 触发、可视化编排，以及更多模块发布事件。
-- 业务模块：项目管理、分析报表等继续作为可启用的模块接入；CRM 进阶：按负责人或部门的数据权限、自定义字段、导入导出、报价与合同；进销存进阶：部分发货与分批收货、退货、批次与序列号、成本核算、多币种汇率。
+- 业务模块：分析报表等继续作为可启用的模块接入；项目管理进阶：甘特图与任务依赖、工时与成本、项目模板；CRM 进阶：按负责人或部门的数据权限、自定义字段、导入导出、报价与合同；进销存进阶：部分发货与分批收货、退货、批次与序列号、成本核算、多币种汇率。
 - 多实例部署：调度器的领导者选举或分布式领取，Redis 背板的 SignalR。

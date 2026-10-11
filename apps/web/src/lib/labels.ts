@@ -8,6 +8,7 @@ import type {
   ErpSalesOrderStatus,
   ErpStockMovementKind,
   MemoryScope,
+  ProjectStatus,
   RunStatus,
   WakeupSource,
   WorkItemPriority,
@@ -35,6 +36,14 @@ export const workItemStatus: Record<WorkItemStatus, { label: string; tone: Tone 
   in_review: { label: '待验收', tone: 'default' },
   blocked: { label: '受阻', tone: 'destructive' },
   done: { label: '已完成', tone: 'secondary' },
+  cancelled: { label: '已取消', tone: 'outline' },
+};
+
+export const projectStatus: Record<ProjectStatus, { label: string; tone: Tone }> = {
+  planned: { label: '计划中', tone: 'outline' },
+  active: { label: '进行中', tone: 'default' },
+  on_hold: { label: '暂停', tone: 'secondary' },
+  completed: { label: '已完成', tone: 'secondary' },
   cancelled: { label: '已取消', tone: 'outline' },
 };
 
@@ -192,6 +201,17 @@ export function formatDate(value?: string | null) {
 
   const [year, month, day] = value.split('-').map(Number);
   return new Date(year, month - 1, day).toLocaleDateString('zh-CN');
+}
+
+/** 截止日期是否已过（按本地日期比较，当天不算逾期）。 */
+export function isPastDate(value?: string | null) {
+  if (!value) {
+    return false;
+  }
+
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return value < today;
 }
 
 export function formatTime(value?: string | null) {

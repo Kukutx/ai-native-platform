@@ -317,7 +317,4 @@ internal static class CrmValidation
         validator.RuleFor(tags).Must(t => t.Count() <= MaxTags).WithMessage($"标签最多 {MaxTags} 个。").OverridePropertyName("tags");
         validator.RuleForEach(tags).MaximumLength(30).WithMessage("单个标签最多 30 个字。").OverridePropertyName("tags");
     }
-
-    public static IRuleBuilderOptions<T, string> Text<T>(this IRuleBuilder<T, string> rule, int max, string field)
-        => rule.MaximumLength(max).WithMessage($"{field}最多 {max} 个字。");
 }

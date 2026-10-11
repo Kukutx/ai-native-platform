@@ -5,9 +5,11 @@ using AiNative.Application.Access;
 using AiNative.Application.Common;
 using AiNative.Application.Knowledge;
 using AiNative.Application.Modules;
+using AiNative.Application.Projects;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Knowledge;
+using AiNative.Domain.Projects;
 using AiNative.Domain.Work;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -81,6 +83,12 @@ internal sealed class AgentPromptBuilder(
             sb.AppendLine("- 需要背景资料时先用 knowledge_search 查团队知识库，引用时注明文档标题。");
         }
 
+        if (FeatureMatcher.IsGranted(agent.Permissions, ProjectFeatures.View)
+            && await modules.IsEnabledAsync(ProjectsModule.ModuleKey, cancellationToken).ConfigureAwait(false))
+        {
+            sb.AppendLine("- 任务可以归入项目和里程碑并设截止日期（tasks_create 带 projectId、milestoneId、dueDate，已有任务用 tasks_schedule 调整）。负责项目时用里程碑组织工作，里程碑的任务都关闭后验收并标记完成。");
+        }
+
         return sb.ToString();
     }
 
@@ -122,10 +130,19 @@ internal sealed class AgentPromptBuilder(
             sb.AppendLine("- 无");
         }
 
+        var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+        var projectIds = mine.Where(w => w.ProjectId != null).Select(w => w.ProjectId!.Value).Distinct().ToList();
+        var projectNames = projectIds.Count == 0
+            ? []
+            : await db.Projects.AsNoTracking().Where(p => projectIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.Name, cancellationToken).ConfigureAwait(false);
         foreach (var w in mine)
         {
-            sb.AppendLine(CultureInfo.InvariantCulture, $"- T-{w.Number}《{w.Title}》 状态 {w.Status}，优先级 {w.Priority}，id {w.Id}");
+            var project = w.ProjectId is { } projectId && projectNames.TryGetValue(projectId, out var name) ? $"，项目《{name}》" : string.Empty;
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- T-{w.Number}《{w.Title}》 状态 {w.Status}，优先级 {w.Priority}{project}{DueText(w.DueDate, today)}，id {w.Id}");
         }
+
+        await AppendLedProjectsAsync(sb, agent, today, cancellationToken).ConfigureAwait(false);
 
         var pending = await db.Approvals.AsNoTracking()
             .Where(a => a.RequestedBy.Kind == Domain.Common.ActorKind.Agent && a.RequestedBy.Id == agent.Id && a.Status == ApprovalStatus.Pending)
@@ -227,11 +244,60 @@ internal sealed class AgentPromptBuilder(
         }
     }
 
+    /// <summary>
+    /// 智能体负责的未结束项目，带进度，方便它主动推进。
+    /// </summary>
+    private async Task AppendLedProjectsAsync(StringBuilder sb, Agent agent, DateOnly today, CancellationToken cancellationToken)
+    {
+        if (!FeatureMatcher.IsGranted(agent.Permissions, ProjectFeatures.View)
+            || !await modules.IsEnabledAsync(ProjectsModule.ModuleKey, cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var led = await db.Projects.AsNoTracking()
+            .Where(p => p.LeadAgentId == agent.Id && p.Status != ProjectStatus.Completed && p.Status != ProjectStatus.Cancelled)
+            .OrderBy(p => p.TargetDate == null).ThenBy(p => p.TargetDate).Take(10)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (led.Count == 0)
+        {
+            return;
+        }
+
+        sb.AppendLine().AppendLine("## 你负责的项目（详情用 projects_get）");
+        foreach (var p in await ProjectMapping.ProjectsAsync(db, led, today, cancellationToken).ConfigureAwait(false))
+        {
+            var target = p.TargetDate is { } date ? $"，目标 {date:yyyy-MM-dd}{(p.IsOverdue ? "（已逾期）" : string.Empty)}" : string.Empty;
+            var g = p.Progress;
+            sb.AppendLine(CultureInfo.InvariantCulture,
+                $"- 《{p.Name}》 状态 {p.Status}{target}，任务 {g.Done}/{g.Total} 已完成（进行中 {g.InProgress}，阻塞 {g.Blocked}，逾期 {g.Overdue}），id {p.Id}");
+        }
+    }
+
     private async Task AppendFocusAsync(StringBuilder sb, WorkItem focus, bool checkedOut, CancellationToken cancellationToken)
     {
         sb.AppendLine().AppendLine(checkedOut ? "## 本轮聚焦的任务（已为你领取）" : "## 相关任务（由他人负责，仅供参考）");
         sb.AppendLine(CultureInfo.InvariantCulture, $"{FocusMarker} {focus.Id}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T-{focus.Number}《{focus.Title}》 状态 {focus.Status}，优先级 {focus.Priority}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"T-{focus.Number}《{focus.Title}》 状态 {focus.Status}，优先级 {focus.Priority}{DueText(focus.DueDate, DateOnly.FromDateTime(clock.GetLocalNow().DateTime))}");
+        if (focus.ProjectId is { } projectId)
+        {
+            var project = await db.Projects.AsNoTracking().Where(p => p.Id == projectId)
+                .Select(p => new { p.Name, p.Description, p.TargetDate }).FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+            var milestone = focus.MilestoneId is { } milestoneId
+                ? await db.ProjectMilestones.AsNoTracking().Where(m => m.Id == milestoneId).Select(m => new { m.Name, m.DueDate })
+                    .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
+                : null;
+            if (project is not null)
+            {
+                var stage = milestone is null ? string.Empty : $"，里程碑「{milestone.Name}」{(milestone.DueDate is { } due ? $"（{due:yyyy-MM-dd} 截止）" : string.Empty)}";
+                sb.AppendLine(CultureInfo.InvariantCulture, $"所属项目：《{project.Name}》{stage}（项目 id {projectId}）");
+                if (!string.IsNullOrWhiteSpace(project.Description))
+                {
+                    sb.AppendLine("项目目标：").AppendLine(Truncate(project.Description, 1500));
+                }
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(focus.Description))
         {
             sb.AppendLine("描述：").AppendLine(Truncate(focus.Description, 6000));
@@ -271,6 +337,9 @@ internal sealed class AgentPromptBuilder(
             }
         }
     }
+
+    private static string DueText(DateOnly? due, DateOnly today)
+        => due is not { } date ? string.Empty : date < today ? $"，截止 {date:yyyy-MM-dd}（已逾期）" : $"，截止 {date:yyyy-MM-dd}";
 
     private static string Truncate(string text, int max) => text.Length <= max ? text : text[..max] + "…（已截断）";
 }

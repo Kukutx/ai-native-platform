@@ -4342,6 +4342,564 @@ export class MemoriesClient {
     }
 }
 
+export class ProjectsClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 项目列表：进行中的在前，同状态按目标日期排列；search 匹配名称和说明，openOnly 只看未结束的。
+     * @param search (optional) 
+     * @param status (optional) 
+     * @param openOnly (optional) 
+     * @param page (optional) 
+     * @param pageSize (optional) 
+     */
+    list(search?: string | null | undefined, status?: ProjectStatus | null | undefined, openOnly?: boolean | undefined, page?: number | undefined, pageSize?: number | undefined, signal?: AbortSignal): Promise<PagedResultOfProjectDto> {
+        let url_ = this.baseUrl + "/api/projects?";
+        if (search !== undefined && search !== null)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (status !== undefined && status !== null)
+            url_ += "status=" + encodeURIComponent("" + status) + "&";
+        if (openOnly === null)
+            throw new globalThis.Error("The parameter 'openOnly' cannot be null.");
+        else if (openOnly !== undefined)
+            url_ += "openOnly=" + encodeURIComponent("" + openOnly) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processList(_response);
+        });
+    }
+
+    protected processList(response: Response): Promise<PagedResultOfProjectDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PagedResultOfProjectDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<PagedResultOfProjectDto>(null as any);
+    }
+
+    create(request: SaveProjectRequest, signal?: AbortSignal): Promise<ProjectDetailDto> {
+        let url_ = this.baseUrl + "/api/projects";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreate(_response);
+        });
+    }
+
+    protected processCreate(response: Response): Promise<ProjectDetailDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectDetailDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectDetailDto>(null as any);
+    }
+
+    get(id: string, signal?: AbortSignal): Promise<ProjectDetailDto> {
+        let url_ = this.baseUrl + "/api/projects/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGet(_response);
+        });
+    }
+
+    protected processGet(response: Response): Promise<ProjectDetailDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectDetailDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectDetailDto>(null as any);
+    }
+
+    /**
+     * 修改项目。状态改为 completed 要求项目里的任务都已关闭，否则返回 409 project.open_tasks。
+     */
+    update(id: string, request: SaveProjectRequest, signal?: AbortSignal): Promise<ProjectDto> {
+        let url_ = this.baseUrl + "/api/projects/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdate(_response);
+        });
+    }
+
+    protected processUpdate(response: Response): Promise<ProjectDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectDto>(null as any);
+    }
+
+    /**
+     * 删除项目。里程碑和成员一并删除，项目里的任务保留，只是不再属于任何项目。
+     */
+    delete(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/projects/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    addMilestone(id: string, request: SaveProjectMilestoneRequest, signal?: AbortSignal): Promise<ProjectMilestoneDto> {
+        let url_ = this.baseUrl + "/api/projects/{id}/milestones";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processAddMilestone(_response);
+        });
+    }
+
+    protected processAddMilestone(response: Response): Promise<ProjectMilestoneDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectMilestoneDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectMilestoneDto>(null as any);
+    }
+
+    updateMilestone(id: string, milestoneId: string, request: SaveProjectMilestoneRequest, signal?: AbortSignal): Promise<ProjectMilestoneDto> {
+        let url_ = this.baseUrl + "/api/projects/{id}/milestones/{milestoneId}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (milestoneId === undefined || milestoneId === null)
+            throw new globalThis.Error("The parameter 'milestoneId' must be defined.");
+        url_ = url_.replace("{milestoneId}", encodeURIComponent("" + milestoneId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdateMilestone(_response);
+        });
+    }
+
+    protected processUpdateMilestone(response: Response): Promise<ProjectMilestoneDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectMilestoneDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectMilestoneDto>(null as any);
+    }
+
+    /**
+     * 删除里程碑。里面的任务留在项目里，只是不再属于这个里程碑。
+     */
+    deleteMilestone(id: string, milestoneId: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/projects/{id}/milestones/{milestoneId}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (milestoneId === undefined || milestoneId === null)
+            throw new globalThis.Error("The parameter 'milestoneId' must be defined.");
+        url_ = url_.replace("{milestoneId}", encodeURIComponent("" + milestoneId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDeleteMilestone(_response);
+        });
+    }
+
+    protected processDeleteMilestone(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * 标记里程碑完成。要求里程碑下的任务都已关闭，否则返回 409 project_milestone.open_tasks。
+     */
+    completeMilestone(id: string, milestoneId: string, signal?: AbortSignal): Promise<ProjectMilestoneDto> {
+        let url_ = this.baseUrl + "/api/projects/{id}/milestones/{milestoneId}/complete";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (milestoneId === undefined || milestoneId === null)
+            throw new globalThis.Error("The parameter 'milestoneId' must be defined.");
+        url_ = url_.replace("{milestoneId}", encodeURIComponent("" + milestoneId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCompleteMilestone(_response);
+        });
+    }
+
+    protected processCompleteMilestone(response: Response): Promise<ProjectMilestoneDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectMilestoneDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectMilestoneDto>(null as any);
+    }
+
+    reopenMilestone(id: string, milestoneId: string, signal?: AbortSignal): Promise<ProjectMilestoneDto> {
+        let url_ = this.baseUrl + "/api/projects/{id}/milestones/{milestoneId}/reopen";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (milestoneId === undefined || milestoneId === null)
+            throw new globalThis.Error("The parameter 'milestoneId' must be defined.");
+        url_ = url_.replace("{milestoneId}", encodeURIComponent("" + milestoneId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processReopenMilestone(_response);
+        });
+    }
+
+    protected processReopenMilestone(response: Response): Promise<ProjectMilestoneDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectMilestoneDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectMilestoneDto>(null as any);
+    }
+
+    addMember(id: string, request: AddProjectMemberRequest, signal?: AbortSignal): Promise<ProjectMemberDto> {
+        let url_ = this.baseUrl + "/api/projects/{id}/members";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processAddMember(_response);
+        });
+    }
+
+    protected processAddMember(response: Response): Promise<ProjectMemberDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectMemberDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectMemberDto>(null as any);
+    }
+
+    updateMember(id: string, memberId: string, request: UpdateProjectMemberRequest, signal?: AbortSignal): Promise<ProjectMemberDto> {
+        let url_ = this.baseUrl + "/api/projects/{id}/members/{memberId}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (memberId === undefined || memberId === null)
+            throw new globalThis.Error("The parameter 'memberId' must be defined.");
+        url_ = url_.replace("{memberId}", encodeURIComponent("" + memberId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdateMember(_response);
+        });
+    }
+
+    protected processUpdateMember(response: Response): Promise<ProjectMemberDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectMemberDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectMemberDto>(null as any);
+    }
+
+    /**
+     * 移出项目成员。项目负责人不能直接移出，需要先更换负责人。
+     */
+    removeMember(id: string, memberId: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/projects/{id}/members/{memberId}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (memberId === undefined || memberId === null)
+            throw new globalThis.Error("The parameter 'memberId' must be defined.");
+        url_ = url_.replace("{memberId}", encodeURIComponent("" + memberId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processRemoveMember(_response);
+        });
+    }
+
+    protected processRemoveMember(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+}
+
 export class RunsClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -4884,7 +5442,7 @@ export class WorkItemsClient {
         this.baseUrl = baseUrl ?? "http://localhost";
     }
 
-    list(status?: WorkItemStatus | null | undefined, assigneeAgentId?: string | null | undefined, parentId?: string | null | undefined, search?: string | null | undefined, openOnly?: boolean | undefined, page?: number | undefined, pageSize?: number | undefined, signal?: AbortSignal): Promise<PagedResultOfWorkItemDto> {
+    list(status?: WorkItemStatus | null | undefined, assigneeAgentId?: string | null | undefined, parentId?: string | null | undefined, search?: string | null | undefined, openOnly?: boolean | undefined, page?: number | undefined, pageSize?: number | undefined, projectId?: string | null | undefined, milestoneId?: string | null | undefined, signal?: AbortSignal): Promise<PagedResultOfWorkItemDto> {
         let url_ = this.baseUrl + "/api/work-items?";
         if (status !== undefined && status !== null)
             url_ += "status=" + encodeURIComponent("" + status) + "&";
@@ -4906,6 +5464,10 @@ export class WorkItemsClient {
             throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
         else if (pageSize !== undefined)
             url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        if (projectId !== undefined && projectId !== null)
+            url_ += "projectId=" + encodeURIComponent("" + projectId) + "&";
+        if (milestoneId !== undefined && milestoneId !== null)
+            url_ += "milestoneId=" + encodeURIComponent("" + milestoneId) + "&";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_: RequestInit = {
@@ -5978,6 +6540,95 @@ export interface CreateMemoryRequest {
     tags?: string[];
 }
 
+export interface PagedResultOfProjectDto {
+    items: ProjectDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+export interface ProjectDto {
+    id: string;
+    name: string;
+    description: string;
+    status: ProjectStatus;
+    lead?: ActorDto | undefined;
+    startDate?: string | undefined;
+    targetDate?: string | undefined;
+    isOverdue: boolean;
+    progress: ProjectProgressDto;
+    milestoneCount: number;
+    memberCount: number;
+    createdBy: ActorDto;
+    createdAt: string;
+    updatedAt: string;
+    closedAt?: string | undefined;
+}
+
+export type ProjectStatus = "planned" | "active" | "on_hold" | "completed" | "cancelled";
+
+export interface ProjectProgressDto {
+    total: number;
+    done: number;
+    inProgress: number;
+    blocked: number;
+    overdue: number;
+    percent: number;
+}
+
+export interface ProjectDetailDto {
+    project: ProjectDto;
+    milestones: ProjectMilestoneDto[];
+    members: ProjectMemberDto[];
+}
+
+export interface ProjectMilestoneDto {
+    id: string;
+    projectId: string;
+    name: string;
+    description: string;
+    dueDate?: string | undefined;
+    isOverdue: boolean;
+    completedAt?: string | undefined;
+    progress: ProjectProgressDto;
+    updatedAt: string;
+}
+
+export interface ProjectMemberDto {
+    id: string;
+    member: ActorDto;
+    responsibility: string;
+    openTasks: number;
+    createdAt: string;
+}
+
+export interface SaveProjectRequest {
+    name: string;
+    description?: string;
+    status?: ProjectStatus;
+    leadUserId?: string | undefined;
+    leadAgentId?: string | undefined;
+    startDate?: string | undefined;
+    targetDate?: string | undefined;
+    expectedUpdatedAt?: string | undefined;
+}
+
+export interface SaveProjectMilestoneRequest {
+    name: string;
+    description?: string;
+    dueDate?: string | undefined;
+}
+
+export interface AddProjectMemberRequest {
+    userId?: string | undefined;
+    agentId?: string | undefined;
+    responsibility?: string;
+}
+
+export interface UpdateProjectMemberRequest {
+    responsibility?: string;
+}
+
 export interface PagedResultOfRunDto {
     items: RunDto[];
     total: number;
@@ -6166,6 +6817,9 @@ export interface WorkItemDto {
     status: WorkItemStatus;
     priority: WorkItemPriority;
     parentId?: string | undefined;
+    projectId?: string | undefined;
+    milestoneId?: string | undefined;
+    dueDate?: string | undefined;
     assigneeAgentId?: string | undefined;
     assigneeUserId?: string | undefined;
     checkoutRunId?: string | undefined;
@@ -6201,6 +6855,9 @@ export interface CreateWorkItemRequest {
     status?: WorkItemStatus;
     priority?: WorkItemPriority;
     parentId?: string | undefined;
+    projectId?: string | undefined;
+    milestoneId?: string | undefined;
+    dueDate?: string | undefined;
     assigneeAgentId?: string | undefined;
     assigneeUserId?: string | undefined;
 }
@@ -6210,6 +6867,9 @@ export interface UpdateWorkItemRequest {
     description?: string;
     status: WorkItemStatus;
     priority: WorkItemPriority;
+    projectId?: string | undefined;
+    milestoneId?: string | undefined;
+    dueDate?: string | undefined;
     assigneeAgentId?: string | undefined;
     assigneeUserId?: string | undefined;
     expectedUpdatedAt?: string | undefined;

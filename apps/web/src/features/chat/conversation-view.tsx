@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { ChatMessageDto } from '@ainative/api-client';
+import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,7 +29,10 @@ function lastUserMessageIs(messages: ChatMessageDto[] | undefined, text: string)
  */
 export function ConversationView({ conversationId, onCreated }: { conversationId: string | null; onCreated?: (id: string) => void }) {
   const queryClient = useQueryClient();
+  const { can } = useSession();
   const [activeId, setActiveId] = useState(conversationId);
+  const models = useQuery({ queryKey: queryKeys.models, queryFn: ({ signal }) => api.models.catalog(signal), enabled: can('agents.view') });
+  const demo = models.data?.providers.find((p) => p.name === models.data.defaultProvider)?.kind === 'demo';
   const messages = useQuery({
     queryKey: queryKeys.messages(activeId ?? 'new'),
     queryFn: ({ signal }) => api.conversations.messages(activeId!, signal),
@@ -106,7 +110,11 @@ export function ConversationView({ conversationId, onCreated }: { conversationId
           {!messages.data?.length && !messages.isLoading && !draft ? (
             <div className='text-muted-foreground py-16 text-center text-sm'>
               <p className='text-foreground mb-2 text-base font-medium'>有什么可以帮你？</p>
-              试试：“帮我建一个任务：整理本周客户反馈，交给小智”，或“现在团队里都有谁？”
+              {demo ? (
+                <>当前使用内置演示模型，它只会复述你的话，不会真的执行操作。在后端配置 Ai:Providers 的模型密钥后，就可以让我建任务、规划项目、查客户。</>
+              ) : (
+                <>试试：“帮我建一个任务：整理本周客户反馈，交给小智”，或“现在团队里都有谁？”</>
+              )}
             </div>
           ) : null}
           {messages.data?.map((message) => <MessageBubble key={message.id} message={message} />)}

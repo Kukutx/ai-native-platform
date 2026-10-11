@@ -3,8 +3,10 @@ using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
 using AiNative.Application.Actions;
 using AiNative.Application.Agents.Actions;
+using AiNative.Application.Common;
 using AiNative.Contracts.Work;
 using AiNative.Domain.Work;
+using Microsoft.EntityFrameworkCore;
 
 namespace AiNative.Application.Work.Actions;
 
@@ -25,6 +27,12 @@ public sealed class ListTasksInput
     [Description("标题或描述关键字")]
     public string? Search { get; init; }
 
+    [Description("只看某个项目里的任务（项目 ID）；按项目查询时默认看全部负责人")]
+    public Guid? ProjectId { get; init; }
+
+    [Description("只看某个里程碑里的任务（里程碑 ID）")]
+    public Guid? MilestoneId { get; init; }
+
     [Description("最多返回条数，默认 20")]
     public int Limit { get; init; } = 20;
 }
@@ -37,7 +45,7 @@ internal sealed class ListTasksAction(IRequestDispatcher dispatcher) : PlatformA
 
     public override string Title => "查询任务";
 
-    public override string Description => "查询任务列表。默认返回调用者自己负责、尚未关闭的任务。";
+    public override string Description => "查询任务列表。默认返回调用者自己负责、尚未关闭的任务；给出 projectId 或 milestoneId 时返回该项目或里程碑里全部负责人的任务。";
 
     public override string RequiredFeature => Features.Tasks.View;
 
@@ -45,9 +53,10 @@ internal sealed class ListTasksAction(IRequestDispatcher dispatcher) : PlatformA
 
     protected override async Task<IReadOnlyList<WorkItemDto>> ExecuteAsync(ListTasksInput input, ActionContext context, CancellationToken cancellationToken)
     {
-        var assignee = input.AllAssignees ? null : input.AssigneeAgentId ?? (context.Actor.IsAgent ? context.Actor.Id : null);
+        var scoped = input.ProjectId is not null || input.MilestoneId is not null;
+        var assignee = input.AllAssignees ? null : input.AssigneeAgentId ?? (context.Actor.IsAgent && !scoped ? context.Actor.Id : null);
         var result = await dispatcher.SendAsync(
-            new ListWorkItemsQuery(input.Status, assignee, null, input.Search, input.OpenOnly, 1, Math.Clamp(input.Limit, 1, 100)),
+            new ListWorkItemsQuery(input.Status, assignee, null, input.Search, input.OpenOnly, 1, Math.Clamp(input.Limit, 1, 100), input.ProjectId, input.MilestoneId),
             cancellationToken).ConfigureAwait(false);
         return result.Items;
     }
@@ -93,6 +102,15 @@ public sealed class CreateTaskInput
 
     [Description("指派给哪个智能体；指派后对方会被自动唤醒")]
     public Guid? AssigneeAgentId { get; init; }
+
+    [Description("放进哪个项目（项目 ID，可用 projects.list 查到）；拆分子任务时省略则沿用上级任务的项目和里程碑")]
+    public Guid? ProjectId { get; init; }
+
+    [Description("放进哪个里程碑（里程碑 ID，可用 projects.get 查到）；只填它时项目自动取里程碑所在的项目")]
+    public Guid? MilestoneId { get; init; }
+
+    [Description("截止日期，格式 yyyy-MM-dd")]
+    public DateOnly? DueDate { get; init; }
 }
 
 internal sealed class CreateTaskAction(IRequestDispatcher dispatcher) : PlatformAction<CreateTaskInput, WorkItemDto>
@@ -103,7 +121,7 @@ internal sealed class CreateTaskAction(IRequestDispatcher dispatcher) : Platform
 
     public override string Title => "创建任务";
 
-    public override string Description => "创建任务或子任务，可直接指派给某个智能体（被指派者会自动被唤醒）。用于拆解工作、委派给下属。";
+    public override string Description => "创建任务或子任务，可直接指派给某个智能体（被指派者会自动被唤醒），可放进项目和里程碑并设定截止日期。用于拆解工作、委派给下属。";
 
     public override string RequiredFeature => Features.Tasks.Manage;
 
@@ -116,8 +134,74 @@ internal sealed class CreateTaskAction(IRequestDispatcher dispatcher) : Platform
                 Priority = input.Priority,
                 ParentId = input.ParentId,
                 AssigneeAgentId = input.AssigneeAgentId,
+                ProjectId = input.ProjectId,
+                MilestoneId = input.MilestoneId,
+                DueDate = input.DueDate,
             }),
             cancellationToken);
+}
+
+public sealed class ScheduleTaskInput
+{
+    [Description("任务 ID")]
+    public required Guid TaskId { get; init; }
+
+    [Description("移到哪个项目（项目 ID）；不改就省略")]
+    public Guid? ProjectId { get; init; }
+
+    [Description("移到哪个里程碑（里程碑 ID）；只填它时项目自动取里程碑所在的项目")]
+    public Guid? MilestoneId { get; init; }
+
+    [Description("为 true 时把任务移出项目（同时移出里程碑）")]
+    public bool RemoveFromProject { get; init; }
+
+    [Description("新的截止日期，格式 yyyy-MM-dd；不改就省略")]
+    public DateOnly? DueDate { get; init; }
+
+    [Description("为 true 时清除截止日期")]
+    public bool ClearDueDate { get; init; }
+}
+
+internal sealed class ScheduleTaskAction(IRequestDispatcher dispatcher, IAppDbContext db) : PlatformAction<ScheduleTaskInput, WorkItemDto>
+{
+    public override string Key => "tasks.schedule";
+
+    public override string ModuleKey => AgentsModuleKeys.Agents;
+
+    public override string Title => "安排任务";
+
+    public override string Description => "调整已有任务所属的项目、里程碑和截止日期，只需填写要改的部分。规划项目时用它把任务归入里程碑。";
+
+    public override string RequiredFeature => Features.Tasks.Manage;
+
+    protected override async Task<WorkItemDto> ExecuteAsync(ScheduleTaskInput input, ActionContext context, CancellationToken cancellationToken)
+    {
+        // 直接查库读取当前内容，只要求本动作声明的权限。
+        var item = await db.WorkItems.AsNoTracking().FirstOrDefaultAsync(w => w.Id == input.TaskId, cancellationToken).ConfigureAwait(false)
+                   ?? throw new NotFoundException("work_item", input.TaskId);
+        var (projectId, milestoneId) = input.RemoveFromProject
+            ? (null, null)
+            : input.ProjectId is not null || input.MilestoneId is not null
+                ? (input.ProjectId, input.MilestoneId)
+                : (item.ProjectId, item.MilestoneId);
+        return await dispatcher.SendAsync(
+            new UpdateWorkItemCommand(item.Id, new UpdateWorkItemRequest
+            {
+                Title = item.Title,
+                Description = item.Description,
+                Status = item.Status,
+                Priority = item.Priority,
+                ProjectId = projectId,
+                MilestoneId = milestoneId,
+                DueDate = input.ClearDueDate ? null : input.DueDate ?? item.DueDate,
+                AssigneeAgentId = item.AssigneeAgentId,
+                AssigneeUserId = item.AssigneeUserId,
+
+                // 基于读到的版本修改，期间被别人改过就返回冲突，不会覆盖别人的修改。
+                ExpectedUpdatedAt = item.UpdatedAt,
+            }),
+            cancellationToken).ConfigureAwait(false);
+    }
 }
 
 public sealed class UpdateTaskStatusInput

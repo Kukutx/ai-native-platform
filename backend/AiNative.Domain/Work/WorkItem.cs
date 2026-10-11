@@ -39,6 +39,15 @@ public sealed class WorkItem : TenantEntity
 
     public Guid? ParentId { get; set; }
 
+    /// <summary>
+    /// 所属项目与里程碑。里程碑一定属于同一个项目（由应用层校验）。
+    /// </summary>
+    public Guid? ProjectId { get; private set; }
+
+    public Guid? MilestoneId { get; private set; }
+
+    public DateOnly? DueDate { get; set; }
+
     public Guid? AssigneeAgentId { get; set; }
 
     public Guid? AssigneeUserId { get; set; }
@@ -53,8 +62,25 @@ public sealed class WorkItem : TenantEntity
 
     public bool IsClosed => Status is WorkItemStatus.Done or WorkItemStatus.Cancelled;
 
+    public void PlaceIn(Guid? projectId, Guid? milestoneId)
+    {
+        if (milestoneId is not null && projectId is null)
+        {
+            throw new DomainException("work_item.milestone_without_project", "里程碑必须属于某个项目。");
+        }
+
+        ProjectId = projectId;
+        MilestoneId = milestoneId;
+    }
+
     public void ChangeStatus(WorkItemStatus status, DateTimeOffset now)
     {
+        // 状态没变时保留原来的完成时间：编辑已完成任务的其他字段不应改写它。
+        if (status == Status && (CompletedAt is not null) == IsClosed)
+        {
+            return;
+        }
+
         Status = status;
         CompletedAt = status is WorkItemStatus.Done or WorkItemStatus.Cancelled ? now : null;
     }

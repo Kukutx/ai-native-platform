@@ -18,7 +18,7 @@ function getRealtime() {
 /** 实体变化 → 需要失效的查询前缀（与 Web 端 query-keys 的约定一致）。 */
 const invalidation: Record<RealtimeChange['entity'], (id: string) => readonly (readonly unknown[])[]> = {
   agent: () => [['agents']],
-  work_item: (id) => [['work-items'], ['work-item', id]],
+  work_item: (id) => [['work-items'], ['work-item', id], ['projects'], ['project']],
   run: () => [['agents'], ['work-items']],
   approval: () => [['approvals']],
   conversation: () => [['conversations']],
@@ -37,6 +37,7 @@ const invalidation: Record<RealtimeChange['entity'], (id: string) => readonly (r
   erp_stock: () => [['erp']],
   erp_sales_order: () => [['erp']],
   erp_purchase_order: () => [['erp']],
+  project: (id) => [['projects'], ['project', id], ['work-items']],
 };
 
 /** 登录后连接 SignalR 实时通道，服务端推送变化时让对应查询失效，界面自动刷新。 */
