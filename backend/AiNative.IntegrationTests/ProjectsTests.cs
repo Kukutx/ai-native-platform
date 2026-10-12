@@ -273,6 +273,93 @@ public sealed class ProjectsTests(PostgresFixture postgres) : IntegrationTest(po
         project.Progress.Total.Should().Be(1);
     }
 
+    [Fact]
+    public async Task Milestones_are_edited_reopened_and_deleted_without_losing_their_tasks()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var project = (await PostAsync<ProjectDetailDto>(client, "/api/projects", new SaveProjectRequest { Name = "官网改版" })).Project;
+        var other = (await PostAsync<ProjectDetailDto>(client, "/api/projects", new SaveProjectRequest { Name = "内部工具" })).Project;
+        var milestone = await PostAsync<ProjectMilestoneDto>(client, $"/api/projects/{project.Id}/milestones", new SaveProjectMilestoneRequest { Name = "设计稿" });
+        var url = $"/api/projects/{project.Id}/milestones/{milestone.Id}";
+        var task = await PostAsync<WorkItemDto>(client, "/api/work-items", new CreateWorkItemRequest { Title = "线框图", MilestoneId = milestone.Id });
+
+        var edited = await PutAsync<ProjectMilestoneDto>(client, url, new SaveProjectMilestoneRequest { Name = "设计定稿", Description = "含移动端", DueDate = Today.AddDays(-3) });
+        edited.Should().Match<ProjectMilestoneDto>(m => m.Name == "设计定稿" && m.Description == "含移动端" && m.DueDate == Today.AddDays(-3) && m.IsOverdue);
+
+        // 里程碑只能通过它所属的项目访问。
+        var wrongProject = await client.PutAsJsonAsync($"/api/projects/{other.Id}/milestones/{milestone.Id}", new SaveProjectMilestoneRequest { Name = "x" }, PlatformJson.Options, Ct);
+        wrongProject.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        // 完成后可以重新打开：完成时间清空，又能往里加任务；重复打开没有副作用。
+        await PutAsync<WorkItemDto>(client, $"/api/work-items/{task.Id}", Edit(task) with { Status = WorkItemStatus.Done });
+        (await PostAsync<ProjectMilestoneDto>(client, $"{url}/complete", new { })).CompletedAt.Should().NotBeNull();
+        var reopened = await PostAsync<ProjectMilestoneDto>(client, $"{url}/reopen", new { });
+        reopened.CompletedAt.Should().BeNull();
+        (await PostAsync<ProjectMilestoneDto>(client, $"{url}/reopen", new { })).CompletedAt.Should().BeNull();
+        var added = await PostAsync<WorkItemDto>(client, "/api/work-items", new CreateWorkItemRequest { Title = "移动端适配", MilestoneId = milestone.Id });
+
+        // 删除里程碑：任务留在项目里，只是不再属于任何里程碑。
+        (await client.DeleteAsync(new Uri(url, UriKind.Relative), Ct)).StatusCode.Should().Be(HttpStatusCode.NoContent);
+        var detail = await GetAsync<ProjectDetailDto>(client, $"/api/projects/{project.Id}");
+        detail.Milestones.Should().BeEmpty();
+        detail.Project.MilestoneCount.Should().Be(0);
+        detail.Project.Progress.Total.Should().Be(2);
+        foreach (var id in new[] { task.Id, added.Id })
+        {
+            var item = (await GetAsync<WorkItemDetailDto>(client, $"/api/work-items/{id}")).Item;
+            (item.ProjectId, item.MilestoneId).Should().Be((project.Id, null));
+        }
+
+        (await client.PostAsync(new Uri($"{url}/reopen", UriKind.Relative), null, Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task People_and_agents_join_a_project_once_each_and_only_from_the_same_space()
+    {
+        var owner = await RegisterAsync();
+        using var client = Client(owner.AccessToken);
+        var memberRole = (await GetAsync<List<RoleDto>>(client, "/api/roles")).Single(r => r.Key == "member");
+        using var colleagueClient = Client(await AddMemberAsync(client, "colleague@example.com", memberRole.Id));
+        var colleagueId = (await GetAsync<AiNative.Contracts.Auth.SessionDto>(colleagueClient, "/api/auth/session")).User.Id;
+        var agent = await StarterAgentAsync(client);
+        var project = (await PostAsync<ProjectDetailDto>(client, "/api/projects", new SaveProjectRequest { Name = "客户回访" })).Project;
+        var url = $"/api/projects/{project.Id}/members";
+
+        var agentMember = await PostAsync<ProjectMemberDto>(client, url, new AddProjectMemberRequest { AgentId = agent.Id, Responsibility = "整理回访记录" });
+        agentMember.Member.Should().Match<ActorDto>(a => a.Kind == Domain.Common.ActorKind.Agent && a.Id == agent.Id && a.Name == agent.Name);
+        agentMember.Responsibility.Should().Be("整理回访记录");
+
+        // 有项目管理权限的普通成员也能加人。
+        var colleague = await PostAsync<ProjectMemberDto>(colleagueClient, url, new AddProjectMemberRequest { UserId = colleagueId, Responsibility = " 电话回访 " });
+        colleague.Should().Match<ProjectMemberDto>(m => m.Member.Kind == Domain.Common.ActorKind.User && m.Member.Id == colleagueId && m.Responsibility == "电话回访" && m.OpenTasks == 0);
+
+        // 同一位成员或智能体只能加入一次；成员和智能体必须且只能指定一个。
+        var duplicateUser = await client.PostAsJsonAsync(url, new AddProjectMemberRequest { UserId = colleagueId }, PlatformJson.Options, Ct);
+        duplicateUser.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await CodeAsync(duplicateUser)).Should().Be("project_member.duplicate");
+        (await CodeAsync(await client.PostAsJsonAsync(url, new AddProjectMemberRequest { AgentId = agent.Id }, PlatformJson.Options, Ct))).Should().Be("project_member.duplicate");
+        (await client.PostAsJsonAsync(url, new AddProjectMemberRequest(), PlatformJson.Options, Ct)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await client.PostAsJsonAsync(url, new AddProjectMemberRequest { UserId = owner.Session.User.Id, AgentId = agent.Id }, PlatformJson.Options, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // 别的空间的人和智能体加不进来，别的空间也找不到这个项目。
+        var stranger = await RegisterAsync("other@example.com", "别的空间");
+        using var strangerClient = Client(stranger.AccessToken);
+        var strangerAgent = await StarterAgentAsync(strangerClient);
+        (await client.PostAsJsonAsync(url, new AddProjectMemberRequest { UserId = stranger.Session.User.Id }, PlatformJson.Options, Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await client.PostAsJsonAsync(url, new AddProjectMemberRequest { AgentId = strangerAgent.Id }, PlatformJson.Options, Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+        (await strangerClient.PostAsJsonAsync(url, new AddProjectMemberRequest { AgentId = strangerAgent.Id }, PlatformJson.Options, Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        // 未完成任务数只算这个项目里指派给 TA 的；成员先人后智能体。
+        await PostAsync<WorkItemDto>(client, "/api/work-items", new CreateWorkItemRequest { Title = "回访名单", ProjectId = project.Id, AssigneeUserId = colleagueId });
+        await PostAsync<WorkItemDto>(client, "/api/work-items", new CreateWorkItemRequest { Title = "无关任务", AssigneeUserId = colleagueId });
+        var detail = await GetAsync<ProjectDetailDto>(client, $"/api/projects/{project.Id}");
+        detail.Members.Select(m => m.Member.Kind).Should().Equal(Domain.Common.ActorKind.User, Domain.Common.ActorKind.Agent);
+        detail.Members.Single(m => m.Member.Id == colleagueId).OpenTasks.Should().Be(1);
+        detail.Project.MemberCount.Should().Be(2);
+    }
+
     private static SaveProjectRequest Save(ProjectDto project) => new()
     {
         Name = project.Name,
