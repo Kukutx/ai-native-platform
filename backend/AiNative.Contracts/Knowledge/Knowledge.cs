@@ -75,3 +75,19 @@ public sealed record KnowledgeHitDto(
 /// 检索能力状态：当前向量模型、是否为离线演示向量、待向量化的片段数。
 /// </summary>
 public sealed record KnowledgeStatusDto(string EmbeddingModel, bool IsDemoEmbedding, int Documents, int Memories, int PendingEmbeddings);
+
+/// <summary>
+/// 上传文件的解析结果：抽取出的正文（Markdown，标题层级保留为 #），确认后再保存成文档。
+/// </summary>
+/// <param name="Format">识别出的格式，例如 PDF、Word。</param>
+/// <param name="Pages">页数（PDF、演示文稿）或工作表数（表格）；纯文本没有。</param>
+/// <param name="Truncated">内容超过文档上限，只保留了前面的部分。</param>
+/// <param name="Warnings">解析时跳过或简化的内容，给用户核对用。</param>
+public sealed record ExtractedKnowledgeFileDto(
+    string Title,
+    string Content,
+    string FileName,
+    string Format,
+    int? Pages,
+    bool Truncated,
+    IReadOnlyList<string> Warnings);

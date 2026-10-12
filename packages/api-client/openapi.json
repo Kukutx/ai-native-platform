@@ -4283,6 +4283,43 @@
         }
       }
     },
+    "/api/knowledge/files/extract": {
+      "post": {
+        "tags": [
+          "Knowledge"
+        ],
+        "summary": "解析上传的文件（PDF、Word、Excel、PowerPoint、网页、文本），返回抽取出的正文，确认后再用创建文档接口保存。",
+        "operationId": "Knowledge_ExtractFile",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "nullable": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractedKnowledgeFileDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/knowledge/search": {
       "get": {
         "tags": [
@@ -10332,6 +10369,46 @@
             "nullable": true
           },
           "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ExtractedKnowledgeFileDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title",
+          "content",
+          "fileName",
+          "format",
+          "truncated",
+          "warnings"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "pages": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "warnings": {
             "type": "array",
             "items": {
               "type": "string"

@@ -5044,6 +5044,49 @@ export class KnowledgeClient {
     }
 
     /**
+     * 解析上传的文件（PDF、Word、Excel、PowerPoint、网页、文本），返回抽取出的正文，确认后再用创建文档接口保存。
+     * @param file (optional) 
+     */
+    extractFile(file?: FileParameter | null | undefined, signal?: AbortSignal): Promise<ExtractedKnowledgeFileDto> {
+        let url_ = this.baseUrl + "/api/knowledge/files/extract";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = new FormData();
+        if (file !== null && file !== undefined)
+            content_.append("file", file.data, file.fileName ? file.fileName : "file");
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processExtractFile(_response);
+        });
+    }
+
+    protected processExtractFile(response: Response): Promise<ExtractedKnowledgeFileDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ExtractedKnowledgeFileDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ExtractedKnowledgeFileDto>(null as any);
+    }
+
+    /**
      * 混合检索（语义 + 关键词）。有长期记忆权限时同时检索可见的记忆。
      * @param q (optional) 
      * @param documents (optional) 
@@ -7698,6 +7741,16 @@ export interface SaveKnowledgeDocumentRequest {
     tags?: string[];
 }
 
+export interface ExtractedKnowledgeFileDto {
+    title: string;
+    content: string;
+    fileName: string;
+    format: string;
+    pages?: number | undefined;
+    truncated: boolean;
+    warnings: string[];
+}
+
 export interface KnowledgeHitDto {
     sourceKind: KnowledgeSourceKind;
     sourceId: string;
@@ -8101,6 +8154,11 @@ export interface UpdateWorkItemRequest {
 
 export interface AddCommentRequest {
     body: string;
+}
+
+export interface FileParameter {
+    data: any;
+    fileName: string;
 }
 
 export class ApiException extends Error {

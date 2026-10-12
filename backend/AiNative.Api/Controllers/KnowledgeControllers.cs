@@ -10,6 +10,9 @@ namespace AiNative.Api.Controllers;
 [Route("api/knowledge")]
 public sealed class KnowledgeController : ApiControllerBase
 {
+    // 文件之外的表单边界和字段，超过的部分交给应用层按文件大小给出提示。
+    private const long MultipartOverheadBytes = 1024 * 1024;
+
     [HttpGet("documents")]
     public Task<IReadOnlyList<KnowledgeDocumentDto>> ListDocuments([FromQuery] string? search)
         => SendAsync(new ListKnowledgeDocumentsQuery(search));
@@ -31,6 +34,24 @@ public sealed class KnowledgeController : ApiControllerBase
     {
         await SendAsync(new DeleteKnowledgeDocumentCommand(id)).ConfigureAwait(false);
         return NoContent();
+    }
+
+    /// <summary>
+    /// 解析上传的文件（PDF、Word、Excel、PowerPoint、网页、文本），返回抽取出的正文，确认后再用创建文档接口保存。
+    /// </summary>
+    [HttpPost("files/extract")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(KnowledgeFiles.MaxFileBytes + MultipartOverheadBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = KnowledgeFiles.MaxFileBytes + MultipartOverheadBytes)]
+    public async Task<ExtractedKnowledgeFileDto> ExtractFile(IFormFile? file)
+    {
+        if (file is null)
+        {
+            throw new KnowledgeFileException("knowledge.file_missing", "请选择要上传的文件。");
+        }
+
+        await using var content = file.OpenReadStream();
+        return await SendAsync(new ExtractKnowledgeFileQuery(file.FileName, file.Length, content)).ConfigureAwait(false);
     }
 
     /// <summary>

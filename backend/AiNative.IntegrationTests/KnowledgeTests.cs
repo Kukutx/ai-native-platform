@@ -1,6 +1,9 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using AiNative.Application.Common;
 using AiNative.Contracts.Agents;
 using AiNative.Contracts.Auth;
@@ -11,6 +14,8 @@ using AiNative.Contracts.Work;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Knowledge;
 using AiNative.IntegrationTests.Infrastructure;
+using DocumentFormat.OpenXml;
+using DocumentFormat.OpenXml.Packaging;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 
@@ -223,6 +228,113 @@ public sealed class KnowledgeTests(PostgresFixture postgres) : IntegrationTest(p
         (await GetAsync<PagedResult<MemoryDto>>(client, "/api/memories")).Total.Should().Be(1);
         later.Tags.Should().HaveCount(7);
         byNewTag.Select(h => h.SourceId).Should().Equal(later.Id);
+    }
+
+    [Fact]
+    public async Task Uploaded_files_are_extracted_into_drafts()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+
+        // Word：标题样式变成 Markdown 标题，文档属性里的标题作为文档标题。
+        var word = await ExtractAsync(client, "差旅制度.docx", WordDocument());
+        word.Title.Should().Be("差旅报销制度");
+        word.Format.Should().Be("Word");
+        word.Content.Should().Contain("# 住宿标准").And.Contain("一线城市每晚不超过 600 元。");
+        word.Truncated.Should().BeFalse();
+
+        var html = await ExtractAsync(client, "公告.html", Encoding.UTF8.GetBytes("<html><head><title>放假通知</title><script>x()</script></head><body><h1>国庆</h1><p>10 月 1 日至 7 日放假。</p></body></html>"));
+        html.Title.Should().Be("放假通知");
+        html.Content.Should().Be("# 国庆\n\n10 月 1 日至 7 日放假。");
+
+        // 提取结果只是草稿，确认后照常保存成文档。
+        var saved = await PostAsync<KnowledgeDocumentDto>(client, "/api/knowledge/documents", new SaveKnowledgeDocumentRequest { Title = word.Title, Content = word.Content, FileName = word.FileName });
+        saved.FileName.Should().Be("差旅制度.docx");
+        (await SearchAsync(client, "住宿标准")).Should().Contain(h => h.SourceId == saved.Id);
+    }
+
+    [Fact]
+    public async Task Unsupported_empty_and_broken_files_are_explained()
+    {
+        var owner = await RegisterAsync();
+        using var ownerClient = Client(owner.AccessToken);
+
+        (await ProblemAsync(ownerClient, "旧合同.doc", [1, 2, 3])).Should().Be(("knowledge.file_unsupported", 400));
+        (await ProblemTitleAsync(ownerClient, "旧合同.doc", [1, 2, 3])).Should().Contain("另存为");
+        (await ProblemAsync(ownerClient, "空.txt", [])).Should().Be(("knowledge.file_empty", 400));
+        (await ProblemAsync(ownerClient, "坏的.pdf", Encoding.ASCII.GetBytes("not a pdf at all"))).Code.Should().StartWith("knowledge.file_");
+        (await ProblemAsync(ownerClient, "坏的.docx", Encoding.ASCII.GetBytes("PK not a zip"))).Should().Be(("knowledge.file_unreadable", 400));
+
+        using var missing = new MultipartFormDataContent();
+        (await ownerClient.PostAsync(new Uri("/api/knowledge/files/extract", UriKind.Relative), missing, Ct)).StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // 只读成员不能上传。
+        using var viewer = await MemberClientAsync(ownerClient, "viewer", "viewer@example.com");
+        (await ProblemAsync(viewer, "说明.md", Encoding.UTF8.GetBytes("# 标题"))).Status.Should().Be(403);
+    }
+
+    private static async Task<ExtractedKnowledgeFileDto> ExtractAsync(HttpClient client, string fileName, byte[] content)
+    {
+        using var response = await UploadAsync(client, fileName, content);
+        response.StatusCode.Should().Be(HttpStatusCode.OK, await response.Content.ReadAsStringAsync(Ct));
+        return (await response.Content.ReadFromJsonAsync<ExtractedKnowledgeFileDto>(PlatformJson.Options, Ct))!;
+    }
+
+    private static async Task<(string Code, int Status)> ProblemAsync(HttpClient client, string fileName, byte[] content)
+    {
+        using var response = await UploadAsync(client, fileName, content);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        return (problem.TryGetProperty("code", out var code) ? code.GetString()! : string.Empty, (int)response.StatusCode);
+    }
+
+    private static async Task<string> ProblemTitleAsync(HttpClient client, string fileName, byte[] content)
+    {
+        using var response = await UploadAsync(client, fileName, content);
+        return (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("title").GetString()!;
+    }
+
+    private static Task<HttpResponseMessage> UploadAsync(HttpClient client, string fileName, byte[] content)
+    {
+        var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent(content);
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        form.Add(file, "file", fileName);
+        return client.PostAsync(new Uri("/api/knowledge/files/extract", UriKind.Relative), form, Ct);
+    }
+
+    private static byte[] WordDocument()
+    {
+        using var stream = new MemoryStream();
+        using (var document = WordprocessingDocument.Create(stream, WordprocessingDocumentType.Document))
+        {
+            document.PackageProperties.Title = "差旅报销制度";
+            var main = document.AddMainDocumentPart();
+            var styles = main.AddNewPart<StyleDefinitionsPart>();
+            styles.Styles = new DocumentFormat.OpenXml.Wordprocessing.Styles(
+                new DocumentFormat.OpenXml.Wordprocessing.Style(
+                    new DocumentFormat.OpenXml.Wordprocessing.StyleName { Val = "heading 1" },
+                    new DocumentFormat.OpenXml.Wordprocessing.StyleParagraphProperties(new DocumentFormat.OpenXml.Wordprocessing.OutlineLevel { Val = 0 }))
+                { Type = DocumentFormat.OpenXml.Wordprocessing.StyleValues.Paragraph, StyleId = "Heading1" });
+            static DocumentFormat.OpenXml.Wordprocessing.Paragraph Paragraph(string text, string? style = null)
+            {
+                var paragraph = new DocumentFormat.OpenXml.Wordprocessing.Paragraph(
+                    new DocumentFormat.OpenXml.Wordprocessing.Run(new DocumentFormat.OpenXml.Wordprocessing.Text(text)));
+                if (style is not null)
+                {
+                    paragraph.PrependChild(new DocumentFormat.OpenXml.Wordprocessing.ParagraphProperties(new DocumentFormat.OpenXml.Wordprocessing.ParagraphStyleId { Val = style }));
+                }
+
+                return paragraph;
+            }
+
+            main.Document = new DocumentFormat.OpenXml.Wordprocessing.Document(new DocumentFormat.OpenXml.Wordprocessing.Body(
+                Paragraph("住宿标准", "Heading1"),
+                Paragraph("一线城市每晚不超过 600 元。"),
+                Paragraph("报销时限", "Heading1"),
+                Paragraph("出差结束后 15 个工作日内提交。")));
+        }
+
+        return stream.ToArray();
     }
 
     private static Task<List<KnowledgeHitDto>> SearchAsync(HttpClient client, string query)
