@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UpdateWorkItemRequest, WorkItemDto, WorkItemLinkDto } from '@ainative/api-client';
+import { Markdown } from '@/components/app/markdown';
 import { DetailState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
@@ -101,7 +102,7 @@ function TaskDetail() {
             </>
           ) : (
             <Card>
-              <CardContent className='text-sm whitespace-pre-wrap'>{item.description || <span className='text-muted-foreground'>（没有描述）</span>}</CardContent>
+              <CardContent>{item.description ? <Markdown>{item.description}</Markdown> : <p className='text-muted-foreground text-sm'>（没有描述）</p>}</CardContent>
             </Card>
           )}
           <Card>
@@ -167,7 +168,7 @@ function TaskDetail() {
                       </Link>
                     ) : null}
                   </div>
-                  <p className='text-sm whitespace-pre-wrap'>{c.body}</p>
+                  <Markdown>{c.body}</Markdown>
                 </div>
               ))}
               {can('tasks.comment') ? (

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { ChatMessageDto } from '@ainative/api-client';
+import { Markdown } from '@/components/app/markdown';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -131,7 +132,7 @@ export function ConversationView({ conversationId, onCreated }: { conversationId
                     ))}
                   </div>
                 ) : null}
-                {draft.text || <Icons.dots className='text-muted-foreground size-4 animate-pulse' />}
+                {draft.text ? <Markdown>{draft.text}</Markdown> : <Icons.dots className='text-muted-foreground size-4 animate-pulse' aria-label='正在回复' />}
               </Bubble>
             </>
           ) : null}
@@ -185,7 +186,8 @@ function MessageBubble({ message }: { message: ChatMessageDto }) {
           ))}
         </div>
       ) : null}
-      {message.text}
+      {/* 模型的回复按 Markdown 显示；用户自己输入的内容照原样显示。 */}
+      {role === 'user' ? message.text : <Markdown>{message.text}</Markdown>}
     </Bubble>
   );
 }
@@ -195,8 +197,8 @@ function Bubble({ role, children }: { role: 'user' | 'assistant'; children: Reac
     <div className={cn('flex', role === 'user' ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap',
-          role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted',
+          'max-w-[85%] min-w-0 rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
+          role === 'user' ? 'bg-primary text-primary-foreground whitespace-pre-wrap' : 'bg-muted',
         )}
       >
         {children}
