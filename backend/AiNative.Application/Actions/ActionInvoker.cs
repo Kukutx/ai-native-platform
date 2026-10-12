@@ -5,9 +5,11 @@ using AiNative.Application.Common;
 using AiNative.Application.Modules;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
+using AiNative.Application.Workflows;
 using AiNative.Domain.Common;
 using AiNative.Domain.Governance;
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 
@@ -37,6 +39,12 @@ public sealed record ActionInvocationOptions
     public Guid? RunId { get; init; }
 
     public Guid? WorkItemId { get; init; }
+
+    /// <summary>
+    /// 由工作流步骤发起时的运行 ID：需要审批时记在审批单上，结论出来后恢复该运行；
+    /// 审批通过后执行时据此恢复工作流作用域。
+    /// </summary>
+    public Guid? WorkflowRunId { get; init; }
 
     /// <summary>
     /// 发起方给出的理由，进入审批单。
@@ -81,6 +89,7 @@ internal sealed class ActionInvoker(
     IModuleAccess modules,
     IAppDbContext db,
     IChangeFeed changes,
+    WorkflowExecutionScope workflowScope,
     ILogger<ActionInvoker> logger) : IActionInvoker
 {
     private static readonly ConcurrentDictionary<Type, JsonElement> SchemaCache = new();
@@ -151,11 +160,27 @@ internal sealed class ActionInvoker(
                 RequestedBy = tenant.Actor,
                 RunId = options.RunId,
                 WorkItemId = options.WorkItemId,
+                WorkflowRunId = options.WorkflowRunId,
             };
             db.Approvals.Add(approval);
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             changes.Publish(RealtimeEntities.Approval, approval.Id, RealtimeChangeKind.Created);
             return new ActionInvocationResult(ActionInvocationStatus.PendingApproval, ApprovalId: approval.Id);
+        }
+
+        // 审批通过后执行的工作流动作不在执行器的作用域里：恢复"正在执行该运行"的标记，
+        // 动作引发的事件才能照常防止工作流触发自己、累计触发层数。
+        if (options.WorkflowRunId is { } workflowRunId && workflowScope.RunId != workflowRunId)
+        {
+            var run = await db.WorkflowRuns.AsNoTracking()
+                .Where(r => r.Id == workflowRunId)
+                .Select(r => new { r.WorkflowId, r.Depth })
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (run is not null)
+            {
+                workflowScope.Enter(workflowRunId, run.WorkflowId, run.Depth);
+            }
         }
 
         try

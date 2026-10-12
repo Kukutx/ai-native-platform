@@ -1,6 +1,8 @@
-import { ScrollView, StyleSheet, Text } from 'react-native';
-import { Stack } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { router, Stack } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { sessionCan } from '@ainative/api-client';
 import { Button, Card, Chip, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { auth, useAuth } from '@/lib/auth';
@@ -29,6 +31,20 @@ export default function MeScreen() {
           <Muted>当前空间：{session.data.tenant.name}</Muted>
         </Card>
       ) : null}
+      {sessionCan(session.data, 'workflows.view') ? (
+        <Pressable onPress={() => router.push('/workflows')} accessibilityRole='button'>
+          <Card>
+            <View style={styles.entry}>
+              <Ionicons name='flash-outline' size={20} color={p.text} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: p.text, fontWeight: '600' }}>自动化工作流</Text>
+                <Muted>查看、启停和手动运行工作流</Muted>
+              </View>
+              <Ionicons name='chevron-forward' size={18} color={p.muted} />
+            </View>
+          </Card>
+        </Pressable>
+      ) : null}
       {session.data && session.data.tenants.length > 1 ? (
         <Card>
           <Text style={{ color: p.text, fontWeight: '600' }}>切换空间</Text>
@@ -48,4 +64,5 @@ export default function MeScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 16, gap: 12 },
+  entry: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 });

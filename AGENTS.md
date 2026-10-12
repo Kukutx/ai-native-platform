@@ -53,10 +53,11 @@ dotnet ef migrations add <名称> --project AiNative.Infrastructure --startup-pr
 1. 在模块里声明功能权限（`FeatureDefinition`），权限键形如 `crm.contacts.view`。
 2. 写命令/查询与处理器，标注 `[RequireFeature]`。
 3. 需要让智能体或对话使用的能力，写一个 `PlatformAction<TInput, TOutput>`：`Key` 形如 `crm.create_contact`，`Description` 写给模型看（做什么、何时用、注意事项），输入类型会自动生成 JSON Schema。高风险动作设 `ApprovalPolicy.RequiredForAgents`。
-4. 类放进已注册的程序集即可被扫描；独立程序集用 `services.AddPlatformModuleAssembly(assembly)`。
-5. 补测试：权限、租户隔离、关键状态流转至少各一条。
+4. 业务变化需要能触发工作流时，在模块的 `Events` 里声明 `PlatformEventDefinition`（键形如 `crm.contact_created`，`Description` 写清载荷字段），并在写操作的处理器里调用 `IPlatformEvents.PublishAsync`（载荷用委托惰性构造，与业务变化同一事务提交）。
+5. 类放进已注册的程序集即可被扫描；独立程序集用 `services.AddPlatformModuleAssembly(assembly)`。
+6. 补测试：权限、租户隔离、关键状态流转至少各一条。
 
-同一个动作定义同时服务于界面（`/api/actions`）、智能体工具调用、对话和 MCP 服务（`/mcp`），权限与审批在调用入口统一检查，不要在各处重复实现。
+同一个动作定义同时服务于界面（`/api/actions`）、智能体工具调用、对话、工作流步骤和 MCP 服务（`/mcp`），权限与审批在调用入口统一检查，不要在各处重复实现。
 
 ## 接口与前端
 

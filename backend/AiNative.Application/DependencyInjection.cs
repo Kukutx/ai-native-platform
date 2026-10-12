@@ -8,6 +8,7 @@ using AiNative.Application.Platform;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
 using AiNative.Application.Work;
+using AiNative.Application.Workflows;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -38,6 +39,13 @@ public static class DependencyInjection
         services.AddScoped<IAgentRuntime, AgentRuntime>();
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<ChatTurnRunner>();
+
+        services.AddScoped<WorkflowExecutionScope>();
+        services.AddScoped<IPlatformEvents, WorkflowTriggers>();
+        services.AddScoped<WorkflowDefinitionValidator>();
+        services.AddScoped<WorkflowOwnerAccess>();
+        services.AddScoped<IWorkflowExecutor, WorkflowExecutor>();
+        services.AddScoped<IWorkflowScheduleTrigger, WorkflowScheduleTrigger>();
 
         services.AddPlatformModuleAssembly(assembly);
         return services;

@@ -62,4 +62,11 @@ public static class Features
         public const string Use = "memory.use";
         public const string Manage = "memory.manage";
     }
+
+    public static class Workflows
+    {
+        public const string View = "workflows.view";
+        public const string Manage = "workflows.manage";
+        public const string Run = "workflows.run";
+    }
 }

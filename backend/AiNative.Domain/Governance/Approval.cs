@@ -10,7 +10,7 @@ public enum ApprovalStatus
 }
 
 /// <summary>
-/// 人工审批：智能体想执行需要把关的动作时生成，批准后以该智能体身份执行并把结果回传给它。
+/// 人工审批：智能体（或智能体所有的工作流）想执行需要把关的动作时生成，批准后以申请者身份执行并把结果回传。
 /// </summary>
 public sealed class Approval : TenantEntity
 {
@@ -28,6 +28,11 @@ public sealed class Approval : TenantEntity
     public Guid? RunId { get; set; }
 
     public Guid? WorkItemId { get; set; }
+
+    /// <summary>
+    /// 由工作流步骤发起时记录运行，审批结论出来后恢复该运行（而不是唤醒智能体）。
+    /// </summary>
+    public Guid? WorkflowRunId { get; set; }
 
     public ApprovalStatus Status { get; set; } = ApprovalStatus.Pending;
 

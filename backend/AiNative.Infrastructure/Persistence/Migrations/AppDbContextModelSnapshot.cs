@@ -546,6 +546,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("work_item_id");
 
+                    b.Property<Guid?>("WorkflowRunId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workflow_run_id");
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "RequestedBy", "AiNative.Domain.Governance.Approval.RequestedBy#Actor", b1 =>
                         {
                             b1.IsRequired();
@@ -1450,6 +1454,348 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.ToTable("work_item_comments", (string)null);
                 });
 
+            modelBuilder.Entity("AiNative.Domain.Workflows.Workflow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Cron")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("cron");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("EventFilter")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("event_filter");
+
+                    b.Property<string>("EventType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("event_type");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset?>("NextRunAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_run_at");
+
+                    b.Property<string>("Steps")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("steps");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("TimeZone")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("time_zone");
+
+                    b.Property<string>("TriggerKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("trigger_kind");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Owner", "AiNative.Domain.Workflows.Workflow.Owner#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("owner_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("owner_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_workflows");
+
+                    b.HasIndex("NextRunAt")
+                        .HasDatabaseName("ix_workflows_next_run_at")
+                        .HasFilter("is_enabled AND trigger_kind = 'Schedule'");
+
+                    b.HasIndex("TenantId", "EventType")
+                        .HasDatabaseName("ix_workflows_tenant_id_event_type")
+                        .HasFilter("is_enabled AND trigger_kind = 'Event'");
+
+                    b.ToTable("workflows", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Workflows.WorkflowRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("CurrentStep")
+                        .HasColumnType("integer")
+                        .HasColumnName("current_step");
+
+                    b.Property<int>("Depth")
+                        .HasColumnType("integer")
+                        .HasColumnName("depth");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<string>("EventType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("event_type");
+
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finished_at");
+
+                    b.Property<string>("InputJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("input_json");
+
+                    b.Property<Guid?>("ParentRunId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("parent_run_id");
+
+                    b.Property<DateTimeOffset?>("ResumeAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resume_at");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Steps")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("steps");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("TriggerJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("trigger_json");
+
+                    b.Property<string>("TriggerKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("trigger_kind");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("WaitingApprovalId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("waiting_approval_id");
+
+                    b.Property<Guid?>("WaitingWorkItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("waiting_work_item_id");
+
+                    b.Property<Guid>("WorkflowId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("workflow_id");
+
+                    b.Property<string>("WorkflowName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("workflow_name");
+
+                    b.Property<int>("WorkflowVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("workflow_version");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Owner", "AiNative.Domain.Workflows.WorkflowRun.Owner#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("owner_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("owner_kind");
+                        });
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "TriggeredBy", "AiNative.Domain.Workflows.WorkflowRun.TriggeredBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("triggered_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("triggered_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_workflow_runs");
+
+                    b.HasIndex("WaitingApprovalId")
+                        .HasDatabaseName("ix_workflow_runs_waiting_approval_id")
+                        .HasFilter("waiting_approval_id IS NOT NULL");
+
+                    b.HasIndex("WaitingWorkItemId")
+                        .HasDatabaseName("ix_workflow_runs_waiting_work_item_id")
+                        .HasFilter("waiting_work_item_id IS NOT NULL");
+
+                    b.HasIndex("Status", "CreatedAt")
+                        .HasDatabaseName("ix_workflow_runs_active")
+                        .HasFilter("status IN ('Queued', 'Running', 'Waiting')");
+
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .HasDatabaseName("ix_workflow_runs_tenant_id_created_at");
+
+                    b.HasIndex("WorkflowId", "CreatedAt")
+                        .HasDatabaseName("ix_workflow_runs_workflow_id_created_at");
+
+                    b.ToTable("workflow_runs", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Workflows.WorkflowRunStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text")
+                        .HasColumnName("error");
+
+                    b.Property<DateTimeOffset?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("finished_at");
+
+                    b.Property<int>("Index")
+                        .HasColumnType("integer")
+                        .HasColumnName("index");
+
+                    b.Property<string>("InputJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("input_json");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("OutputJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("output_json");
+
+                    b.Property<Guid>("RunId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("run_id");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("StepKey")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("step_key");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_workflow_run_steps");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_workflow_run_steps_tenant_id");
+
+                    b.HasIndex("RunId", "Index")
+                        .IsUnique()
+                        .HasDatabaseName("ix_workflow_run_steps_run_id_index");
+
+                    b.ToTable("workflow_run_steps", (string)null);
+                });
+
             modelBuilder.Entity("AiNative.Domain.Agents.Agent", b =>
                 {
                     b.HasOne("AiNative.Domain.Agents.Agent", null)
@@ -1657,6 +2003,36 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_work_item_comments_work_items_work_item_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Workflows.Workflow", b =>
+                {
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workflows_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Workflows.WorkflowRun", b =>
+                {
+                    b.HasOne("AiNative.Domain.Workflows.Workflow", null)
+                        .WithMany()
+                        .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workflow_runs_workflows_workflow_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Workflows.WorkflowRunStep", b =>
+                {
+                    b.HasOne("AiNative.Domain.Workflows.WorkflowRun", null)
+                        .WithMany()
+                        .HasForeignKey("RunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_workflow_run_steps_workflow_runs_run_id");
                 });
 #pragma warning restore 612, 618
         }

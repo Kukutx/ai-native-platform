@@ -4,7 +4,7 @@ import type { ChatStreamEvent } from './stream';
 
 /** 实体变化通知：客户端据此让对应查询失效重取。 */
 export interface RealtimeChange {
-  entity: 'agent' | 'work_item' | 'run' | 'approval' | 'conversation' | 'module' | 'knowledge_document' | 'memory';
+  entity: 'agent' | 'work_item' | 'run' | 'approval' | 'conversation' | 'module' | 'knowledge_document' | 'memory' | 'workflow' | 'workflow_run';
   id: string;
   kind: 'created' | 'updated' | 'deleted';
 }

@@ -4,6 +4,7 @@ using AiNative.Application.Access;
 using AiNative.Application.Actions;
 using AiNative.Application.Agents;
 using AiNative.Application.Common;
+using AiNative.Application.Modules;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
 using AiNative.Contracts.Governance;
@@ -11,6 +12,7 @@ using AiNative.Domain.Agents;
 using AiNative.Domain.Common;
 using AiNative.Domain.Governance;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AiNative.Application.Governance;
 
@@ -41,6 +43,7 @@ internal static class ApprovalMapping
             actors(a.RequestedBy),
             a.RunId,
             a.WorkItemId,
+            a.WorkflowRunId,
             a.Status,
             a.DecidedByUserId,
             a.DecidedAt,
@@ -51,6 +54,26 @@ internal static class ApprovalMapping
     }
 }
 
+/// <summary>
+/// 审批到达最终状态（被拒绝，或批准后执行完成、执行失败、结果未知）时发布事件：恢复等待它的工作流运行，并触发订阅了审批结论的工作流。
+/// </summary>
+public static class ApprovalEvents
+{
+    public static Task PublishDecidedAsync(IServiceProvider services, Guid approvalId, CancellationToken cancellationToken)
+    {
+        var db = services.GetRequiredService<IAppDbContext>();
+        var actions = services.GetRequiredService<IActionInvoker>();
+        var tenant = services.GetRequiredService<ITenantContext>();
+        return services.GetRequiredService<IPlatformEvents>().PublishAsync(PlatformEventKeys.ApprovalDecided, approvalId, async () =>
+        {
+            var approval = await db.Approvals.AsNoTracking().FirstAsync(a => a.Id == approvalId, cancellationToken).ConfigureAwait(false);
+            var dto = (await ApprovalMapping.ToDtosAsync(db, actions, [approval], cancellationToken).ConfigureAwait(false))[0];
+            var actors = await ActorNames.ResolveAsync(db, [tenant.Actor], cancellationToken).ConfigureAwait(false);
+            return new Dictionary<string, object?> { ["approval"] = dto, ["actor"] = actors(tenant.Actor) };
+        }, cancellationToken);
+    }
+}
+
 internal sealed class ApprovalHandlers(
     IAppDbContext db,
     IActionInvoker actions,
@@ -58,6 +81,7 @@ internal sealed class ApprovalHandlers(
     ITenantScopeFactory scopes,
     IWakeupQueue wakeups,
     IChangeFeed changes,
+    IServiceProvider services,
     TimeProvider clock) :
     IRequestHandler<ListApprovalsQuery, IReadOnlyList<ApprovalDto>>,
     IRequestHandler<DecideApprovalCommand, ApprovalDto>
@@ -121,7 +145,8 @@ internal sealed class ApprovalHandlers(
                 .ConfigureAwait(false);
         }
 
-        if (agent is not null && agent.Status != AgentStatus.Terminated)
+        // 工作流步骤发起的审批由工作流接着处理（下面的事件会恢复那次运行），不唤醒智能体。
+        if (approval.WorkflowRunId is null && agent is not null && agent.Status != AgentStatus.Terminated)
         {
             var verdict = approval.Status == ApprovalStatus.Approved
                 ? (approval.ExecutionError is null ? "已批准并执行成功" : $"已批准但执行失败：{approval.ExecutionError}")
@@ -143,6 +168,7 @@ internal sealed class ApprovalHandlers(
         }
 
         changes.Publish(RealtimeEntities.Approval, approval.Id, RealtimeChangeKind.Updated);
+        await ApprovalEvents.PublishDecidedAsync(services, approval.Id, cancellationToken).ConfigureAwait(false);
         var dtos = await ApprovalMapping.ToDtosAsync(db, actions, [approval], cancellationToken).ConfigureAwait(false);
         return dtos[0];
     }
@@ -161,7 +187,7 @@ internal sealed class ApprovalHandlers(
                 features,
                 approval.ActionKey,
                 JsonSerializer.Deserialize<Dictionary<string, object?>>(approval.InputJson, PlatformJson.Options),
-                new ActionInvocationOptions { RunId = approval.RunId, WorkItemId = approval.WorkItemId, ApprovedBy = approverId },
+                new ActionInvocationOptions { RunId = approval.RunId, WorkItemId = approval.WorkItemId, WorkflowRunId = approval.WorkflowRunId, ApprovedBy = approverId },
                 cancellationToken).ConfigureAwait(false);
             if (result.IsSuccess)
             {

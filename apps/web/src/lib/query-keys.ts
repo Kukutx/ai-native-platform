@@ -23,6 +23,12 @@ export const queryKeys = {
   knowledgeStatus: ['knowledge', 'status'] as const,
   memories: (filters?: object) => ['memories', filters ?? {}] as const,
   apiKeys: ['api-keys'] as const,
+  actions: ['actions'] as const,
+  workflows: ['workflows'] as const,
+  workflow: (id: string) => ['workflows', id] as const,
+  workflowCatalog: ['workflows', 'catalog'] as const,
+  workflowRuns: (filters?: object) => ['workflow-runs', filters ?? {}] as const,
+  workflowRun: (id: string) => ['workflow-run', id] as const,
 };
 
 /** 实体变化 → 需要失效的查询前缀。 */
@@ -32,7 +38,10 @@ export const invalidationMap: Record<string, (id: string) => readonly (readonly 
   run: (id) => [['runs'], ['run', id], ['agents']],
   approval: () => [['approvals']],
   conversation: () => [['conversations']],
-  module: () => [['modules'], ['session']],
+  module: () => [['modules'], ['session'], ['actions'], ['workflows', 'catalog']],
   knowledge_document: () => [['knowledge']],
   memory: () => [['memories'], ['knowledge', 'search'], ['knowledge', 'status']],
+  workflow: () => [['workflows']],
+  // 运行状态变化也会改变列表里的"最近一次运行"。
+  workflow_run: (id) => [['workflow-runs'], ['workflow-run', id], ['workflows']],
 };

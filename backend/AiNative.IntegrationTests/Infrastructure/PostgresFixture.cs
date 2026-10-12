@@ -39,6 +39,24 @@ public sealed class PostgresFixture : IAsyncLifetime
         return new NpgsqlConnectionStringBuilder(AdminConnectionString) { Database = name }.ConnectionString;
     }
 
+    /// <summary>
+    /// 测试结束后关掉该库的连接池并删库。每个测试的连接串都不同，池里的空闲连接不会被复用，
+    /// 不清理会一直占着服务器连接数直到空闲超时，并行跑全部测试时会撞上 max_connections。
+    /// </summary>
+    public async Task DropDatabaseAsync(string connectionString)
+    {
+        await using (var pooled = new NpgsqlConnection(connectionString))
+        {
+            NpgsqlConnection.ClearPool(pooled);
+        }
+
+        var name = new NpgsqlConnectionStringBuilder(connectionString).Database;
+        await using var connection = new NpgsqlConnection(AdminConnectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)", connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
     public async ValueTask DisposeAsync()
     {
         if (_container is not null)

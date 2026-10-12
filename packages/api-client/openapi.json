@@ -1655,6 +1655,395 @@
         }
       }
     },
+    "/api/workflows": {
+      "get": {
+        "tags": [
+          "Workflows"
+        ],
+        "operationId": "Workflows_List",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Workflows"
+        ],
+        "operationId": "Workflows_Create",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveWorkflowRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/catalog": {
+      "get": {
+        "tags": [
+          "Workflows"
+        ],
+        "summary": "工作流可以订阅的事件（只列出当前身份有权订阅的）。",
+        "operationId": "Workflows_Catalog",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowCatalogDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/{id}": {
+      "get": {
+        "tags": [
+          "Workflows"
+        ],
+        "operationId": "Workflows_Get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Workflows"
+        ],
+        "operationId": "Workflows_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveWorkflowRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Workflows"
+        ],
+        "operationId": "Workflows_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/workflows/{id}/enabled": {
+      "put": {
+        "tags": [
+          "Workflows"
+        ],
+        "operationId": "Workflows_SetEnabled",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetWorkflowEnabledRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/{id}/runs": {
+      "post": {
+        "tags": [
+          "Workflows"
+        ],
+        "summary": "手动运行一次。运行在后台进行，返回的运行记录通过实时通道持续更新。",
+        "operationId": "Workflows_Start",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartWorkflowRunRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunSummaryDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/runs": {
+      "get": {
+        "tags": [
+          "Workflows"
+        ],
+        "operationId": "Workflows_Runs",
+        "parameters": [
+          {
+            "name": "workflowId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "nullable": true,
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/WorkflowRunStatus"
+                }
+              ]
+            },
+            "x-position": 2
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 3
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 30
+            },
+            "x-position": 4
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfWorkflowRunSummaryDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/runs/{runId}": {
+      "get": {
+        "tags": [
+          "Workflows"
+        ],
+        "operationId": "Workflows_Run",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/runs/{runId}/cancel": {
+      "post": {
+        "tags": [
+          "Workflows"
+        ],
+        "operationId": "Workflows_Cancel",
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowRunSummaryDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/work-items": {
       "get": {
         "tags": [
@@ -2847,6 +3236,11 @@
             "format": "guid",
             "nullable": true
           },
+          "workflowRunId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
           "status": {
             "$ref": "#/components/schemas/ApprovalStatus"
           },
@@ -3814,6 +4208,535 @@
           "tool_result",
           "approval_requested",
           "error"
+        ]
+      },
+      "WorkflowDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "description",
+          "isEnabled",
+          "trigger",
+          "steps",
+          "owner",
+          "version",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/WorkflowTriggerDto"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStep"
+            }
+          },
+          "owner": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "version": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "nextRunAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastRun": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WorkflowRunSummaryDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkflowTriggerDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/WorkflowTriggerKind"
+          },
+          "eventType": {
+            "type": "string",
+            "nullable": true
+          },
+          "filter": {
+            "type": "string",
+            "nullable": true
+          },
+          "cron": {
+            "type": "string",
+            "nullable": true
+          },
+          "timeZone": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "WorkflowTriggerKind": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Manual",
+          "Event",
+          "Schedule"
+        ],
+        "enum": [
+          "manual",
+          "event",
+          "schedule"
+        ]
+      },
+      "WorkflowStep": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "name",
+          "key",
+          "name"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/WorkflowStepKind"
+          },
+          "when": {
+            "type": "string",
+            "nullable": true
+          },
+          "continueOnError": {
+            "type": "boolean"
+          },
+          "actionKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "input": {
+            "nullable": true
+          },
+          "agentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "instructions": {
+            "type": "string",
+            "nullable": true
+          },
+          "waitForCompletion": {
+            "type": "boolean"
+          },
+          "timeoutMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "prompt": {
+            "type": "string",
+            "nullable": true
+          },
+          "delaySeconds": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          }
+        }
+      },
+      "WorkflowStepKind": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Action",
+          "AgentTask",
+          "Llm",
+          "Delay"
+        ],
+        "enum": [
+          "action",
+          "agent_task",
+          "llm",
+          "delay"
+        ]
+      },
+      "WorkflowRunSummaryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "workflowId",
+          "workflowName",
+          "status",
+          "triggerKind",
+          "triggeredBy",
+          "currentStep",
+          "stepCount",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "workflowId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "workflowName": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowRunStatus"
+          },
+          "triggerKind": {
+            "$ref": "#/components/schemas/WorkflowTriggerKind"
+          },
+          "eventType": {
+            "type": "string",
+            "nullable": true
+          },
+          "triggeredBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "currentStep": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stepCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "WorkflowRunStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Queued",
+          "Running",
+          "Waiting",
+          "Succeeded",
+          "Failed",
+          "Cancelled"
+        ],
+        "enum": [
+          "queued",
+          "running",
+          "waiting",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "WorkflowCatalogDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowEventDto"
+            }
+          }
+        }
+      },
+      "WorkflowEventDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "name",
+          "moduleKey",
+          "description"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "moduleKey": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "SaveWorkflowRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "trigger",
+          "steps",
+          "name",
+          "trigger",
+          "steps"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/WorkflowTriggerDto"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStep"
+            }
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "SetWorkflowEnabledRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "enabled",
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "StartWorkflowRunRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "nullable": true
+          }
+        }
+      },
+      "PagedResultOfWorkflowRunSummaryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunSummaryDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "WorkflowRunDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "summary",
+          "owner",
+          "workflowVersion",
+          "trigger",
+          "input",
+          "steps",
+          "stepRuns"
+        ],
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/WorkflowRunSummaryDto"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "workflowVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "trigger": {},
+          "input": {},
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStep"
+            }
+          },
+          "stepRuns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowRunStepDto"
+            }
+          },
+          "waitingApprovalId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "waitingWorkItemId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "resumeAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "parentRunId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "WorkflowRunStepDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "index",
+          "stepKey",
+          "name",
+          "kind",
+          "status",
+          "startedAt"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "stepKey": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/WorkflowStepKind"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkflowStepStatus"
+          },
+          "input": {
+            "nullable": true
+          },
+          "output": {
+            "nullable": true
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finishedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "WorkflowStepStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Running",
+          "Waiting",
+          "Succeeded",
+          "Failed",
+          "Skipped"
+        ],
+        "enum": [
+          "running",
+          "waiting",
+          "succeeded",
+          "failed",
+          "skipped"
         ]
       },
       "PagedResultOfWorkItemDto": {

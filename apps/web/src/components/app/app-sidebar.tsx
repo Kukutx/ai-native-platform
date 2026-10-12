@@ -34,6 +34,7 @@ const navigation = [
   { href: '/agents', label: '智能体', icon: Icons.teams, feature: 'agents.view' },
   { href: '/tasks', label: '任务', icon: Icons.checks, feature: 'tasks.view' },
   { href: '/knowledge', label: '知识库', icon: Icons.knowledge, feature: 'knowledge.view' },
+  { href: '/workflows', label: '自动化', icon: Icons.workflow, feature: 'workflows.view' },
   { href: '/runs', label: '执行记录', icon: Icons.clock, feature: 'runs.view' },
   { href: '/approvals', label: '审批', icon: Icons.badgeCheck, feature: 'approvals.view' },
   { href: '/settings', label: '设置', icon: Icons.settings, feature: 'platform.members.view' },

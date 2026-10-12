@@ -16,6 +16,7 @@ import {
   RunsClient,
   UsageClient,
   WorkItemsClient,
+  WorkflowsClient,
 } from './generated';
 
 export interface ApiConfig {
@@ -74,6 +75,7 @@ export function createApi(config: ApiConfig) {
     modules: new ModulesClient(baseUrl, http),
     usage: new UsageClient(baseUrl, http),
     models: new ModelsClient(baseUrl, http),
+    workflows: new WorkflowsClient(baseUrl, http),
   };
 }
 
