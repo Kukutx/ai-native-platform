@@ -1055,6 +1055,126 @@ export class AgentsClient {
     }
 }
 
+export class ApiKeysClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    list(signal?: AbortSignal): Promise<ApiKeyDto[]> {
+        let url_ = this.baseUrl + "/api/api-keys";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processList(_response);
+        });
+    }
+
+    protected processList(response: Response): Promise<ApiKeyDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ApiKeyDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ApiKeyDto[]>(null as any);
+    }
+
+    create(request: CreateApiKeyRequest, signal?: AbortSignal): Promise<CreatedApiKeyDto> {
+        let url_ = this.baseUrl + "/api/api-keys";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreate(_response);
+        });
+    }
+
+    protected processCreate(response: Response): Promise<CreatedApiKeyDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as CreatedApiKeyDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<CreatedApiKeyDto>(null as any);
+    }
+
+    revoke(id: string, signal?: AbortSignal): Promise<ApiKeyDto> {
+        let url_ = this.baseUrl + "/api/api-keys/{id}/revoke";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processRevoke(_response);
+        });
+    }
+
+    protected processRevoke(response: Response): Promise<ApiKeyDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ApiKeyDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ApiKeyDto>(null as any);
+    }
+}
+
 export class ApprovalsClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -1462,6 +1582,428 @@ export class ConversationsClient {
             });
         }
         return Promise.resolve<ChatMessageDto[]>(null as any);
+    }
+}
+
+export class KnowledgeClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    listDocuments(search?: string | null | undefined, signal?: AbortSignal): Promise<KnowledgeDocumentDto[]> {
+        let url_ = this.baseUrl + "/api/knowledge/documents?";
+        if (search !== undefined && search !== null)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processListDocuments(_response);
+        });
+    }
+
+    protected processListDocuments(response: Response): Promise<KnowledgeDocumentDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as KnowledgeDocumentDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<KnowledgeDocumentDto[]>(null as any);
+    }
+
+    createDocument(request: SaveKnowledgeDocumentRequest, signal?: AbortSignal): Promise<KnowledgeDocumentDto> {
+        let url_ = this.baseUrl + "/api/knowledge/documents";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreateDocument(_response);
+        });
+    }
+
+    protected processCreateDocument(response: Response): Promise<KnowledgeDocumentDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as KnowledgeDocumentDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<KnowledgeDocumentDto>(null as any);
+    }
+
+    getDocument(id: string, signal?: AbortSignal): Promise<KnowledgeDocumentDetailDto> {
+        let url_ = this.baseUrl + "/api/knowledge/documents/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGetDocument(_response);
+        });
+    }
+
+    protected processGetDocument(response: Response): Promise<KnowledgeDocumentDetailDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as KnowledgeDocumentDetailDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<KnowledgeDocumentDetailDto>(null as any);
+    }
+
+    updateDocument(id: string, request: SaveKnowledgeDocumentRequest, signal?: AbortSignal): Promise<KnowledgeDocumentDto> {
+        let url_ = this.baseUrl + "/api/knowledge/documents/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdateDocument(_response);
+        });
+    }
+
+    protected processUpdateDocument(response: Response): Promise<KnowledgeDocumentDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as KnowledgeDocumentDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<KnowledgeDocumentDto>(null as any);
+    }
+
+    deleteDocument(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/knowledge/documents/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDeleteDocument(_response);
+        });
+    }
+
+    protected processDeleteDocument(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * 混合检索（语义 + 关键词）。有长期记忆权限时同时检索可见的记忆。
+     * @param q (optional) 
+     * @param documents (optional) 
+     * @param memories (optional) 
+     * @param limit (optional) 
+     * @param agentId (optional) 
+     */
+    search(q?: string | undefined, documents?: boolean | undefined, memories?: boolean | undefined, limit?: number | undefined, agentId?: string | null | undefined, signal?: AbortSignal): Promise<KnowledgeHitDto[]> {
+        let url_ = this.baseUrl + "/api/knowledge/search?";
+        if (q === null)
+            throw new globalThis.Error("The parameter 'q' cannot be null.");
+        else if (q !== undefined)
+            url_ += "q=" + encodeURIComponent("" + q) + "&";
+        if (documents === null)
+            throw new globalThis.Error("The parameter 'documents' cannot be null.");
+        else if (documents !== undefined)
+            url_ += "documents=" + encodeURIComponent("" + documents) + "&";
+        if (memories === null)
+            throw new globalThis.Error("The parameter 'memories' cannot be null.");
+        else if (memories !== undefined)
+            url_ += "memories=" + encodeURIComponent("" + memories) + "&";
+        if (limit === null)
+            throw new globalThis.Error("The parameter 'limit' cannot be null.");
+        else if (limit !== undefined)
+            url_ += "limit=" + encodeURIComponent("" + limit) + "&";
+        if (agentId !== undefined && agentId !== null)
+            url_ += "agentId=" + encodeURIComponent("" + agentId) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processSearch(_response);
+        });
+    }
+
+    protected processSearch(response: Response): Promise<KnowledgeHitDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as KnowledgeHitDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<KnowledgeHitDto[]>(null as any);
+    }
+
+    status(signal?: AbortSignal): Promise<KnowledgeStatusDto> {
+        let url_ = this.baseUrl + "/api/knowledge/status";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processStatus(_response);
+        });
+    }
+
+    protected processStatus(response: Response): Promise<KnowledgeStatusDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as KnowledgeStatusDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<KnowledgeStatusDto>(null as any);
+    }
+}
+
+export class MemoriesClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    list(scope?: MemoryScope | null | undefined, ownerId?: string | null | undefined, search?: string | null | undefined, page?: number | undefined, pageSize?: number | undefined, signal?: AbortSignal): Promise<PagedResultOfMemoryDto> {
+        let url_ = this.baseUrl + "/api/memories?";
+        if (scope !== undefined && scope !== null)
+            url_ += "scope=" + encodeURIComponent("" + scope) + "&";
+        if (ownerId !== undefined && ownerId !== null)
+            url_ += "ownerId=" + encodeURIComponent("" + ownerId) + "&";
+        if (search !== undefined && search !== null)
+            url_ += "search=" + encodeURIComponent("" + search) + "&";
+        if (page === null)
+            throw new globalThis.Error("The parameter 'page' cannot be null.");
+        else if (page !== undefined)
+            url_ += "page=" + encodeURIComponent("" + page) + "&";
+        if (pageSize === null)
+            throw new globalThis.Error("The parameter 'pageSize' cannot be null.");
+        else if (pageSize !== undefined)
+            url_ += "pageSize=" + encodeURIComponent("" + pageSize) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processList(_response);
+        });
+    }
+
+    protected processList(response: Response): Promise<PagedResultOfMemoryDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as PagedResultOfMemoryDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<PagedResultOfMemoryDto>(null as any);
+    }
+
+    create(request: CreateMemoryRequest, signal?: AbortSignal): Promise<MemoryDto> {
+        let url_ = this.baseUrl + "/api/memories";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreate(_response);
+        });
+    }
+
+    protected processCreate(response: Response): Promise<MemoryDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as MemoryDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<MemoryDto>(null as any);
+    }
+
+    delete(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/memories/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
     }
 }
 
@@ -1978,6 +2520,28 @@ export interface WakeAgentRequest {
     workItemId?: string | undefined;
 }
 
+export interface ApiKeyDto {
+    id: string;
+    name: string;
+    prefix: string;
+    features: string[];
+    expiresAt?: string | undefined;
+    lastUsedAt?: string | undefined;
+    revokedAt?: string | undefined;
+    createdAt: string;
+}
+
+export interface CreatedApiKeyDto {
+    key: ApiKeyDto;
+    token: string;
+}
+
+export interface CreateApiKeyRequest {
+    name: string;
+    readOnly?: boolean;
+    expiresInDays?: number | undefined;
+}
+
 export interface ApprovalDto {
     id: string;
     actionKey: string;
@@ -2084,6 +2648,92 @@ export interface ToolCallDto {
     arguments: any;
     result?: any | undefined;
     status?: string | undefined;
+}
+
+export interface KnowledgeDocumentDto {
+    id: string;
+    title: string;
+    fileName?: string | undefined;
+    tags: string[];
+    contentLength: number;
+    chunkCount: number;
+    embeddedChunkCount: number;
+    createdBy: ActorDto;
+    indexedAt?: string | undefined;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface KnowledgeDocumentDetailDto {
+    document: KnowledgeDocumentDto;
+    content: string;
+    chunks: KnowledgeChunkDto[];
+}
+
+export interface KnowledgeChunkDto {
+    id: string;
+    seq: number;
+    content: string;
+    embedded: boolean;
+}
+
+export interface SaveKnowledgeDocumentRequest {
+    title: string;
+    content: string;
+    fileName?: string | undefined;
+    tags?: string[];
+}
+
+export interface KnowledgeHitDto {
+    sourceKind: KnowledgeSourceKind;
+    sourceId: string;
+    title: string;
+    seq: number;
+    content: string;
+    score: number;
+    semanticMatch: boolean;
+    keywordMatch: boolean;
+    scope?: MemoryScope | undefined;
+    createdAt: string;
+}
+
+export type KnowledgeSourceKind = "document" | "memory";
+
+export type MemoryScope = "tenant" | "agent" | "user";
+
+export interface KnowledgeStatusDto {
+    embeddingModel: string;
+    isDemoEmbedding: boolean;
+    documents: number;
+    memories: number;
+    pendingEmbeddings: number;
+}
+
+export interface PagedResultOfMemoryDto {
+    items: MemoryDto[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+export interface MemoryDto {
+    id: string;
+    scope: MemoryScope;
+    owner?: ActorDto | undefined;
+    content: string;
+    tags: string[];
+    createdBy: ActorDto;
+    runId?: string | undefined;
+    workItemId?: string | undefined;
+    recallCount: number;
+    lastRecalledAt?: string | undefined;
+    createdAt: string;
+}
+
+export interface CreateMemoryRequest {
+    content: string;
+    shared?: boolean;
+    tags?: string[];
 }
 
 export interface PagedResultOfRunDto {

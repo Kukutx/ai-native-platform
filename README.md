@@ -10,6 +10,8 @@
 - **任务协作**：看板、子任务、讨论。指派给智能体后由调度器原子领取，执行过程实时可见。
 - **执行记录**：每次执行的思考、调用了哪些动作、结果、token 用量和花费。
 - **审批**：智能体发起高风险动作（如招聘新智能体）先进审批队列，人批准后以申请人的身份和权限执行。
+- **知识库与长期记忆**：上传或录入文档后立即可检索；向量（pgvector）与关键词两路召回、融合排序，中文可用。智能体可以记下学到的事实和偏好，每次醒来自动回忆相关记忆和资料；记忆分共享、成员私有、智能体私有三种。
+- **MCP 服务**：在设置里创建个人 API 密钥，就能把平台接入 Claude Code、Claude Desktop 等 MCP 客户端，直接查任务、建任务、检索知识库，权限不超过本人。
 - **多租户与权限**：一个账号可加入多个空间；角色按功能授权，支持 `tasks.*`、`*` 通配；模块可按空间启用或停用。
 - **多模型**：Claude（官方 Anthropic SDK）以及任何 OpenAI 兼容端点（国内模型、本地 Ollama）。没配密钥时自动使用内置演示模型，整个流程照样能跑通。
 - **三端**：Web（Next.js）、桌面（Tauri 2，打包 Web 静态导出）、移动（Expo）。
@@ -61,6 +63,31 @@ dotnet user-secrets set "Ai:Providers:anthropic:ApiKey" "sk-ant-..." --project b
 
 每个智能体可以单独选择供应商和模型；`Ai:DefaultProvider` / `Ai:DefaultModel` 决定新智能体和对话的默认值。
 
+### 配置向量模型
+
+不配置时知识库使用内置的离线演示向量（只看字面相似，关键词检索不受影响）。语义检索需要一个 OpenAI 兼容的向量模型，指向 `Ai:Providers` 里协议为 `openai` 的供应商即可：
+
+```json
+"Ai": {
+  "Providers": {
+    "openai": { "Kind": "openai", "ApiKey": "sk-..." }
+  },
+  "Embeddings": { "Provider": "openai", "Model": "text-embedding-3-small" }
+}
+```
+
+本地也可以用 Ollama（例如 `"Provider": "ollama", "Model": "bge-m3"`）。向量统一存为 1024 维，更换模型后后台会自动逐批重建旧向量。
+
+### 接入 Claude Code（MCP）
+
+在 Web 端「设置 → API 密钥」创建密钥，对话框里会给出完整命令，形如：
+
+```bash
+claude mcp add --transport http ainative http://localhost:5080/mcp --header "Authorization: Bearer ank_..."
+```
+
+MCP 服务地址是 `/mcp`（Streamable HTTP）。工具就是平台动作，可用哪些取决于密钥所属成员的权限；只读密钥只能看到查询类工具。
+
 ### 桌面端
 
 ```bash
@@ -92,11 +119,11 @@ pnpm dev:mobile
 
 ```
 backend/
-  AiNative.Domain            领域模型（租户、成员、角色、智能体、唤醒、执行、任务、审批、对话）
-  AiNative.Application       用例、权限、平台动作、模块、智能体运行时、对话
-  AiNative.Infrastructure    EF Core、调度器、唤醒队列、模型网关、令牌
+  AiNative.Domain            领域模型（租户、成员、角色、智能体、唤醒、执行、任务、审批、对话、知识与记忆、API 密钥）
+  AiNative.Application       用例、权限、平台动作、模块、智能体运行时、对话、知识检索
+  AiNative.Infrastructure    EF Core、调度器、唤醒队列、模型网关、向量化与混合检索、令牌
   AiNative.Contracts         对外 DTO
-  AiNative.Api               HTTP 控制器、SignalR、认证、OpenAPI
+  AiNative.Api               HTTP 控制器、SignalR、MCP 服务、认证、OpenAPI
   AiNative.OpenApi.Export    不连数据库导出 OpenAPI 文档
   AiNative.UnitTests / AiNative.IntegrationTests
 packages/api-client          生成的 TS 客户端 + 流式对话 + 实时通道

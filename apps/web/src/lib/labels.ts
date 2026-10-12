@@ -1,6 +1,7 @@
 import type {
   AgentStatus,
   ApprovalStatus,
+  MemoryScope,
   RunStatus,
   WakeupSource,
   WorkItemPriority,
@@ -59,6 +60,12 @@ export const wakeupSource: Record<WakeupSource, string> = {
   timer: '定时心跳',
   delegation: '同事委派',
   automation: '自动化',
+};
+
+export const memoryScope: Record<MemoryScope, { label: string; tone: Tone }> = {
+  tenant: { label: '共享', tone: 'default' },
+  user: { label: '成员', tone: 'secondary' },
+  agent: { label: '智能体', tone: 'outline' },
 };
 
 export function formatTime(value?: string | null) {

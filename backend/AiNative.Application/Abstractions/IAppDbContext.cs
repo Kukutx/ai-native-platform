@@ -2,6 +2,7 @@ using AiNative.Domain.Agents;
 using AiNative.Domain.Chat;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
+using AiNative.Domain.Knowledge;
 using AiNative.Domain.Modules;
 using AiNative.Domain.Tenancy;
 using AiNative.Domain.Work;
@@ -47,6 +48,14 @@ public interface IAppDbContext
     DbSet<Conversation> Conversations { get; }
 
     DbSet<ConversationMessage> ConversationMessages { get; }
+
+    DbSet<KnowledgeDocument> KnowledgeDocuments { get; }
+
+    DbSet<KnowledgeChunk> KnowledgeChunks { get; }
+
+    DbSet<MemoryEntry> MemoryEntries { get; }
+
+    DbSet<ApiKey> ApiKeys { get; }
 
     DatabaseFacade Database { get; }
 

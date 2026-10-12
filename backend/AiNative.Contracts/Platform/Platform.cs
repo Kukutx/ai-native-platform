@@ -94,3 +94,33 @@ public sealed record UsageSummaryDto(
     decimal TotalCostUsd,
     IReadOnlyList<AgentUsageDto> ByAgent,
     IReadOnlyList<ModelUsageDto> ByModel);
+
+public sealed record ApiKeyDto(
+    Guid Id,
+    string Name,
+    string Prefix,
+    IReadOnlyList<string> Features,
+    DateTimeOffset? ExpiresAt,
+    DateTimeOffset? LastUsedAt,
+    DateTimeOffset? RevokedAt,
+    DateTimeOffset CreatedAt);
+
+public sealed record CreateApiKeyRequest
+{
+    public required string Name { get; init; }
+
+    /// <summary>
+    /// 为 true 时只授予查看类权限（*.view）。
+    /// </summary>
+    public bool ReadOnly { get; init; }
+
+    /// <summary>
+    /// 有效天数；为空表示长期有效（直到吊销）。
+    /// </summary>
+    public int? ExpiresInDays { get; init; }
+}
+
+/// <summary>
+/// 创建结果。Token 只在此时返回一次，服务端只保存哈希。
+/// </summary>
+public sealed record CreatedApiKeyDto(ApiKeyDto Key, string Token);

@@ -17,6 +17,12 @@ export const queryKeys = {
   modules: ['modules'] as const,
   usage: ['usage'] as const,
   models: ['models'] as const,
+  knowledgeDocuments: (search?: string) => ['knowledge', 'documents', search ?? ''] as const,
+  knowledgeDocument: (id: string) => ['knowledge', 'document', id] as const,
+  knowledgeSearch: (query: string) => ['knowledge', 'search', query] as const,
+  knowledgeStatus: ['knowledge', 'status'] as const,
+  memories: (filters?: object) => ['memories', filters ?? {}] as const,
+  apiKeys: ['api-keys'] as const,
 };
 
 /** 实体变化 → 需要失效的查询前缀。 */
@@ -27,4 +33,6 @@ export const invalidationMap: Record<string, (id: string) => readonly (readonly 
   approval: () => [['approvals']],
   conversation: () => [['conversations']],
   module: () => [['modules'], ['session']],
+  knowledge_document: () => [['knowledge']],
+  memory: () => [['memories'], ['knowledge', 'search'], ['knowledge', 'status']],
 };

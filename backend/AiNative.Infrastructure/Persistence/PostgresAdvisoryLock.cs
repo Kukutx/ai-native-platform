@@ -1,4 +1,5 @@
 using AiNative.Application.Abstractions;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 namespace AiNative.Infrastructure.Persistence;
@@ -32,5 +33,21 @@ internal sealed class PostgresAdvisoryLock(string connectionString) : IDistribut
 
         await connection.DisposeAsync().ConfigureAwait(false);
         return null;
+    }
+}
+
+/// <summary>
+/// PostgreSQL 事务级 advisory lock，跑在当前请求的数据库连接和事务上。
+/// </summary>
+internal sealed class PostgresTransactionLock(AppDbContext db) : ITransactionLock
+{
+    public async Task AcquireAsync(string key, CancellationToken cancellationToken = default)
+    {
+        if (db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("事务级锁只能在事务中使用。");
+        }
+
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", cancellationToken).ConfigureAwait(false);
     }
 }

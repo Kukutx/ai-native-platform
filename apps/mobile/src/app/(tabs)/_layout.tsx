@@ -21,6 +21,7 @@ export default function TabsLayout() {
     <Tabs screenOptions={{ tabBarActiveTintColor: p.text, tabBarInactiveTintColor: p.muted }}>
       <Tabs.Screen name='index' options={{ title: '对话', tabBarIcon: icon('chatbubbles-outline') }} />
       <Tabs.Screen name='tasks' options={{ title: '任务', tabBarIcon: icon('checkmark-done-outline') }} />
+      <Tabs.Screen name='knowledge' options={{ title: '知识', tabBarIcon: icon('library-outline') }} />
       <Tabs.Screen
         name='approvals'
         options={{ title: '审批', tabBarIcon: icon('shield-checkmark-outline'), tabBarBadge: pending.data?.length || undefined }}

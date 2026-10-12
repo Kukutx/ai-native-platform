@@ -10,7 +10,7 @@ namespace AiNative.Application.Agents;
 public static class AgentDefaults
 {
     /// <summary>
-    /// 新智能体的默认权限：了解团队、处理和讨论任务、唤醒同事。
+    /// 新智能体的默认权限：了解团队、处理和讨论任务、唤醒同事、检索知识库、使用自己的长期记忆。
     /// </summary>
     public static readonly IReadOnlyList<string> Permissions =
     [
@@ -19,6 +19,8 @@ public static class AgentDefaults
         Features.Tasks.View,
         Features.Tasks.Manage,
         Features.Tasks.Comment,
+        Features.Knowledge.View,
+        Features.Memory.Use,
     ];
 }
 

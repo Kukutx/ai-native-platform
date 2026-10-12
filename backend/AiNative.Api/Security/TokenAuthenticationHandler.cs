@@ -8,7 +8,8 @@ using Microsoft.Extensions.Options;
 namespace AiNative.Api.Security;
 
 /// <summary>
-/// Bearer 令牌认证。令牌有效还不够：成员关系必须仍然有效（被移除或停用的成员立即失效），
+/// Bearer 认证，接受两种凭据：登录得到的访问令牌（JWT），以及个人 API 密钥（ank_ 开头，供 MCP 客户端与外部集成）。
+/// 凭据有效还不够：成员关系必须仍然有效（被移除或停用的成员立即失效），
 /// 解析出的权限交给 <see cref="TenantContextMiddleware"/> 写入租户上下文。
 /// WebSocket 无法设置请求头，实时通道允许用 access_token 查询参数传令牌。
 /// </summary>
@@ -17,9 +18,17 @@ internal sealed class TokenAuthenticationHandler(
     ILoggerFactory logger,
     UrlEncoder encoder,
     TokenService tokens,
-    IAccessResolver access) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+    IAccessResolver access,
+    IApiKeyAuthenticator apiKeys) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     public const string SchemeName = "Bearer";
+
+    /// <summary>
+    /// 认证方式声明：值为 api_key 时表示本次请求用的是 API 密钥。
+    /// </summary>
+    public const string AuthMethodClaim = "amr";
+    public const string ApiKeyMethod = "api_key";
+    public const string ApiKeyIdClaim = "api_key_id";
 
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
@@ -27,6 +36,11 @@ internal sealed class TokenAuthenticationHandler(
         if (token is null)
         {
             return AuthenticateResult.NoResult();
+        }
+
+        if (ApiKeyTokens.LooksLikeApiKey(token))
+        {
+            return await AuthenticateApiKeyAsync(token).ConfigureAwait(false);
         }
 
         var identity = await tokens.ValidateAsync(token).ConfigureAwait(false);
@@ -50,6 +64,27 @@ internal sealed class TokenAuthenticationHandler(
 
         Context.Features.Set(resolved);
         return AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName));
+    }
+
+    private async Task<AuthenticateResult> AuthenticateApiKeyAsync(string token)
+    {
+        var result = await apiKeys.AuthenticateAsync(token, Context.RequestAborted).ConfigureAwait(false);
+        if (result is null)
+        {
+            return AuthenticateResult.Fail("API 密钥无效、已过期或已吊销。");
+        }
+
+        var resolved = result.Access;
+        var identity = new ClaimsIdentity(
+        [
+            new Claim(PlatformClaims.UserId, resolved.UserId.ToString()),
+            new Claim(PlatformClaims.TenantId, resolved.TenantId.ToString()),
+            new Claim(PlatformClaims.MembershipId, resolved.MembershipId.ToString()),
+            new Claim(AuthMethodClaim, ApiKeyMethod),
+            new Claim(ApiKeyIdClaim, result.KeyId.ToString()),
+        ], SchemeName, PlatformClaims.UserId, null);
+        Context.Features.Set(resolved);
+        return AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName));
     }
 
     private string? ReadToken()

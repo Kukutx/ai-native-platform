@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddSingleton<IModuleCatalog, ModuleCatalog>();
         services.AddScoped<IModuleAccess, ModuleAccess>();
         services.AddScoped<IAccessResolver, AccessResolver>();
+        services.AddScoped<IApiKeyAuthenticator, ApiKeyAuthenticator>();
         services.AddScoped<IActionInvoker, ActionInvoker>();
         services.AddScoped<IChangeFeed, ChangeFeed>();
 

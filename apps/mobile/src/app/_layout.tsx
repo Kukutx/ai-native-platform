@@ -62,6 +62,7 @@ export default function RootLayout() {
               <Stack.Screen name='chat/[id]' options={{ title: '对话' }} />
               <Stack.Screen name='tasks/[id]' options={{ title: '任务' }} />
               <Stack.Screen name='tasks/new' options={{ title: '新建任务', presentation: 'modal' }} />
+              <Stack.Screen name='knowledge/[id]' options={{ title: '文档' }} />
             </Stack.Protected>
             <Stack.Protected guard={!token}>
               <Stack.Screen name='login' options={{ headerShown: false }} />
