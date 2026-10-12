@@ -9,6 +9,8 @@ services:
   postgres:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
+    # 默认的 64 MB 共享内存在并行查询、建向量索引时可能不够（报 could not resize shared memory segment）。
+    shm_size: 256mb
     environment:
       POSTGRES_DB: ainative
       POSTGRES_USER: ainative
@@ -29,6 +31,17 @@ services:
     restart: unless-stopped
     # 停止时应用最多用 30 秒收尾（把执行中的智能体和工作流标记好、释放领取的任务），Docker 默认只等 10 秒就强杀。
     stop_grace_period: 40s
+    # 容器加固：根文件系统只读（临时文件写在内存里的 /tmp），去掉全部 Linux 能力，禁止提权。应用本身以非 root 用户运行。
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # 要连宿主机上的服务（例如 Ollama）时打开（Linux 需要，Docker Desktop 自带），见 docs/deployment.md。
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy

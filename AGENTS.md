@@ -56,6 +56,7 @@ dotnet ef migrations add <名称> --project AiNative.Infrastructure --startup-pr
 4. 业务变化需要能触发工作流时，在模块的 `Events` 里声明 `PlatformEventDefinition`（键形如 `crm.contact_created`，`Description` 写清载荷字段），并在写操作的处理器里调用 `IPlatformEvents.PublishAsync`（载荷用委托惰性构造，与业务变化同一事务提交）。
 5. 类放进已注册的程序集即可被扫描；独立程序集用 `services.AddPlatformModuleAssembly(assembly)`。
 6. 补测试：权限、租户隔离、关键状态流转至少各一条。
+7. 有界面时同步客户端：新的实时实体类型（处理器里 `IChangeFeed.Publish` 用的常量）要在 `packages/api-client/src/realtime.ts` 的 `RealtimeEntity`、Web 的 `apps/web/src/lib/query-keys.ts`（`invalidationMap`）和手机端的 `apps/mobile/src/lib/realtime.ts` 里登记要失效的查询，否则界面不会自动刷新；新的一级页面在 `apps/web/src/components/app/navigation.ts` 里登记，并写上进入它需要的权限键。
 
 同一个动作定义同时服务于界面（`/api/actions`）、智能体工具调用、对话、工作流步骤和 MCP 服务（`/mcp`），权限与审批在调用入口统一检查，不要在各处重复实现。
 
