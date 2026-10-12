@@ -1,6 +1,7 @@
 /** 查询键集中定义，实时通道按实体失效对应的键。 */
 export const queryKeys = {
   session: ['session'] as const,
+  authOptions: ['auth-options'] as const,
   agents: ['agents'] as const,
   agent: (id: string) => ['agents', id] as const,
   orgChart: ['agents', 'org-chart'] as const,

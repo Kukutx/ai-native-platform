@@ -87,3 +87,42 @@ jobs:
       - name: cargo check
         working-directory: apps/desktop/src-tauri
         run: cargo check --locked
+
+  image:
+    name: 生产镜像构建与冒烟检查
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: 构建镜像
+        run: docker build -t ainative-platform:ci .
+      - name: 开发密钥应被拒绝
+        run: |
+          if docker run --rm -e Auth__SigningKey=dev-only-signing-key-change-me-0123456789abcdef ainative-platform:ci; then
+            echo "使用开发密钥时容器不应启动成功"; exit 1
+          fi
+      - name: 启动容器并检查页面与接口
+        run: |
+          docker run -d --name app --network host \
+            -e ConnectionStrings__Postgres="Host=localhost;Port=5432;Database=ainative;Username=postgres;Password=postgres" \
+            -e Auth__SigningKey="$(openssl rand -base64 48)" \
+            -e Database__MigrateOnStartup=true \
+            ainative-platform:ci
+          for i in $(seq 1 60); do curl -fsS http://localhost:8080/health/ready && break; sleep 2; done
+          curl -fsS http://localhost:8080/health/ready
+          curl -fsS http://localhost:8080/ | grep -q 'AI 原生工作台'
+          curl -fsS -o /dev/null http://localhost:8080/analytics/explore
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/no-such-page)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/work-items)" = 401
+      - name: 容器日志
+        if: always()
+        run: docker logs app || true

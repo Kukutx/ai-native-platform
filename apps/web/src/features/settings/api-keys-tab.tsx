@@ -13,12 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { api } from '@/lib/api';
-import { API_URL } from '@/lib/config';
+import { absoluteApiUrl } from '@/lib/config';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
 const NEVER = 'never';
-const MCP_URL = `${API_URL.replace(/\/+$/, '')}/mcp`;
 
 function keyState(key: ApiKeyDto): { label: string; tone: 'secondary' | 'outline' | 'destructive' } {
   if (key.revokedAt) {
@@ -200,9 +199,10 @@ function CopyBlock({ label, value }: { label: string; value: string }) {
 }
 
 function CreatedKeyDialog({ created, onClose }: { created: CreatedApiKeyDto; onClose: () => void }) {
-  const claudeCode = `claude mcp add --transport http ainative ${MCP_URL} --header "Authorization: Bearer ${created.token}"`;
+  const mcpUrl = absoluteApiUrl('/mcp');
+  const claudeCode = `claude mcp add --transport http ainative ${mcpUrl} --header "Authorization: Bearer ${created.token}"`;
   const json = JSON.stringify(
-    { mcpServers: { ainative: { type: 'http', url: MCP_URL, headers: { Authorization: `Bearer ${created.token}` } } } },
+    { mcpServers: { ainative: { type: 'http', url: mcpUrl, headers: { Authorization: `Bearer ${created.token}` } } } },
     null,
     2,
   );

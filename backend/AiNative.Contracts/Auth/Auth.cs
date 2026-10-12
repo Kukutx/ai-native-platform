@@ -51,3 +51,9 @@ public sealed record SessionDto(
     IReadOnlyList<string> DisabledFeatures);
 
 public sealed record AuthResponse(string AccessToken, DateTimeOffset ExpiresAt, SessionDto Session);
+
+/// <summary>
+/// 登录页需要的站点设置，不需要登录即可读取。
+/// </summary>
+/// <param name="AllowRegistration">是否允许自助注册新空间。关闭后新成员只能由管理员加入已有空间。</param>
+public sealed record AuthOptionsDto(bool AllowRegistration);

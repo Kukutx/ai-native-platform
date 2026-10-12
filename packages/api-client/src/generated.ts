@@ -1766,6 +1766,43 @@ export class AuthClient {
         return Promise.resolve<AuthResponse>(null as any);
     }
 
+    /**
+     * 登录页需要的站点设置（例如是否开放注册）。
+     */
+    options(signal?: AbortSignal): Promise<AuthOptionsDto> {
+        let url_ = this.baseUrl + "/api/auth/options";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processOptions(_response);
+        });
+    }
+
+    protected processOptions(response: Response): Promise<AuthOptionsDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AuthOptionsDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<AuthOptionsDto>(null as any);
+    }
+
     login(request: LoginRequest, signal?: AbortSignal): Promise<AuthResponse> {
         let url_ = this.baseUrl + "/api/auth/login";
         url_ = url_.replace(/[?&]$/, "");
@@ -6559,6 +6596,10 @@ export interface RegisterRequest {
     displayName: string;
     tenantName: string;
     timeZone?: string | undefined;
+}
+
+export interface AuthOptionsDto {
+    allowRegistration: boolean;
 }
 
 export interface LoginRequest {

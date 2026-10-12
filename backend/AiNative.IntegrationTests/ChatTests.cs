@@ -72,6 +72,8 @@ public sealed class ChatTests(PostgresFixture postgres) : IntegrationTest(postgr
     {
         var response = await client.PostAsJsonAsync($"/api/conversations/{conversationId}/messages", new SendMessageRequest { Text = text }, PlatformJson.Options, Ct);
         response.EnsureSuccessStatusCode();
+        response.Content.Headers.ContentType!.MediaType.Should().Be("text/event-stream");
+        response.Headers.GetValues("X-Accel-Buffering").Should().Equal("no");
         return await response.Content.ReadAsStringAsync(Ct);
     }
 }

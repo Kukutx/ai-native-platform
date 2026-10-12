@@ -30,7 +30,7 @@ public abstract class IntegrationTest(PostgresFixture postgres) : IAsyncLifetime
         _ = Factory.Server;
     }
 
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         await Factory.DisposeAsync();
         await postgres.DropDatabaseAsync(_connectionString);

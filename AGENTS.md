@@ -74,6 +74,8 @@ pnpm type-check && pnpm lint && pnpm build
 pnpm test:api
 ```
 
+改动 `Dockerfile`、静态页托管或启动配置时，本地跑一次 `docker build -t ainative-platform .`，再用 `deploy/docker-compose.yml` 起一套确认能打开页面（见 [docs/deployment.md](docs/deployment.md)）。
+
 改动桌面端时在装有 Rust 的机器上跑一次 `pnpm --filter @ainative/desktop check`（即 `cargo check`；桌面端没有 TS 代码，不参与 type-check 和 lint，CI 里单独检查）；改动移动端时跑 `pnpm --filter @ainative/mobile bundle:check` 确认能打出安卓包。
 
 <!-- BEGIN:turborepo-agent-rules -->

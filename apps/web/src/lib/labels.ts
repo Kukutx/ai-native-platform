@@ -169,19 +169,23 @@ export function formatQuantity(value: number | null | undefined, unit?: string) 
   return unit ? `${text} ${unit}` : text;
 }
 
-/** 金额按货币格式化；compact 用于看板等空间紧张的地方（例如 ¥12万）。 */
+/**
+ * 金额按货币格式化；compact 用于看板等空间紧张的地方（例如 ¥12万）。
+ * 不到一万时紧凑写法没有千位分隔（¥8000），与别处的 ¥8,000 不一致，所以照常显示。
+ */
 export function formatAmount(amount: number | null | undefined, currency = 'CNY', compact = false) {
   if (amount === null || amount === undefined) {
     return '—';
   }
 
+  const shorten = compact && Math.abs(amount) >= 10_000;
   try {
     return new Intl.NumberFormat('zh-CN', {
       style: 'currency',
       currency,
-      notation: compact ? 'compact' : 'standard',
+      notation: shorten ? 'compact' : 'standard',
       minimumFractionDigits: 0,
-      maximumFractionDigits: compact ? 1 : 2,
+      maximumFractionDigits: shorten ? 1 : compact ? 0 : 2,
     }).format(amount);
   } catch {
     return `${currency} ${amount.toLocaleString('zh-CN')}`;

@@ -111,6 +111,18 @@ pnpm dev:mobile
 
 登录页可以临时修改服务器地址。对话使用 `expo/fetch` 读取流式响应，任务和审批通过 SignalR 实时刷新。
 
+### 生产部署
+
+一个镜像同时提供接口、实时通道、MCP 服务和 Web 工作台，再加一个 PostgreSQL：
+
+```bash
+cd deploy
+cp .env.example .env      # 填写数据库密码和令牌签名密钥
+docker compose up -d --build
+```
+
+打开 http://服务器:8080 即可使用。HTTPS 反向代理、全部配置项、关闭自助注册、备份与升级见 [docs/deployment.md](docs/deployment.md)。
+
 ## 常用命令
 
 | 命令 | 作用 |
@@ -135,7 +147,8 @@ packages/api-client          生成的 TS 客户端 + 流式对话 + 实时通�
 apps/web                     Next.js 工作台
 apps/desktop                 Tauri 2 桌面端
 apps/mobile                  Expo 移动端
-docs/                        架构说明与参考项目
+deploy/                      生产部署示例（docker compose + 环境变量模板），镜像见根目录 Dockerfile
+docs/                        架构说明、部署说明与参考项目
 ```
 
-更多设计细节见 [docs/architecture.md](docs/architecture.md)，参考过的开源项目与许可说明见 [docs/references.md](docs/references.md)，参与开发的约定见 [AGENTS.md](AGENTS.md)。
+更多设计细节见 [docs/architecture.md](docs/architecture.md)，部署见 [docs/deployment.md](docs/deployment.md)，参考过的开源项目与许可说明见 [docs/references.md](docs/references.md)，参与开发的约定见 [AGENTS.md](AGENTS.md)。

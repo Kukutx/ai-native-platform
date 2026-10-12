@@ -1414,6 +1414,27 @@
         }
       }
     },
+    "/api/auth/options": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "登录页需要的站点设置（例如是否开放注册）。",
+        "operationId": "Auth_Options",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOptionsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/login": {
       "post": {
         "tags": [
@@ -7327,6 +7348,18 @@
           "timeZone": {
             "type": "string",
             "nullable": true
+          }
+        }
+      },
+      "AuthOptionsDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "allowRegistration"
+        ],
+        "properties": {
+          "allowRegistration": {
+            "type": "boolean"
           }
         }
       },
