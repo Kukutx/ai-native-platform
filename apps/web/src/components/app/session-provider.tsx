@@ -11,6 +11,11 @@ interface SessionContextValue {
   token: string | null;
   session: SessionDto | undefined;
   loading: boolean;
+  /** 会话加载失败（例如服务器连不上、接口地址不对）时的错误；有会话数据时为 null。 */
+  error: unknown;
+  /** 重新加载会话。 */
+  retry: () => void;
+  retrying: boolean;
   signIn: (auth: AuthResponse) => void;
   signOut: () => void;
   switchTenant: (tenantId: string) => Promise<void>;
@@ -34,7 +39,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
 
-  const sessionQuery = useQuery({
+  const {
+    data: session,
+    isPending,
+    error,
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: queryKeys.session,
     queryFn: ({ signal }) => api.auth.session(signal),
     enabled: !!token,
@@ -62,18 +73,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [signIn],
   );
 
-  const value = useMemo<SessionContextValue>(() => {
-    const session = sessionQuery.data;
-    return {
+  // 只在没有会话时关心重试进度，避免后台刷新会话时整个应用跟着重新渲染。
+  const retrying = !session && isFetching;
+  const value = useMemo<SessionContextValue>(
+    () => ({
       token,
       session,
-      loading: !hydrated || (!!token && sessionQuery.isPending),
+      loading: !hydrated || (!!token && isPending),
+      error: session ? null : error,
+      retry: () => void refetch(),
+      retrying,
       signIn,
       signOut,
       switchTenant,
       can: (feature) => sessionCan(session, feature),
-    };
-  }, [token, sessionQuery.data, sessionQuery.isPending, hydrated, signIn, signOut, switchTenant]);
+    }),
+    [token, session, isPending, error, refetch, retrying, hydrated, signIn, signOut, switchTenant],
+  );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

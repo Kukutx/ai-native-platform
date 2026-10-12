@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { usePathname, useRouter } from 'next/navigation';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useTheme } from 'next-themes';
+import { toast } from 'sonner';
+import type { TenantSummaryDto } from '@ainative/api-client';
 import { Icons } from '@/components/icons';
 import {
   DropdownMenu,
@@ -24,36 +26,39 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from '@/components/ui/sidebar';
+import { Spinner } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
+import { navigation, navigationEntryFor } from './navigation';
 import { useSession } from './session-provider';
-
-const navigation = [
-  { href: '/chat', label: '对话', icon: Icons.chat, feature: 'chat.use' },
-  { href: '/agents', label: '智能体', icon: Icons.teams, feature: 'agents.view' },
-  { href: '/tasks', label: '任务', icon: Icons.checks, feature: 'tasks.view' },
-  { href: '/projects', label: '项目', icon: Icons.project, feature: 'projects.view' },
-  { href: '/crm', label: '客户', icon: Icons.crm, feature: 'crm.view' },
-  { href: '/erp', label: '进销存', icon: Icons.product, feature: 'erp.view' },
-  { href: '/knowledge', label: '知识库', icon: Icons.knowledge, feature: 'knowledge.view' },
-  { href: '/analytics', label: '经营分析', icon: Icons.analytics, feature: 'analytics.view' },
-  { href: '/workflows', label: '自动化', icon: Icons.workflow, feature: 'workflows.view' },
-  { href: '/integrations', label: '集成', icon: Icons.integration, feature: 'integrations.view' },
-  { href: '/runs', label: '执行记录', icon: Icons.clock, feature: 'runs.view' },
-  { href: '/approvals', label: '审批', icon: Icons.badgeCheck, feature: 'approvals.view' },
-  { href: '/settings', label: '设置', icon: Icons.settings, feature: 'platform.members.view' },
-];
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const { session, can, signOut, switchTenant } = useSession();
+  const { isMobile, setOpenMobile } = useSidebar();
   const { resolvedTheme, setTheme } = useTheme();
+  const active = navigationEntryFor(pathname);
   const pending = useQuery({
     queryKey: queryKeys.approvals('pending'),
     queryFn: ({ signal }) => api.approvals.list('pending', signal),
     enabled: can('approvals.view'),
   });
+  // 切换失败时由全局错误提示说明原因；成功后回到当前模块的首页，原来打开的记录属于上一个空间。
+  const switching = useMutation({
+    mutationFn: (tenant: TenantSummaryDto) => switchTenant(tenant.id),
+    onSuccess: (_, tenant) => {
+      toast.success(`已切换到「${tenant.name}」`);
+      router.push(active?.href ?? '/');
+    },
+  });
+  const closeOnMobile = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <Sidebar collapsible='icon'>
@@ -62,12 +67,12 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size='lg'>
+                <SidebarMenuButton size='lg' disabled={switching.isPending} aria-label='切换空间'>
                   <div className='bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg'>
-                    <Icons.sparkles className='size-4' />
+                    {switching.isPending ? <Spinner /> : <Icons.sparkles className='size-4' />}
                   </div>
                   <div className='grid flex-1 text-left text-sm leading-tight'>
-                    <span className='truncate font-medium'>{session?.tenant.name ?? '工作空间'}</span>
+                    <span className='truncate font-medium'>{switching.isPending ? '正在切换…' : (session?.tenant.name ?? '工作空间')}</span>
                     <span className='text-muted-foreground truncate text-xs'>AI 原生工作台</span>
                   </div>
                   <Icons.chevronsUpDown className='ml-auto size-4' />
@@ -75,12 +80,15 @@ export function AppSidebar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start' className='min-w-56'>
                 <DropdownMenuLabel className='text-muted-foreground text-xs'>切换空间</DropdownMenuLabel>
-                {session?.tenants.map((tenant) => (
-                  <DropdownMenuItem key={tenant.id} onSelect={() => void switchTenant(tenant.id)}>
-                    {tenant.name}
-                    {tenant.id === session.tenant.id ? <Icons.check className='ml-auto size-4' /> : null}
-                  </DropdownMenuItem>
-                ))}
+                {session?.tenants.map((tenant) => {
+                  const current = tenant.id === session.tenant.id;
+                  return (
+                    <DropdownMenuItem key={tenant.id} disabled={switching.isPending} onSelect={() => !current && switching.mutate(tenant)}>
+                      {tenant.name}
+                      {current ? <Icons.check className='ml-auto size-4' /> : null}
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </SidebarMenuItem>
@@ -94,14 +102,14 @@ export function AppSidebar() {
                 .filter((item) => can(item.feature))
                 .map((item) => (
                   <SidebarMenuItem key={item.href}>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith(item.href)} tooltip={item.label}>
-                      <Link href={item.href}>
+                    <SidebarMenuButton asChild isActive={active?.href === item.href} tooltip={item.label}>
+                      <Link href={item.href} onClick={closeOnMobile}>
                         <item.icon />
                         <span>{item.label}</span>
                       </Link>
                     </SidebarMenuButton>
                     {item.href === '/approvals' && pending.data?.length ? (
-                      <SidebarMenuBadge>{pending.data.length}</SidebarMenuBadge>
+                      <SidebarMenuBadge aria-label={`${pending.data.length} 个待审批`}>{pending.data.length}</SidebarMenuBadge>
                     ) : null}
                   </SidebarMenuItem>
                 ))}
@@ -114,7 +122,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size='lg'>
+                <SidebarMenuButton size='lg' aria-label='账号菜单'>
                   <div className='bg-muted flex size-8 items-center justify-center rounded-full text-sm font-medium'>
                     {session?.user.displayName.slice(0, 1) ?? '我'}
                   </div>
