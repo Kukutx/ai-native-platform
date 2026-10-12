@@ -1,4 +1,4 @@
-import type { ActionDescriptorDto, WorkflowEventDto, WorkflowStep, WorkflowTriggerDto } from '@ainative/api-client';
+import type { ActionDescriptorDto, AgentDto, WorkflowEventDto, WorkflowStep, WorkflowTriggerDto } from '@ainative/api-client';
 
 /** 编辑器里常用的定时规则，选中后直接填入 cron。 */
 export const cronPresets = [
@@ -20,8 +20,32 @@ export function describeTrigger(trigger: WorkflowTriggerDto, events?: WorkflowEv
       const preset = cronPresets.find((p) => p.cron === trigger.cron)?.label ?? trigger.cron ?? '';
       return `${preset} · ${trigger.timeZone || 'UTC'}`;
     }
+    case 'webhook':
+      return trigger.filter ? `外部请求（${trigger.filter}）` : '外部请求';
     default:
       return '手动运行';
+  }
+}
+
+/** 步骤定义的一行摘要。 */
+export function describeStep(step: WorkflowStep, actions?: ActionDescriptorDto[], agents?: AgentDto[]) {
+  switch (step.kind ?? 'action') {
+    case 'agent_task': {
+      const agent = agents?.find((a) => a.id === step.agentId);
+      return `${agent?.name ?? '智能体'}：${step.title ?? ''}${step.waitForCompletion ? '（等待完成）' : ''}`;
+    }
+    case 'llm':
+      return step.prompt ?? '';
+    case 'delay':
+      return `${step.delaySeconds ?? 0} 秒`;
+    case 'http':
+      return `${step.method ?? 'GET'} ${step.url ?? ''}`;
+    case 'branch':
+      return `${step.branches?.length ?? 0} 个分支`;
+    case 'for_each':
+      return `遍历 ${step.items ?? ''}`;
+    default:
+      return actions?.find((a) => a.key === step.actionKey)?.title ?? step.actionKey ?? '';
   }
 }
 
@@ -31,17 +55,22 @@ export interface Reference {
 }
 
 /**
- * 某一步可以引用的变量：运行参数、触发数据、前面步骤的输出。
+ * 某一步可以引用的变量：运行参数、触发数据、之前执行的步骤的输出，遍历里另有当前项。
  * 写进模板时用 {{ expr }}，写进 when 条件时直接写 expr。
  */
 export function referencesFor(
-  index: number,
-  steps: WorkflowStep[],
+  preceding: WorkflowStep[],
   trigger: WorkflowTriggerDto,
   events: WorkflowEventDto[] | undefined,
   actions: ActionDescriptorDto[] | undefined,
+  loop: boolean,
 ): Reference[] {
-  const refs: Reference[] = [{ expr: 'input.字段名', hint: '手动运行时填写的参数' }];
+  const refs: Reference[] = [];
+  if (loop) {
+    refs.push({ expr: 'item', hint: '遍历的当前项' }, { expr: 'item.字段名', hint: '当前项是对象时取字段' }, { expr: 'index', hint: '当前项的序号，从 0 开始' });
+  }
+
+  refs.push({ expr: 'input.字段名', hint: '手动运行时填写的参数' });
   switch (trigger.kind ?? 'manual') {
     case 'event': {
       const event = events?.find((e) => e.key === trigger.eventType);
@@ -54,11 +83,19 @@ export function referencesFor(
     case 'schedule':
       refs.push({ expr: 'trigger.scheduledAt', hint: '本次计划运行的时间' });
       break;
+    case 'webhook':
+      refs.push(
+        { expr: 'trigger.body.字段名', hint: '请求体（JSON 或表单）里的字段' },
+        { expr: 'trigger.query.参数名', hint: '地址里的查询参数' },
+        { expr: "trigger.headers['x-请求头']", hint: '请求头，名称一律小写' },
+        { expr: 'trigger.receivedAt', hint: '收到请求的时间' },
+      );
+      break;
     default:
       refs.push({ expr: 'trigger.actor.name', hint: '点击运行的人' });
   }
 
-  for (const step of steps.slice(0, index)) {
+  for (const step of preceding) {
     const base = `steps.${step.key}`;
     refs.push({ expr: `${base}.status`, hint: `「${step.name}」的结果：succeeded / failed / skipped` });
     switch (step.kind ?? 'action') {
@@ -74,6 +111,17 @@ export function referencesFor(
         break;
       case 'delay':
         refs.push({ expr: `${base}.output.waitedSeconds`, hint: '等待的秒数' });
+        break;
+      case 'http':
+        refs.push({ expr: `${base}.output.status`, hint: `「${step.name}」的 HTTP 状态码` });
+        refs.push({ expr: `${base}.output.body.字段名`, hint: '返回 JSON 时直接取字段，否则 body 是原文' });
+        break;
+      case 'branch':
+        refs.push({ expr: `${base}.output.branch`, hint: `「${step.name}」走了哪个分支（分支名称）` });
+        break;
+      case 'for_each':
+        refs.push({ expr: `${base}.output.count`, hint: `「${step.name}」处理的项数` });
+        refs.push({ expr: `${base}.output.results`, hint: '每一项最后一个子步骤的输出组成的列表' });
         break;
       default: {
         const action = actions?.find((a) => a.key === step.actionKey);
