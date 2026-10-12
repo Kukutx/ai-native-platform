@@ -12,6 +12,11 @@ public sealed record RegisterRequest
     /// 新建的租户（工作空间）名称。
     /// </summary>
     public required string TenantName { get; init; }
+
+    /// <summary>
+    /// 新空间的时区（IANA 名称），客户端一般传本机时区；不传或无法识别时用 UTC。
+    /// </summary>
+    public string? TimeZone { get; init; }
 }
 
 public sealed record LoginRequest
@@ -33,7 +38,8 @@ public sealed record SwitchTenantRequest
 
 public sealed record UserDto(Guid Id, string Email, string DisplayName);
 
-public sealed record TenantSummaryDto(Guid Id, string Name, string Slug, bool IsOwner);
+/// <param name="TimeZone">空间时区（IANA 名称），"今天""本月"和按天统计都按它计算。</param>
+public sealed record TenantSummaryDto(Guid Id, string Name, string Slug, bool IsOwner, string TimeZone);
 
 /// <param name="DisabledFeatures">所属模块在当前空间未启用的功能权限。即使角色授予了，接口也会拒绝，客户端据此隐藏入口。</param>
 public sealed record SessionDto(

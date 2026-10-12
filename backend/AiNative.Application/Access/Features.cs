@@ -19,6 +19,7 @@ public static class Features
         public const string OrganizationsManage = "platform.organizations.manage";
         public const string UsageView = "platform.usage.view";
         public const string ApiKeysUse = "platform.api_keys.use";
+        public const string SettingsManage = "platform.settings.manage";
     }
 
     public static class Agents

@@ -5,3 +5,5 @@ web-build/
 /ios
 /android
 dist-web/
+# Expo 自动生成，不入库（类型引用见 src/types/expo.d.ts）
+expo-env.d.ts

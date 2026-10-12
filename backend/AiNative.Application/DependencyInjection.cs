@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IApiKeyAuthenticator, ApiKeyAuthenticator>();
         services.AddScoped<IActionInvoker, ActionInvoker>();
         services.AddScoped<IChangeFeed, ChangeFeed>();
+        services.AddScoped<TenantCalendar>();
 
         services.AddScoped<WorkItemWorkflow>();
         services.AddScoped<Crm.CrmRecords>();
@@ -42,6 +43,9 @@ public static class DependencyInjection
         services.AddScoped<Projects.ProjectPlacement>();
         services.AddScoped<Projects.ProjectWorkflow>();
         services.AddScoped<Projects.Actions.ProjectRefs>();
+        services.AddScoped<Analytics.MetricCatalog>();
+        services.AddScoped<Analytics.MetricLabels>();
+        services.AddScoped<Analytics.AnalyticsEngine>();
         services.AddScoped<AgentPromptBuilder>();
         services.AddScoped<IAgentRuntime, AgentRuntime>();
         services.AddScoped<IChatService, ChatService>();
@@ -59,7 +63,7 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// 外部程序集（新业务模块）复用同一套约定注册自己的处理器、校验器、动作、模块与新空间初始化。
+    /// 外部程序集（新业务模块）复用同一套约定注册自己的处理器、校验器、动作、指标、模块与新空间初始化。
     /// </summary>
     public static IServiceCollection AddPlatformModuleAssembly(this IServiceCollection services, Assembly assembly)
     {
@@ -77,6 +81,11 @@ public static class DependencyInjection
             if (typeof(IPlatformAction).IsAssignableFrom(type))
             {
                 services.AddScoped(typeof(IPlatformAction), type);
+            }
+
+            if (typeof(Analytics.IPlatformMetric).IsAssignableFrom(type))
+            {
+                services.AddScoped(typeof(Analytics.IPlatformMetric), type);
             }
 
             if (typeof(IPlatformModule).IsAssignableFrom(type))

@@ -2,10 +2,12 @@ using System.Globalization;
 using System.Text;
 using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
+using AiNative.Application.Analytics;
 using AiNative.Application.Common;
 using AiNative.Application.Knowledge;
 using AiNative.Application.Modules;
 using AiNative.Application.Projects;
+using AiNative.Application.Tenancy;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Knowledge;
@@ -89,13 +91,21 @@ internal sealed class AgentPromptBuilder(
             sb.AppendLine("- 任务可以归入项目和里程碑并设截止日期（tasks_create 带 projectId、milestoneId、dueDate，已有任务用 tasks_schedule 调整）。负责项目时用里程碑组织工作，里程碑的任务都关闭后验收并标记完成。");
         }
 
+        if (FeatureMatcher.IsGranted(agent.Permissions, AnalyticsFeatures.View)
+            && await modules.IsEnabledAsync(AnalyticsModule.ModuleKey, cancellationToken).ConfigureAwait(false))
+        {
+            sb.AppendLine("- 涉及经营数据（销售额、赢单、任务完成量、花费等）时用 analytics_query 或 analytics_get_overview 查实际数字，不要估算；写周报月报先看概览。");
+        }
+
         return sb.ToString();
     }
 
     public async Task<string> BuildWakeMessageAsync(Agent agent, WakeupRequest? wakeup, WorkItem? focus, bool checkedOut, CancellationToken cancellationToken)
     {
         var sb = new StringBuilder();
-        sb.AppendLine(CultureInfo.InvariantCulture, $"现在是 {clock.GetUtcNow():yyyy-MM-dd HH:mm} UTC，你被唤醒了。");
+        var timeZone = await db.Tenants.AsNoTracking().Where(t => t.Id == agent.TenantId).Select(t => t.TimeZone)
+            .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        sb.AppendLine(CultureInfo.InvariantCulture, $"现在是 {TimeZones.Describe(clock.GetUtcNow(), timeZone)}，你被唤醒了。");
         sb.AppendLine().AppendLine("## 唤醒原因");
         if (wakeup is null || wakeup.Items.Count == 0)
         {

@@ -5,6 +5,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Button, Field, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { auth, useAuth } from '@/lib/auth';
+import { localTimeZone } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
 export default function LoginScreen() {
@@ -24,6 +25,7 @@ export default function LoginScreen() {
             password: form.password,
             displayName: form.displayName.trim(),
             tenantName: form.tenantName.trim() || `${form.displayName.trim()}的空间`,
+            timeZone: localTimeZone(),
           });
     },
     onSuccess: (response) => auth.setToken(response.accessToken),

@@ -125,3 +125,15 @@ public sealed record CreateApiKeyRequest
 /// 创建结果。Token 只在此时返回一次，服务端只保存哈希。
 /// </summary>
 public sealed record CreatedApiKeyDto(ApiKeyDto Key, string Token);
+
+public sealed record TenantSettingsDto(Guid Id, string Name, string Slug, string TimeZone);
+
+public sealed record UpdateTenantSettingsRequest
+{
+    public required string Name { get; init; }
+
+    /// <summary>
+    /// IANA 时区名，如 Asia/Shanghai。
+    /// </summary>
+    public required string TimeZone { get; init; }
+}

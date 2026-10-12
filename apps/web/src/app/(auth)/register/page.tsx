@@ -2,6 +2,7 @@
 
 import { AuthForm } from '@/components/app/auth-form';
 import { api } from '@/lib/api';
+import { localTimeZone } from '@/lib/labels';
 
 export default function RegisterPage() {
   return (
@@ -15,7 +16,9 @@ export default function RegisterPage() {
         { name: 'email', label: '邮箱', type: 'email', placeholder: 'you@example.com', autoComplete: 'email' },
         { name: 'password', label: '密码（至少 8 位）', type: 'password', autoComplete: 'new-password' },
       ]}
-      submit={(v) => api.auth.register({ displayName: v.displayName, tenantName: v.tenantName, email: v.email, password: v.password })}
+      submit={(v) =>
+        api.auth.register({ displayName: v.displayName, tenantName: v.tenantName, email: v.email, password: v.password, timeZone: localTimeZone() })
+      }
       footer={{ text: '已有账号？', href: '/login', link: '登录' }}
     />
   );

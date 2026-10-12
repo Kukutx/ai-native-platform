@@ -14,7 +14,7 @@ internal sealed class PlatformCoreModule : IPlatformModule
 
     public string Name => "平台核心";
 
-    public string Description => "租户、组织架构、成员、角色权限、模块与用量管理。";
+    public string Description => "租户、组织架构、成员、角色权限、模块、空间设置与用量管理。";
 
     public bool IsCore => true;
 
@@ -29,6 +29,7 @@ internal sealed class PlatformCoreModule : IPlatformModule
         new(Access.Features.Platform.ModulesManage, "启用/停用模块", ModuleKey),
         new(Access.Features.Platform.UsageView, "查看用量与费用", ModuleKey),
         new(Access.Features.Platform.ApiKeysUse, "创建个人 API 密钥（MCP 与外部集成）", ModuleKey),
+        new(Access.Features.Platform.SettingsManage, "修改空间名称与时区", ModuleKey),
     ];
 }
 

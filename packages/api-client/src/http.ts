@@ -1,6 +1,7 @@
 import {
   ActionsClient,
   AgentsClient,
+  AnalyticsClient,
   ApiException,
   ApiKeysClient,
   ApprovalsClient,
@@ -26,6 +27,7 @@ import {
   ProjectsClient,
   RolesClient,
   RunsClient,
+  TenantClient,
   UsageClient,
   WorkItemsClient,
   WorkflowsClient,
@@ -89,6 +91,8 @@ export function createApi(config: ApiConfig) {
     models: new ModelsClient(baseUrl, http),
     workflows: new WorkflowsClient(baseUrl, http),
     projects: new ProjectsClient(baseUrl, http),
+    analytics: new AnalyticsClient(baseUrl, http),
+    tenant: new TenantClient(baseUrl, http),
     crm: {
       companies: new CrmCompaniesClient(baseUrl, http),
       contacts: new CrmContactsClient(baseUrl, http),

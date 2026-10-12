@@ -1,4 +1,5 @@
 using AiNative.Application.Access;
+using AiNative.Application.Analytics;
 using AiNative.Application.Crm;
 using AiNative.Application.Erp;
 using AiNative.Application.Projects;
@@ -17,17 +18,18 @@ public static class DefaultRoles
     public static IReadOnlyList<(string Key, string Name, string Description, string[] Features)> All { get; } =
     [
         (Admin, "管理员", "拥有全部权限", [FeatureMatcher.All]),
-        (Member, "成员", "管理任务、项目、知识库、客户、销售订单与自动化工作流，与智能体协作，使用工作台对话",
+        (Member, "成员", "管理任务、项目、知识库、客户、销售订单、报表与自动化工作流，与智能体协作，使用工作台对话",
         [
             Features.Agents.View, Features.Agents.Wake, "tasks.*", Features.Runs.View, Features.Approvals.View,
             Features.Chat.Use, Features.Platform.MembersView, "knowledge.*", Features.Memory.Use, Features.Platform.ApiKeysUse,
             "workflows.*", CrmFeatures.View, CrmFeatures.Manage, ErpFeatures.View, ErpFeatures.Sales,
-            ProjectFeatures.View, ProjectFeatures.Manage,
+            ProjectFeatures.View, ProjectFeatures.Manage, AnalyticsFeatures.View, AnalyticsFeatures.Manage,
         ]),
         (Viewer, "只读", "只能查看",
         [
             Features.Agents.View, Features.Tasks.View, Features.Runs.View, Features.Approvals.View, Features.Platform.MembersView,
             Features.Knowledge.View, Features.Workflows.View, CrmFeatures.View, ErpFeatures.View, ProjectFeatures.View,
+            AnalyticsFeatures.View,
         ]),
     ];
 }

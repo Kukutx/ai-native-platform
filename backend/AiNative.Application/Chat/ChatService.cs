@@ -132,10 +132,13 @@ internal sealed class ChatTurnRunner(
         var history = TrimHistory(recent);
 
         var userName = await db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.DisplayName).FirstAsync(cancellationToken).ConfigureAwait(false);
+        var timeZone = await db.Tenants.AsNoTracking().Where(t => t.Id == conversation.TenantId).Select(t => t.TimeZone)
+            .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
+        var now = $"现在是 {TimeZones.Describe(clock.GetUtcNow(), timeZone)}。";
         var system = agent is null
-            ? GeneralAssistantPrompt(userName)
+            ? GeneralAssistantPrompt(userName) + now
             : await prompts.BuildSystemPromptAsync(agent, cancellationToken).ConfigureAwait(false)
-              + $"\n\n## 当前场景\n你正在工作台与成员 {userName} 直接对话。按对方的要求回答或动手；操作以对方的权限执行。";
+              + $"\n\n## 当前场景\n你正在工作台与成员 {userName} 直接对话。按对方的要求回答或动手；操作以对方的权限执行。\n{now}";
         List<ChatMessage> messages = [new(ChatRole.System, system)];
         messages.AddRange(history.Select(ChatMapping.Deserialize).OfType<ChatMessage>());
 
@@ -277,6 +280,7 @@ internal sealed class ChatTurnRunner(
             - 需要动手时直接调用工具，完成后用简短的话说明结果；涉及多步操作先说明计划。
             - 想让智能体员工去做的事，创建任务并指派给合适的智能体，它会被自动唤醒。
             - 回答业务问题前可以先用 knowledge_search 查团队知识库；对方让你"记住"的偏好或约定用 memory_retain 记下，需要时用 memory_recall 回忆。
+            - 问到销售额、赢单率、任务完成量、花费等经营数据时用 analytics_query 或 analytics_get_overview 查实际数字（"本月""上周"按空间时区算）。
             - 不确定时先查询再回答，不要编造数据。
             - 用对方使用的语言回复。
             """);

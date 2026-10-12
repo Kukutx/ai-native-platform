@@ -4,11 +4,13 @@ using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
 using AiNative.Application.Agents;
 using AiNative.Application.Ai;
+using AiNative.Application.Analytics;
 using AiNative.Application.Common;
 using AiNative.Application.Crm;
 using AiNative.Application.Erp;
 using AiNative.Application.Projects;
 using AiNative.Application.Modules;
+using AiNative.Application.Tenancy;
 using AiNative.Contracts.Auth;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Identity;
@@ -38,6 +40,7 @@ public sealed class RegisterCommandValidator : AbstractValidator<RegisterCommand
         RuleFor(x => x.Request.Password).NotEmpty().MinimumLength(8).MaximumLength(128);
         RuleFor(x => x.Request.DisplayName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Request.TenantName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Request.TimeZone).MaximumLength(64);
     }
 }
 
@@ -73,7 +76,7 @@ internal sealed class AuthHandlers(
         }
 
         var user = new User { Email = email, DisplayName = r.DisplayName.Trim(), PasswordHash = passwords.Hash(r.Password), LastLoginAt = clock.GetUtcNow() };
-        var tenant = new Tenant { Name = r.TenantName.Trim(), Slug = Slugify(r.TenantName) };
+        var tenant = new Tenant { Name = r.TenantName.Trim(), Slug = Slugify(r.TenantName), TimeZone = TimeZones.Normalize(r.TimeZone) ?? TimeZones.Utc };
         var root = new Organization { TenantId = tenant.Id, Name = tenant.Name };
         root.PlaceUnder(null);
 
@@ -95,7 +98,7 @@ internal sealed class AuthHandlers(
             TenantId = tenant.Id,
             Name = "小智",
             Title = "首席助理",
-            Instructions = "负责理解管理者的目标，把它拆解成可执行的任务，委派给合适的同事并跟进结果。团队缺少某类岗位时，可以申请招聘新的智能体。较大的目标建成项目，用里程碑跟踪进度。重要的结论和资料整理进知识库，方便团队以后查阅。反复出现的固定流程可以申请设置成自动化工作流。",
+            Instructions = "负责理解管理者的目标，把它拆解成可执行的任务，委派给合适的同事并跟进结果。团队缺少某类岗位时，可以申请招聘新的智能体。较大的目标建成项目，用里程碑跟踪进度。被问到经营数据时先查经营分析里的指标，不要凭印象回答。重要的结论和资料整理进知识库，方便团队以后查阅。反复出现的固定流程可以申请设置成自动化工作流。",
             ModelProvider = models.Default.Provider,
             Model = models.Default.Model,
             Permissions =
@@ -103,7 +106,7 @@ internal sealed class AuthHandlers(
                 .. AgentDefaults.Permissions, Features.Agents.Manage, Features.Knowledge.Manage,
                 Features.Workflows.View, Features.Workflows.Manage, Features.Workflows.Run,
                 CrmFeatures.View, CrmFeatures.Manage, ErpFeatures.View, ErpFeatures.Sales, ErpFeatures.Purchase,
-                ProjectFeatures.View, ProjectFeatures.Manage,
+                ProjectFeatures.View, ProjectFeatures.Manage, AnalyticsFeatures.Manage,
             ],
             MonthlyBudgetUsd = 20,
         };
@@ -121,7 +124,7 @@ internal sealed class AuthHandlers(
         }
 
         var token = tokens.Issue(user.Id, tenant.Id, membership.Id);
-        var summary = new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, true);
+        var summary = new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, true, tenant.TimeZone);
         var defaults = modules.ResolveEnabled(new Dictionary<string, bool>());
         List<string> enabled = [.. modules.Modules.Where(m => defaults.Contains(m.Key)).Select(m => m.Key)];
         var session = new SessionDto(
@@ -190,7 +193,7 @@ internal sealed class AuthHandlers(
             .ToDictionaryAsync(t => t.Id, cancellationToken).ConfigureAwait(false);
         var summaries = memberships
             .Where(m => tenants.ContainsKey(m.TenantId))
-            .Select(m => new TenantSummaryDto(m.TenantId, tenants[m.TenantId].Name, tenants[m.TenantId].Slug, m.IsOwner))
+            .Select(m => new TenantSummaryDto(m.TenantId, tenants[m.TenantId].Name, tenants[m.TenantId].Slug, m.IsOwner, tenants[m.TenantId].TimeZone))
             .OrderBy(t => t.Name, StringComparer.Ordinal)
             .ToList();
 

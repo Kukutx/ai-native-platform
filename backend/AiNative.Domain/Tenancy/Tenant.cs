@@ -15,4 +15,9 @@ public sealed class Tenant : Entity
     /// 工作项编号计数器，按租户递增（T-1、T-2……），通过原子 UPDATE 分配。
     /// </summary>
     public int WorkItemSequence { get; set; }
+
+    /// <summary>
+    /// 空间时区（IANA 名称，如 Asia/Shanghai）。按天统计、"今天""本月"这类日期都按它计算。
+    /// </summary>
+    public string TimeZone { get; set; } = "UTC";
 }
