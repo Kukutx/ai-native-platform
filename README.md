@@ -110,7 +110,7 @@ cp apps/mobile/.env.example apps/mobile/.env   # 真机调试时把地址改成�
 pnpm dev:mobile
 ```
 
-登录页可以临时修改服务器地址。对话使用 `expo/fetch` 读取流式响应，任务和审批通过 SignalR 实时刷新。
+登录页可以临时修改服务器地址。对话使用 `expo/fetch` 读取流式响应，任务和审批通过 SignalR 实时刷新。安卓正式版（release 构建）默认禁止明文 HTTP，分发安装包时服务器必须是 HTTPS。
 
 ### 生产部署
 
