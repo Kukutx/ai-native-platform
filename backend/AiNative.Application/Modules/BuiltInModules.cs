@@ -42,7 +42,7 @@ internal sealed class AgentsModule : IPlatformModule
 
     public string Name => "智能体团队";
 
-    public string Description => "像组建公司一样组建智能体团队：岗位与汇报关系、任务指派与原子领取、按心跳自主执行、预算控制与人工审批。";
+    public string Description => "像组建公司一样组建智能体团队：岗位与汇报关系、任务指派与原子领取、任务的前后依赖、按心跳自主执行、预算控制与人工审批。";
 
     public bool IsCore => false;
 

@@ -5328,6 +5328,39 @@
         }
       }
     },
+    "/api/projects/{id}/schedule": {
+      "get": {
+        "tags": [
+          "Projects"
+        ],
+        "summary": "项目排期（甘特图数据）：任务起止日期、项目内的依赖、排期冲突和关键路径。需要同时有项目和任务的查看权限。",
+        "operationId": "Projects_Schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectScheduleDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/projects/{id}/milestones": {
       "post": {
         "tags": [
@@ -6401,6 +6434,132 @@
         }
       }
     },
+    "/api/work-items/{id}/schedule": {
+      "put": {
+        "tags": [
+          "WorkItems"
+        ],
+        "summary": "调整开始和截止日期（甘特图拖动用）。shiftDependents 为 true 时顺延因此冲突的后续任务，沿依赖链传递，只往后挪。",
+        "operationId": "WorkItems_Schedule",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleWorkItemRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScheduleWorkItemResultDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-items/{id}/dependencies": {
+      "post": {
+        "tags": [
+          "WorkItems"
+        ],
+        "summary": "添加前置任务：这个任务要等它关闭（完成或取消）后才能开始。形成循环返回 409 work_item_dependency.cycle。",
+        "operationId": "WorkItems_AddDependency",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddWorkItemDependencyRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemLinkDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-items/{id}/dependencies/{dependsOnId}": {
+      "delete": {
+        "tags": [
+          "WorkItems"
+        ],
+        "summary": "去掉前置任务。任务因此不再等任何前置任务时，负责的智能体会被唤醒。",
+        "operationId": "WorkItems_RemoveDependency",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "dependsOnId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 2
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/api/work-items/{id}/comments": {
       "post": {
         "tags": [
@@ -7294,7 +7453,8 @@
           "Approval",
           "Timer",
           "Delegation",
-          "Automation"
+          "Automation",
+          "Dependency"
         ],
         "enum": [
           "on_demand",
@@ -7303,7 +7463,8 @@
           "approval",
           "timer",
           "delegation",
-          "automation"
+          "automation",
+          "dependency"
         ]
       },
       "WakeAgentRequest": {
@@ -12166,6 +12327,203 @@
           }
         }
       },
+      "ProjectScheduleDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "project",
+          "milestones",
+          "tasks",
+          "links",
+          "conflicts",
+          "unscheduled",
+          "truncated"
+        ],
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectDto"
+          },
+          "milestones": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectMilestoneDto"
+            }
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduledTaskDto"
+            }
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleLinkDto"
+            }
+          },
+          "start": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "conflicts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "unscheduled": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ScheduledTaskDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "key",
+          "title",
+          "status",
+          "priority",
+          "isOverdue",
+          "waitingOn",
+          "critical",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkItemStatus"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/WorkItemPriority"
+          },
+          "milestoneId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "parentId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "assignee": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActorDto"
+              }
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isOverdue": {
+            "type": "boolean"
+          },
+          "waitingOn": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "critical": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WorkItemStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Backlog",
+          "Todo",
+          "InProgress",
+          "InReview",
+          "Blocked",
+          "Done",
+          "Cancelled"
+        ],
+        "enum": [
+          "backlog",
+          "todo",
+          "in_progress",
+          "in_review",
+          "blocked",
+          "done",
+          "cancelled"
+        ]
+      },
+      "WorkItemPriority": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Low",
+          "Medium",
+          "High",
+          "Urgent"
+        ],
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "urgent"
+        ]
+      },
+      "ScheduleLinkDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fromId",
+          "toId",
+          "conflict"
+        ],
+        "properties": {
+          "fromId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "toId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "conflict": {
+            "type": "boolean"
+          }
+        }
+      },
       "SaveProjectRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -13170,6 +13528,11 @@
             "format": "guid",
             "nullable": true
           },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
           "dueDate": {
             "type": "string",
             "format": "date",
@@ -13213,51 +13576,15 @@
           }
         }
       },
-      "WorkItemStatus": {
-        "type": "string",
-        "description": "",
-        "x-enumNames": [
-          "Backlog",
-          "Todo",
-          "InProgress",
-          "InReview",
-          "Blocked",
-          "Done",
-          "Cancelled"
-        ],
-        "enum": [
-          "backlog",
-          "todo",
-          "in_progress",
-          "in_review",
-          "blocked",
-          "done",
-          "cancelled"
-        ]
-      },
-      "WorkItemPriority": {
-        "type": "string",
-        "description": "",
-        "x-enumNames": [
-          "Low",
-          "Medium",
-          "High",
-          "Urgent"
-        ],
-        "enum": [
-          "low",
-          "medium",
-          "high",
-          "urgent"
-        ]
-      },
       "WorkItemDetailDto": {
         "type": "object",
         "additionalProperties": false,
         "required": [
           "item",
           "subtasks",
-          "comments"
+          "comments",
+          "dependencies",
+          "dependents"
         ],
         "properties": {
           "item": {
@@ -13273,6 +13600,18 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CommentDto"
+            }
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkItemLinkDto"
+            }
+          },
+          "dependents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkItemLinkDto"
             }
           }
         }
@@ -13313,6 +13652,46 @@
           }
         }
       },
+      "WorkItemLinkDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "key",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkItemStatus"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "projectId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
       "CreateWorkItemRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -13348,6 +13727,11 @@
             "format": "guid",
             "nullable": true
           },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
           "dueDate": {
             "type": "string",
             "format": "date",
@@ -13362,6 +13746,14 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "dependsOn": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
           }
         }
       },
@@ -13399,6 +13791,11 @@
             "format": "guid",
             "nullable": true
           },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
           "dueDate": {
             "type": "string",
             "format": "date",
@@ -13418,6 +13815,99 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          }
+        }
+      },
+      "ScheduleWorkItemResultDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "item",
+          "shifted"
+        ],
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/WorkItemDto"
+          },
+          "shifted": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShiftedWorkItemDto"
+            }
+          }
+        }
+      },
+      "ShiftedWorkItemDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "key",
+          "title",
+          "days"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "days": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ScheduleWorkItemRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "shiftDependents": {
+            "type": "boolean"
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "AddWorkItemDependencyRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dependsOnId",
+          "dependsOnId"
+        ],
+        "properties": {
+          "dependsOnId": {
+            "type": "string",
+            "format": "guid"
           }
         }
       },

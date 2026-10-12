@@ -36,7 +36,13 @@ export function TaskCreateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-lg'>
         {open ? (
-          <TaskForm key={`${parentId}-${projectId}-${milestoneId}`} parentId={parentId} projectId={projectId} milestoneId={milestoneId} onClose={() => onOpenChange(false)} />
+          <TaskForm
+            key={`${parentId}-${projectId}-${milestoneId}`}
+            parentId={parentId}
+            projectId={projectId}
+            milestoneId={milestoneId}
+            onClose={() => onOpenChange(false)}
+          />
         ) : null}
       </DialogContent>
     </Dialog>
@@ -49,7 +55,7 @@ function TaskForm({ parentId, projectId, milestoneId, onClose }: { parentId?: st
   const [form, setForm] = useState<CreateWorkItemRequest>({ title: '', description: '', priority: 'medium', projectId, milestoneId });
   const fixedPlacement = !!parentId || !!projectId;
   const create = useMutation({
-    mutationFn: () => api.workItems.create({ ...form, parentId, dueDate: form.dueDate || undefined }),
+    mutationFn: () => api.workItems.create({ ...form, parentId, startDate: form.startDate || undefined, dueDate: form.dueDate || undefined }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['work-items'] });
       if (parentId) {
@@ -125,13 +131,27 @@ function TaskForm({ parentId, projectId, milestoneId, onClose }: { parentId?: st
           />
         )}
         <div className='grid gap-2'>
+          <Label htmlFor='task-start'>开始日期</Label>
+          <Input
+            id='task-start'
+            type='date'
+            value={form.startDate ?? ''}
+            max={form.dueDate}
+            onChange={(e) => setForm({ ...form, startDate: e.target.value || undefined })}
+          />
+        </div>
+        <div className='grid gap-2'>
           <Label htmlFor='task-due'>截止日期</Label>
-          <Input id='task-due' type='date' value={form.dueDate ?? ''} onChange={(e) => setForm({ ...form, dueDate: e.target.value || undefined })} />
+          <Input
+            id='task-due'
+            type='date'
+            value={form.dueDate ?? ''}
+            min={form.startDate}
+            onChange={(e) => setForm({ ...form, dueDate: e.target.value || undefined })}
+          />
         </div>
       </div>
-      <p className='text-muted-foreground text-xs'>
-        {parentId ? '子任务跟上级任务在同一个项目和里程碑里。' : null}指派后智能体会立即被唤醒并开始处理。
-      </p>
+      <p className='text-muted-foreground text-xs'>{parentId ? '子任务跟上级任务在同一个项目和里程碑里。' : null}指派后智能体会立即被唤醒并开始处理。</p>
       <DialogFooter>
         <Button type='submit' disabled={create.isPending}>
           创建

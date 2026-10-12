@@ -48,6 +48,8 @@ public interface IAppDbContext
 
     DbSet<WorkItemComment> WorkItemComments { get; }
 
+    DbSet<WorkItemDependency> WorkItemDependencies { get; }
+
     DbSet<Approval> Approvals { get; }
 
     DbSet<CostEvent> CostEvents { get; }

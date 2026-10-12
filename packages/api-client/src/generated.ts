@@ -6168,6 +6168,46 @@ export class ProjectsClient {
         return Promise.resolve<void>(null as any);
     }
 
+    /**
+     * 项目排期（甘特图数据）：任务起止日期、项目内的依赖、排期冲突和关键路径。需要同时有项目和任务的查看权限。
+     */
+    schedule(id: string, signal?: AbortSignal): Promise<ProjectScheduleDto> {
+        let url_ = this.baseUrl + "/api/projects/{id}/schedule";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processSchedule(_response);
+        });
+    }
+
+    protected processSchedule(response: Response): Promise<ProjectScheduleDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ProjectScheduleDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ProjectScheduleDto>(null as any);
+    }
+
     addMilestone(id: string, request: SaveProjectMilestoneRequest, signal?: AbortSignal): Promise<ProjectMilestoneDto> {
         let url_ = this.baseUrl + "/api/projects/{id}/milestones";
         if (id === undefined || id === null)
@@ -7258,6 +7298,134 @@ export class WorkItemsClient {
         return Promise.resolve<WorkItemDto>(null as any);
     }
 
+    /**
+     * 调整开始和截止日期（甘特图拖动用）。shiftDependents 为 true 时顺延因此冲突的后续任务，沿依赖链传递，只往后挪。
+     */
+    schedule(id: string, request: ScheduleWorkItemRequest, signal?: AbortSignal): Promise<ScheduleWorkItemResultDto> {
+        let url_ = this.baseUrl + "/api/work-items/{id}/schedule";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processSchedule(_response);
+        });
+    }
+
+    protected processSchedule(response: Response): Promise<ScheduleWorkItemResultDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as ScheduleWorkItemResultDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<ScheduleWorkItemResultDto>(null as any);
+    }
+
+    /**
+     * 添加前置任务：这个任务要等它关闭（完成或取消）后才能开始。形成循环返回 409 work_item_dependency.cycle。
+     */
+    addDependency(id: string, request: AddWorkItemDependencyRequest, signal?: AbortSignal): Promise<WorkItemLinkDto> {
+        let url_ = this.baseUrl + "/api/work-items/{id}/dependencies";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processAddDependency(_response);
+        });
+    }
+
+    protected processAddDependency(response: Response): Promise<WorkItemLinkDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkItemLinkDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkItemLinkDto>(null as any);
+    }
+
+    /**
+     * 去掉前置任务。任务因此不再等任何前置任务时，负责的智能体会被唤醒。
+     */
+    removeDependency(id: string, dependsOnId: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/work-items/{id}/dependencies/{dependsOnId}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        if (dependsOnId === undefined || dependsOnId === null)
+            throw new globalThis.Error("The parameter 'dependsOnId' must be defined.");
+        url_ = url_.replace("{dependsOnId}", encodeURIComponent("" + dependsOnId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processRemoveDependency(_response);
+        });
+    }
+
+    protected processRemoveDependency(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
     addComment(id: string, request: AddCommentRequest, signal?: AbortSignal): Promise<CommentDto> {
         let url_ = this.baseUrl + "/api/work-items/{id}/comments";
         if (id === undefined || id === null)
@@ -7502,7 +7670,7 @@ export interface WakeupItemDto {
     requestedAt: string;
 }
 
-export type WakeupSource = "on_demand" | "assignment" | "comment" | "approval" | "timer" | "delegation" | "automation";
+export type WakeupSource = "on_demand" | "assignment" | "comment" | "approval" | "timer" | "delegation" | "automation" | "dependency";
 
 export interface WakeAgentRequest {
     reason?: string;
@@ -8648,6 +8816,46 @@ export interface ProjectMemberDto {
     createdAt: string;
 }
 
+export interface ProjectScheduleDto {
+    project: ProjectDto;
+    milestones: ProjectMilestoneDto[];
+    tasks: ScheduledTaskDto[];
+    links: ScheduleLinkDto[];
+    start?: string | undefined;
+    end?: string | undefined;
+    conflicts: number;
+    unscheduled: number;
+    truncated: boolean;
+}
+
+export interface ScheduledTaskDto {
+    id: string;
+    key: string;
+    title: string;
+    status: WorkItemStatus;
+    priority: WorkItemPriority;
+    milestoneId?: string | undefined;
+    parentId?: string | undefined;
+    assignee?: ActorDto | undefined;
+    startDate?: string | undefined;
+    dueDate?: string | undefined;
+    completedAt?: string | undefined;
+    isOverdue: boolean;
+    waitingOn: number;
+    critical: boolean;
+    updatedAt: string;
+}
+
+export type WorkItemStatus = "backlog" | "todo" | "in_progress" | "in_review" | "blocked" | "done" | "cancelled";
+
+export type WorkItemPriority = "low" | "medium" | "high" | "urgent";
+
+export interface ScheduleLinkDto {
+    fromId: string;
+    toId: string;
+    conflict: boolean;
+}
+
 export interface SaveProjectRequest {
     name: string;
     description?: string;
@@ -8881,6 +9089,7 @@ export interface WorkItemDto {
     parentId?: string | undefined;
     projectId?: string | undefined;
     milestoneId?: string | undefined;
+    startDate?: string | undefined;
     dueDate?: string | undefined;
     assigneeAgentId?: string | undefined;
     assigneeUserId?: string | undefined;
@@ -8892,14 +9101,12 @@ export interface WorkItemDto {
     completedAt?: string | undefined;
 }
 
-export type WorkItemStatus = "backlog" | "todo" | "in_progress" | "in_review" | "blocked" | "done" | "cancelled";
-
-export type WorkItemPriority = "low" | "medium" | "high" | "urgent";
-
 export interface WorkItemDetailDto {
     item: WorkItemDto;
     subtasks: WorkItemDto[];
     comments: CommentDto[];
+    dependencies: WorkItemLinkDto[];
+    dependents: WorkItemLinkDto[];
 }
 
 export interface CommentDto {
@@ -8911,6 +9118,16 @@ export interface CommentDto {
     createdAt: string;
 }
 
+export interface WorkItemLinkDto {
+    id: string;
+    key: string;
+    title: string;
+    status: WorkItemStatus;
+    startDate?: string | undefined;
+    dueDate?: string | undefined;
+    projectId?: string | undefined;
+}
+
 export interface CreateWorkItemRequest {
     title: string;
     description?: string;
@@ -8919,9 +9136,11 @@ export interface CreateWorkItemRequest {
     parentId?: string | undefined;
     projectId?: string | undefined;
     milestoneId?: string | undefined;
+    startDate?: string | undefined;
     dueDate?: string | undefined;
     assigneeAgentId?: string | undefined;
     assigneeUserId?: string | undefined;
+    dependsOn?: string[] | undefined;
 }
 
 export interface UpdateWorkItemRequest {
@@ -8931,10 +9150,36 @@ export interface UpdateWorkItemRequest {
     priority: WorkItemPriority;
     projectId?: string | undefined;
     milestoneId?: string | undefined;
+    startDate?: string | undefined;
     dueDate?: string | undefined;
     assigneeAgentId?: string | undefined;
     assigneeUserId?: string | undefined;
     expectedUpdatedAt?: string | undefined;
+}
+
+export interface ScheduleWorkItemResultDto {
+    item: WorkItemDto;
+    shifted: ShiftedWorkItemDto[];
+}
+
+export interface ShiftedWorkItemDto {
+    id: string;
+    key: string;
+    title: string;
+    startDate?: string | undefined;
+    dueDate?: string | undefined;
+    days: number;
+}
+
+export interface ScheduleWorkItemRequest {
+    startDate?: string | undefined;
+    dueDate?: string | undefined;
+    shiftDependents?: boolean;
+    expectedUpdatedAt?: string | undefined;
+}
+
+export interface AddWorkItemDependencyRequest {
+    dependsOnId: string;
 }
 
 export interface AddCommentRequest {

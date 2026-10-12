@@ -146,10 +146,23 @@ internal sealed class AgentPromptBuilder(
             ? []
             : await db.Projects.AsNoTracking().Where(p => projectIds.Contains(p.Id))
                 .ToDictionaryAsync(p => p.Id, p => p.Name, cancellationToken).ConfigureAwait(false);
+        // 还在等的前置任务：前置任务关闭前领取不到，提示智能体先别开始。
+        var mineIds = mine.Select(w => w.Id).ToList();
+        var waiting = (await db.WorkItemDependencies.AsNoTracking()
+                .Where(d => mineIds.Contains(d.WorkItemId))
+                .Join(
+                    db.WorkItems.Where(p => p.Status != WorkItemStatus.Done && p.Status != WorkItemStatus.Cancelled),
+                    d => d.DependsOnId,
+                    p => p.Id,
+                    (d, p) => new { d.WorkItemId, p.Number })
+                .ToListAsync(cancellationToken).ConfigureAwait(false))
+            .ToLookup(x => x.WorkItemId, x => x.Number);
         foreach (var w in mine)
         {
             var project = w.ProjectId is { } projectId && projectNames.TryGetValue(projectId, out var name) ? $"，项目《{name}》" : string.Empty;
-            sb.AppendLine(CultureInfo.InvariantCulture, $"- T-{w.Number}《{w.Title}》 状态 {w.Status}，优先级 {w.Priority}{project}{DueText(w.DueDate, today)}，id {w.Id}");
+            var blockers = waiting[w.Id].Order().Select(n => $"T-{n}").ToList();
+            var wait = blockers.Count == 0 ? string.Empty : $"，等待前置任务 {string.Join("、", blockers)} 关闭后才能开始";
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- T-{w.Number}《{w.Title}》 状态 {w.Status}，优先级 {w.Priority}{project}{StartText(w.StartDate)}{DueText(w.DueDate, today)}{wait}，id {w.Id}");
         }
 
         await AppendLedProjectsAsync(sb, agent, today, cancellationToken).ConfigureAwait(false);
@@ -288,7 +301,7 @@ internal sealed class AgentPromptBuilder(
     {
         sb.AppendLine().AppendLine(checkedOut ? "## 本轮聚焦的任务（已为你领取）" : "## 相关任务（由他人负责，仅供参考）");
         sb.AppendLine(CultureInfo.InvariantCulture, $"{FocusMarker} {focus.Id}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T-{focus.Number}《{focus.Title}》 状态 {focus.Status}，优先级 {focus.Priority}{DueText(focus.DueDate, DateOnly.FromDateTime(clock.GetLocalNow().DateTime))}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"T-{focus.Number}《{focus.Title}》 状态 {focus.Status}，优先级 {focus.Priority}{StartText(focus.StartDate)}{DueText(focus.DueDate, DateOnly.FromDateTime(clock.GetLocalNow().DateTime))}");
         if (focus.ProjectId is { } projectId)
         {
             var project = await db.Projects.AsNoTracking().Where(p => p.Id == projectId)
@@ -333,6 +346,8 @@ internal sealed class AgentPromptBuilder(
             }
         }
 
+        await AppendDependenciesAsync(sb, focus, cancellationToken).ConfigureAwait(false);
+
         var comments = await db.WorkItemComments.AsNoTracking().Where(c => c.WorkItemId == focus.Id)
             .OrderByDescending(c => c.CreatedAt).Take(15)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
@@ -347,6 +362,40 @@ internal sealed class AgentPromptBuilder(
             }
         }
     }
+
+    /// <summary>
+    /// 前置任务（都关闭后才能开始）和后续任务（完成后会解锁），各列最多 10 个。
+    /// </summary>
+    private async Task AppendDependenciesAsync(StringBuilder sb, WorkItem focus, CancellationToken cancellationToken)
+    {
+        var predecessors = await db.WorkItems.AsNoTracking()
+            .Where(w => db.WorkItemDependencies.Any(d => d.WorkItemId == focus.Id && d.DependsOnId == w.Id))
+            .OrderBy(w => w.Number).Take(10)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (predecessors.Count > 0)
+        {
+            sb.AppendLine("前置任务（都关闭后才能开始）：");
+            foreach (var p in predecessors)
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- T-{p.Number}《{p.Title}》 状态 {p.Status}，id {p.Id}");
+            }
+        }
+
+        var dependents = await db.WorkItems.AsNoTracking()
+            .Where(w => db.WorkItemDependencies.Any(d => d.DependsOnId == focus.Id && d.WorkItemId == w.Id))
+            .OrderBy(w => w.Number).Take(10)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (dependents.Count > 0)
+        {
+            sb.AppendLine("后续任务（在等这个任务，关闭后它们的负责人会被唤醒）：");
+            foreach (var d in dependents)
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"- T-{d.Number}《{d.Title}》 状态 {d.Status}，负责智能体 {d.AssigneeAgentId?.ToString() ?? "无"}，id {d.Id}");
+            }
+        }
+    }
+
+    private static string StartText(DateOnly? start) => start is { } date ? $"，开始 {date:yyyy-MM-dd}" : string.Empty;
 
     private static string DueText(DateOnly? due, DateOnly today)
         => due is not { } date ? string.Empty : date < today ? $"，截止 {date:yyyy-MM-dd}（已逾期）" : $"，截止 {date:yyyy-MM-dd}";

@@ -11,6 +11,11 @@ public enum WakeupSource
     Timer = 4,
     Delegation = 5,
     Automation = 6,
+
+    /// <summary>
+    /// 前置任务都已关闭，等着它们的任务可以开始了。
+    /// </summary>
+    Dependency = 7,
 }
 
 public enum WakeupStatus

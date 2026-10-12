@@ -52,6 +52,10 @@ public sealed class CreateWorkItemCommandValidator : AbstractValidator<CreateWor
         RuleFor(x => x.Request.Description).MaximumLength(50_000);
         RuleFor(x => x.Request).Must(r => r.AssigneeAgentId is null || r.AssigneeUserId is null)
             .WithMessage("任务只能指派给一个负责人。");
+        RuleFor(x => x.Request.StartDate).Must((x, start) => start is null || x.Request.DueDate is null || start <= x.Request.DueDate)
+            .WithMessage("开始日期不能晚于截止日期。").OverridePropertyName("startDate");
+        RuleFor(x => x.Request.DependsOn).Must(d => d is null || d.Distinct().Count() <= WorkItemDependencyRules.MaxPredecessors)
+            .WithMessage($"一个任务最多 {WorkItemDependencyRules.MaxPredecessors} 个前置任务。").OverridePropertyName("dependsOn");
     }
 }
 
@@ -63,6 +67,8 @@ public sealed class UpdateWorkItemCommandValidator : AbstractValidator<UpdateWor
         RuleFor(x => x.Request.Description).MaximumLength(50_000);
         RuleFor(x => x.Request).Must(r => r.AssigneeAgentId is null || r.AssigneeUserId is null)
             .WithMessage("任务只能指派给一个负责人。");
+        RuleFor(x => x.Request.StartDate).Must((x, start) => start is null || x.Request.DueDate is null || start <= x.Request.DueDate)
+            .WithMessage("开始日期不能晚于截止日期。").OverridePropertyName("startDate");
     }
 }
 
@@ -76,6 +82,7 @@ internal sealed class WorkItemCommandHandlers(
     ITenantContext tenant,
     IWorkItemNumbers numbers,
     WorkItemWorkflow workflow,
+    WorkItemDependencyRules dependencies,
     ProjectPlacement placement,
     IChangeFeed changes,
     IPlatformEvents events,
@@ -113,10 +120,10 @@ internal sealed class WorkItemCommandHandlers(
             Description = r.Description.Trim(),
             Priority = r.Priority,
             ParentId = r.ParentId,
-            DueDate = r.DueDate,
             CreatedBy = tenant.Actor,
         };
         item.PlaceIn(placed.ProjectId, placed.MilestoneId);
+        item.Reschedule(r.StartDate, r.DueDate);
         item.ChangeStatus(r.Status, clock.GetUtcNow());
         item.AssignToAgent(r.AssigneeAgentId);
         if (r.AssigneeUserId is not null)
@@ -125,6 +132,9 @@ internal sealed class WorkItemCommandHandlers(
         }
 
         db.WorkItems.Add(item);
+
+        // 先登记前置任务，指派的智能体在前置任务关闭前不会被唤醒。
+        await dependencies.AddToNewAsync(item, r.DependsOn ?? [], cancellationToken).ConfigureAwait(false);
         await workflow.OnAssignedAsync(item, null, tenant.Actor, cancellationToken).ConfigureAwait(false);
         changes.Publish(RealtimeEntities.WorkItem, item.Id, RealtimeChangeKind.Created);
         var dto = await ToDtoAsync(item, cancellationToken).ConfigureAwait(false);
@@ -153,7 +163,7 @@ internal sealed class WorkItemCommandHandlers(
         item.Description = r.Description.Trim();
         item.Priority = r.Priority;
         item.PlaceIn(placed.ProjectId, placed.MilestoneId);
-        item.DueDate = r.DueDate;
+        item.Reschedule(r.StartDate, r.DueDate);
         item.ChangeStatus(r.Status, clock.GetUtcNow());
         item.AssignToAgent(r.AssigneeAgentId);
         if (r.AssigneeUserId is not null)
@@ -356,6 +366,14 @@ internal sealed class WorkItemQueryHandlers(IAppDbContext db) :
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var comments = await db.WorkItemComments.AsNoTracking().Where(c => c.WorkItemId == item.Id).OrderBy(c => c.CreatedAt)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var predecessors = await db.WorkItems.AsNoTracking()
+            .Where(w => db.WorkItemDependencies.Any(d => d.WorkItemId == item.Id && d.DependsOnId == w.Id))
+            .OrderBy(w => w.Number)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var dependents = await db.WorkItems.AsNoTracking()
+            .Where(w => db.WorkItemDependencies.Any(d => d.DependsOnId == item.Id && d.WorkItemId == w.Id))
+            .OrderBy(w => w.Number)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
         var actors = await ActorNames.ResolveAsync(
             db,
             new[] { item.CreatedBy }.Concat(subtasks.Select(s => s.CreatedBy)).Concat(comments.Select(c => c.Author)),
@@ -363,6 +381,8 @@ internal sealed class WorkItemQueryHandlers(IAppDbContext db) :
         return new WorkItemDetailDto(
             item.ToDto(actors),
             [.. subtasks.Select(s => s.ToDto(actors))],
-            [.. comments.Select(c => c.ToDto(actors))]);
+            [.. comments.Select(c => c.ToDto(actors))],
+            [.. predecessors.Select(w => w.ToLink())],
+            [.. dependents.Select(w => w.ToLink())]);
     }
 }

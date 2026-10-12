@@ -1,7 +1,7 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { sessionCan, type WorkItemDto } from '@ainative/api-client';
+import { sessionCan, type ProjectScheduleDto, type WorkItemDto } from '@ainative/api-client';
 import { ProgressBar } from '@/components/progress';
 import { Button, Card, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
@@ -17,6 +17,11 @@ export default function ProjectDetailScreen() {
   const tasks = useQuery({
     queryKey: ['work-items', { projectId: id }],
     queryFn: ({ signal }) => getApi().workItems.list(undefined, undefined, undefined, undefined, false, 1, 200, id, undefined, signal),
+    enabled: sessionCan(session.data, 'tasks.view'),
+  });
+  const schedule = useQuery({
+    queryKey: ['project', id, 'schedule'],
+    queryFn: ({ signal }) => getApi().projects.schedule(id, signal),
     enabled: sessionCan(session.data, 'tasks.view'),
   });
   const toggleMilestone = useMutation({
@@ -51,6 +56,7 @@ export default function ProjectDetailScreen() {
           onRefresh={() => {
             void detail.refetch();
             void tasks.refetch();
+            void schedule.refetch();
           }}
         />
       }
@@ -68,6 +74,7 @@ export default function ProjectDetailScreen() {
         <Muted>{formatProgress(project.progress)}</Muted>
       </Card>
       {project.description ? <Text style={{ color: p.text, fontSize: 15, lineHeight: 22 }}>{project.description}</Text> : null}
+      {schedule.data ? <ScheduleCard data={schedule.data} /> : null}
       {milestones.map((m) => (
         <Card key={m.id}>
           <View style={styles.row}>
@@ -113,6 +120,67 @@ export default function ProjectDetailScreen() {
   );
 }
 
+/** 排期一览的最多行数；完整的甘特图在 Web 端。 */
+const SCHEDULE_ROWS = 30;
+
+function toDay(value: string) {
+  const [year = 1970, month = 1, day = 1] = value.split('-').map(Number);
+  return Date.UTC(year, month - 1, day) / 86_400_000;
+}
+
+/** 简化的甘特图：按整个排期范围等比例画出每个有日期任务的时间条，标出关键路径和与前置任务冲突的任务。 */
+function ScheduleCard({ data }: { data: ProjectScheduleDto }) {
+  const p = usePalette();
+  if (!data.start || !data.end) {
+    return null;
+  }
+
+  const start = toDay(data.start);
+  const total = toDay(data.end) - start + 1;
+  const conflicted = new Set(data.links.filter((l) => l.conflict).map((l) => l.toId));
+  const dated = data.tasks.filter((t) => t.startDate || t.dueDate);
+  return (
+    <Card>
+      <Text style={[styles.section, { color: p.text }]}>排期</Text>
+      <Muted>
+        {formatDate(data.start)} – {formatDate(data.end)}
+        {data.conflicts ? ` · ${data.conflicts} 处冲突` : ''}
+        {data.unscheduled ? ` · ${data.unscheduled} 个未排期` : ''}
+      </Muted>
+      {dated.slice(0, SCHEDULE_ROWS).map((task) => {
+        const from = toDay(task.startDate ?? task.dueDate!) - start;
+        const to = toDay(task.dueDate ?? task.startDate!) - start + 1;
+        const closed = task.status === 'done' || task.status === 'cancelled';
+        const color = conflicted.has(task.id) ? p.danger : task.critical ? p.warning : closed ? p.success : p.primary;
+        return (
+          <Pressable key={task.id} onPress={() => router.push({ pathname: '/tasks/[id]', params: { id: task.id } })} style={styles.scheduleRow}>
+            <Text style={{ color: p.text, fontSize: 13 }} numberOfLines={1}>
+              {task.key} {task.title}
+              {task.critical ? ' · 关键' : ''}
+              {conflicted.has(task.id) ? ' · 早于前置任务' : ''}
+            </Text>
+            <View style={[styles.track, { backgroundColor: p.border }]}>
+              <View
+                style={{
+                  position: 'absolute',
+                  left: `${(from / total) * 100}%`,
+                  width: `${Math.max(((to - from) / total) * 100, 1.5)}%`,
+                  height: '100%',
+                  borderRadius: 3,
+                  backgroundColor: color,
+                  opacity: closed ? 0.6 : 1,
+                }}
+              />
+            </View>
+          </Pressable>
+        );
+      })}
+      {dated.length > SCHEDULE_ROWS ? <Muted>还有 {dated.length - SCHEDULE_ROWS} 个任务，完整的甘特图请在 Web 端查看。</Muted> : null}
+      <Muted>橙色为关键路径（它晚一天项目就晚一天），红色为开始早于前置任务截止的任务。</Muted>
+    </Card>
+  );
+}
+
 function TaskRows({ items }: { items: WorkItemDto[] }) {
   const p = usePalette();
   return items.map((task) => (
@@ -132,4 +200,6 @@ const styles = StyleSheet.create({
   section: { fontSize: 16, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   taskRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
+  scheduleRow: { gap: 4, paddingVertical: 4 },
+  track: { height: 8, borderRadius: 3, overflow: 'hidden' },
 });

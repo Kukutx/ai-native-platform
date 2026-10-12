@@ -132,6 +132,7 @@ public static class DependencyInjection
         services.AddScoped<IStockLedger, StockLedger>();
         services.AddScoped<ICrmCustomFieldStore, CrmCustomFieldStore>();
         services.AddScoped<IWorkItemCheckout, WorkItemCheckout>();
+        services.AddScoped<IWorkItemGraph, WorkItemGraph>();
         services.AddHostedService<HeartbeatScheduler>();
 
         // 工作流引擎：定时触发、领取并执行运行

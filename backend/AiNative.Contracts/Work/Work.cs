@@ -14,6 +14,7 @@ public sealed record WorkItemDto(
     Guid? ParentId,
     Guid? ProjectId,
     Guid? MilestoneId,
+    DateOnly? StartDate,
     DateOnly? DueDate,
     Guid? AssigneeAgentId,
     Guid? AssigneeUserId,
@@ -24,10 +25,26 @@ public sealed record WorkItemDto(
     DateTimeOffset UpdatedAt,
     DateTimeOffset? CompletedAt);
 
+/// <param name="Dependencies">前置任务：它们都关闭（完成或取消）后这个任务才能开始。</param>
+/// <param name="Dependents">后续任务：在等这个任务关闭。</param>
 public sealed record WorkItemDetailDto(
     WorkItemDto Item,
     IReadOnlyList<WorkItemDto> Subtasks,
-    IReadOnlyList<CommentDto> Comments);
+    IReadOnlyList<CommentDto> Comments,
+    IReadOnlyList<WorkItemLinkDto> Dependencies,
+    IReadOnlyList<WorkItemLinkDto> Dependents);
+
+/// <summary>
+/// 依赖关系另一端的任务摘要。
+/// </summary>
+public sealed record WorkItemLinkDto(
+    Guid Id,
+    string Key,
+    string Title,
+    WorkItemStatus Status,
+    DateOnly? StartDate,
+    DateOnly? DueDate,
+    Guid? ProjectId);
 
 public sealed record CreateWorkItemRequest
 {
@@ -51,11 +68,21 @@ public sealed record CreateWorkItemRequest
     /// </summary>
     public Guid? MilestoneId { get; init; }
 
+    /// <summary>
+    /// 计划开始日期；和截止日期都填时不能晚于截止日期。
+    /// </summary>
+    public DateOnly? StartDate { get; init; }
+
     public DateOnly? DueDate { get; init; }
 
     public Guid? AssigneeAgentId { get; init; }
 
     public Guid? AssigneeUserId { get; init; }
+
+    /// <summary>
+    /// 前置任务 ID：它们都关闭后这个任务才能开始。指派给智能体时，前置任务未关闭就先不唤醒它。
+    /// </summary>
+    public IReadOnlyList<Guid>? DependsOn { get; init; }
 }
 
 public sealed record UpdateWorkItemRequest
@@ -75,6 +102,8 @@ public sealed record UpdateWorkItemRequest
 
     public Guid? MilestoneId { get; init; }
 
+    public DateOnly? StartDate { get; init; }
+
     public DateOnly? DueDate { get; init; }
 
     public Guid? AssigneeAgentId { get; init; }
@@ -93,3 +122,41 @@ public sealed record AddCommentRequest
 {
     public required string Body { get; init; }
 }
+
+public sealed record AddWorkItemDependencyRequest
+{
+    /// <summary>
+    /// 前置任务 ID。不能是任务自己，也不能形成循环（前置任务已经直接或间接依赖这个任务）。
+    /// </summary>
+    public required Guid DependsOnId { get; init; }
+}
+
+public sealed record ScheduleWorkItemRequest
+{
+    /// <summary>
+    /// 新的开始日期，留空表示清除。
+    /// </summary>
+    public DateOnly? StartDate { get; init; }
+
+    /// <summary>
+    /// 新的截止日期，留空表示清除。
+    /// </summary>
+    public DateOnly? DueDate { get; init; }
+
+    /// <summary>
+    /// 为 true 时顺延后续任务：开始日期早于本任务（以及被顺延任务）截止日期的未关闭后续任务，开始和截止日期一起往后挪，
+    /// 沿依赖链传递。只往后顺延，不会自动提前。
+    /// </summary>
+    public bool ShiftDependents { get; init; }
+
+    /// <summary>
+    /// 编辑所基于的 <see cref="WorkItemDto.UpdatedAt"/>，任务在此之后被改过就返回 409。
+    /// </summary>
+    public DateTimeOffset? ExpectedUpdatedAt { get; init; }
+}
+
+/// <param name="Days">往后挪了几天。</param>
+public sealed record ShiftedWorkItemDto(Guid Id, string Key, string Title, DateOnly? StartDate, DateOnly? DueDate, int Days);
+
+/// <param name="Shifted">被顺延的后续任务，按依赖顺序排列。</param>
+public sealed record ScheduleWorkItemResultDto(WorkItemDto Item, IReadOnlyList<ShiftedWorkItemDto> Shifted);

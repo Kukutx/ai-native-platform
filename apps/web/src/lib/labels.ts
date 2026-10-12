@@ -84,6 +84,7 @@ export const wakeupSource: Record<WakeupSource, string> = {
   timer: '定时心跳',
   delegation: '同事委派',
   automation: '自动化',
+  dependency: '前置任务完成',
 };
 
 export const memoryScope: Record<MemoryScope, { label: string; tone: Tone }> = {

@@ -3149,6 +3149,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("project_id");
 
+                    b.Property<DateOnly?>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -3276,6 +3280,52 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_work_item_comments_work_item_id_created_at");
 
                     b.ToTable("work_item_comments", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Work.WorkItemDependency", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DependsOnId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("depends_on_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WorkItemId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_item_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_work_item_dependencies");
+
+                    b.HasIndex("DependsOnId")
+                        .HasDatabaseName("ix_work_item_dependencies_depends_on_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_work_item_dependencies_tenant_id");
+
+                    b.HasIndex("WorkItemId", "DependsOnId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_work_item_dependencies_work_item_id_depends_on_id");
+
+                    b.ToTable("work_item_dependencies", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_work_item_dependencies_not_self", "work_item_id <> depends_on_id");
+                        });
                 });
 
             modelBuilder.Entity("AiNative.Domain.Workflows.Workflow", b =>
@@ -4455,6 +4505,30 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_work_item_comments_work_items_work_item_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Work.WorkItemDependency", b =>
+                {
+                    b.HasOne("AiNative.Domain.Work.WorkItem", null)
+                        .WithMany()
+                        .HasForeignKey("DependsOnId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_work_item_dependencies_work_items_depends_on_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_work_item_dependencies_tenants_tenant_id");
+
+                    b.HasOne("AiNative.Domain.Work.WorkItem", null)
+                        .WithMany()
+                        .HasForeignKey("WorkItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_work_item_dependencies_work_items_work_item_id");
                 });
 
             modelBuilder.Entity("AiNative.Domain.Workflows.Workflow", b =>

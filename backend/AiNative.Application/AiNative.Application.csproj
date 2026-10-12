@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="AiNative.UnitTests" />
+    <InternalsVisibleTo Include="AiNative.IntegrationTests" />
   </ItemGroup>
 </Project>
