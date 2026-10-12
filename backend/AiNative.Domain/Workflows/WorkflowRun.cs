@@ -92,6 +92,16 @@ public sealed class WorkflowRun : TenantEntity
 
     public DateTimeOffset? FinishedAt { get; set; }
 
+    /// <summary>
+    /// 最近一次领取这次运行的服务实例。执行中的运行在实例失联或执行崩溃后由存活的实例放回队列。
+    /// </summary>
+    public Guid? ExecutorId { get; set; }
+
+    /// <summary>
+    /// 连续被意外中断（执行崩溃、实例失联）的次数，达到上限后停止重试；正常推进一次后清零。
+    /// </summary>
+    public int InterruptionCount { get; set; }
+
     public bool IsFinished => Status is WorkflowRunStatus.Succeeded or WorkflowRunStatus.Failed or WorkflowRunStatus.Cancelled;
 }
 

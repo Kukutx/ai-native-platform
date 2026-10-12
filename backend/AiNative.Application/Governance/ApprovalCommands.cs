@@ -85,6 +85,7 @@ internal sealed class ApprovalHandlers(
     IWakeupQueue wakeups,
     IChangeFeed changes,
     IServiceProvider services,
+    IClusterNode node,
     TimeProvider clock) :
     IRequestHandler<ListApprovalsQuery, IReadOnlyList<ApprovalDto>>,
     IRequestHandler<DecideApprovalCommand, ApprovalDto>
@@ -114,6 +115,7 @@ internal sealed class ApprovalHandlers(
         approval.Decide(request.Request.Approve, userId, request.Request.Note?.Trim(), clock.GetUtcNow());
 
         // 先以条件更新落定审批结论，并发的第二次处理会因状态已变而失败，保证动作最多执行一次。
+        // 同时记下由哪个实例执行：结果没写回而这个实例已经失联时，其他实例可以立即判定结果未知。
         var affected = await db.Approvals
             .Where(a => a.Id == approval.Id && a.Status == ApprovalStatus.Pending)
             .ExecuteUpdateAsync(s => s
@@ -121,6 +123,7 @@ internal sealed class ApprovalHandlers(
                 .SetProperty(a => a.DecidedByUserId, approval.DecidedByUserId)
                 .SetProperty(a => a.DecidedAt, approval.DecidedAt)
                 .SetProperty(a => a.DecisionNote, approval.DecisionNote)
+                .SetProperty(a => a.ExecutorId, node.InstanceId)
                 .SetProperty(a => a.UpdatedAt, clock.GetUtcNow()), cancellationToken)
             .ConfigureAwait(false);
         if (affected == 0)
@@ -129,7 +132,7 @@ internal sealed class ApprovalHandlers(
         }
 
         // 结论已经落定，之后不再响应请求取消：客户端断开也要把动作执行完并写回结果。
-        // 进程在这之间崩溃留下的"已批准、无结果"审批由心跳调度器标记为结果未知并通知申请人。
+        // 进程在这之间崩溃留下的"已批准、无结果"审批由存活实例的调度器标记为结果未知并通知申请人。
         cancellationToken = CancellationToken.None;
         Agent? agent = null;
         if (approval.RequestedBy is { Kind: ActorKind.Agent, Id: { } agentId })

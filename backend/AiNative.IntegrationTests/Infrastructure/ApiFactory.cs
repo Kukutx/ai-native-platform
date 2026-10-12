@@ -30,6 +30,7 @@ public sealed class ApiFactory(string connectionString, IReadOnlyDictionary<stri
         builder.UseSetting("Scheduler:TimerSweepInterval", "01:00:00");
         builder.UseSetting("Workflows:PollInterval", "00:00:00.200");
         builder.UseSetting("Workflows:ScheduleSweepInterval", "00:00:00.200");
+        builder.UseSetting("Cluster:HeartbeatInterval", "00:00:00.200");
         builder.UseSetting("Ai:DefaultProvider", Provider);
         builder.UseSetting("Ai:DefaultModel", Model);
         builder.UseSetting($"Ai:Providers:{Provider}:Kind", Provider);

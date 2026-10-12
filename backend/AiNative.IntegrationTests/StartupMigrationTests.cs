@@ -32,4 +32,30 @@ public sealed class StartupMigrationTests(PostgresFixture postgres)
             await postgres.DropDatabaseAsync(connectionString);
         }
     }
+
+    [Fact]
+    public async Task Instances_starting_together_create_and_migrate_the_database_once()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var connectionString = new NpgsqlConnectionStringBuilder(postgres.AdminConnectionString)
+        {
+            Database = $"it_missing_{Guid.NewGuid():N}"[..24],
+        }.ConnectionString;
+
+        try
+        {
+            await using var first = new ApiFactory(connectionString);
+            await using var second = new ApiFactory(connectionString);
+            await Task.WhenAll(Task.Run(() => first.Server, ct), Task.Run(() => second.Server, ct));
+            using var firstClient = first.CreateClient();
+            using var secondClient = second.CreateClient();
+
+            (await firstClient.GetAsync(new Uri("/health/ready", UriKind.Relative), ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+            (await secondClient.GetAsync(new Uri("/health/ready", UriKind.Relative), ct)).StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+        finally
+        {
+            await postgres.DropDatabaseAsync(connectionString);
+        }
+    }
 }

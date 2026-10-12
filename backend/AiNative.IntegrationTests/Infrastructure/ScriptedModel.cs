@@ -55,15 +55,16 @@ internal sealed class ScriptedChatClientFactory(ScriptedModel model) : IChatClie
 
 internal sealed class ScriptedChatClient(ScriptedModel model) : IChatClient
 {
+    // 与真实模型客户端一样响应取消：服务停止、租约失效时卡住的脚本不会拖住执行。
     public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default)
-        => model.Handler([.. messages], options);
+        => model.Handler([.. messages], options).WaitAsync(cancellationToken);
 
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var response = await model.Handler([.. messages], options).ConfigureAwait(false);
+        var response = await model.Handler([.. messages], options).WaitAsync(cancellationToken).ConfigureAwait(false);
         foreach (var update in response.ToChatResponseUpdates())
         {
             yield return update;

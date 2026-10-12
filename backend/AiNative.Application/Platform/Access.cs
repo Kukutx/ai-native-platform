@@ -1,5 +1,7 @@
+using System.Text.Json;
 using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
+using AiNative.Application.Common;
 using AiNative.Application.Modules;
 using AiNative.Application.Tenancy;
 using AiNative.Domain.Identity;
@@ -62,10 +64,10 @@ internal sealed class AccessResolver(IAppDbContext db, IMemoryCache cache) : IAc
     internal static string CacheKey(Guid membershipId) => $"access:{membershipId}";
 
     /// <summary>
-    /// 成员被停用、移除或权限变化时调用：提交成功后清掉缓存，本实例下一个请求就按新权限鉴权
-    /// （多实例部署时其他实例最多再沿用一个缓存周期）。
+    /// 成员被停用、移除或权限变化时调用：提交成功后清掉本实例的缓存，并广播给其他实例一起清掉，
+    /// 任何实例上的下一个请求都按新权限鉴权（广播丢失时最多再沿用一个缓存周期）。
     /// </summary>
-    internal static void InvalidateAfterCommit(IMemoryCache cache, IPostCommitActions postCommit, IReadOnlyCollection<Guid> membershipIds)
+    internal static void InvalidateAfterCommit(IMemoryCache cache, IPostCommitActions postCommit, IClusterBus cluster, IReadOnlyCollection<Guid> membershipIds)
     {
         if (membershipIds.Count == 0)
         {
@@ -74,13 +76,32 @@ internal sealed class AccessResolver(IAppDbContext db, IMemoryCache cache) : IAc
 
         postCommit.Enqueue(_ =>
         {
-            foreach (var id in membershipIds)
-            {
-                cache.Remove(CacheKey(id));
-            }
-
+            Remove(cache, membershipIds);
+            cluster.Publish(ClusterTopics.AccessCacheInvalidated, membershipIds);
             return Task.CompletedTask;
         });
+    }
+
+    internal static void Remove(IMemoryCache cache, IEnumerable<Guid> membershipIds)
+    {
+        foreach (var id in membershipIds)
+        {
+            cache.Remove(CacheKey(id));
+        }
+    }
+}
+
+/// <summary>
+/// 其他实例上成员或角色变化后，清掉本实例对应的权限缓存。
+/// </summary>
+internal sealed class AccessCacheInvalidationHandler(IMemoryCache cache) : IClusterMessageHandler
+{
+    public string Topic => ClusterTopics.AccessCacheInvalidated;
+
+    public Task HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+    {
+        AccessResolver.Remove(cache, payload.Deserialize<List<Guid>>(PlatformJson.Options) ?? []);
+        return Task.CompletedTask;
     }
 }
 

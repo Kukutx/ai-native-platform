@@ -46,6 +46,11 @@ public sealed class Approval : TenantEntity
 
     public string? ExecutionError { get; set; }
 
+    /// <summary>
+    /// 批准后执行动作的服务实例。结果没写回且这个实例已失联时，可以立即判定为结果未知。
+    /// </summary>
+    public Guid? ExecutorId { get; set; }
+
     public void Decide(bool approve, Guid userId, string? note, DateTimeOffset now)
     {
         if (Status != ApprovalStatus.Pending)

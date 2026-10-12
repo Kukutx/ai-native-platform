@@ -37,7 +37,7 @@ services:
     environment:
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=ainative;Username=ainative;Password=${POSTGRES_PASSWORD}
       Auth__SigningKey: ${Auth__SigningKey:?请在 .env 里设置 Auth__SigningKey（至少 32 个字符的随机字符串）}
-      # 单实例部署：启动时自动执行数据库迁移（EF Core 会加锁，多个实例同时启动也只会执行一次）。
+      # 启动时自动执行数据库迁移（多个实例同时启动时排队执行，只会迁移一次）。
       Database__MigrateOnStartup: "true"
       # 信任反向代理传来的 X-Forwarded-For / X-Forwarded-Proto（容器只应经由反向代理访问）。
       ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"

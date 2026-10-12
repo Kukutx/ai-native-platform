@@ -51,3 +51,22 @@ internal sealed class PostgresTransactionLock(AppDbContext db) : ITransactionLoc
         await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({key}, 0))", cancellationToken).ConfigureAwait(false);
     }
 }
+
+internal static class AdvisoryLocks
+{
+    /// <summary>
+    /// 尝试在当前事务上加事务级 advisory lock，拿不到立即返回 false。用于多个实例都会定期执行、但同一时刻只需一个执行的维护任务；
+    /// 跑在连接池的连接上，事务结束自动释放。
+    /// </summary>
+    public static async Task<bool> TryLockForTransactionAsync(this AppDbContext db, string key, CancellationToken cancellationToken)
+    {
+        if (db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException("事务级锁只能在事务中使用。");
+        }
+
+        return await db.Database.SqlQuery<bool>($"SELECT pg_try_advisory_xact_lock(hashtextextended({key}, 0)) AS \"Value\"")
+            .SingleAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+}

@@ -154,6 +154,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(4000)")
                         .HasColumnName("error");
 
+                    b.Property<Guid?>("ExecutorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("executor_id");
+
                     b.Property<DateTimeOffset?>("FinishedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("finished_at");
@@ -1885,6 +1889,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(4000)")
                         .HasColumnName("execution_error");
 
+                    b.Property<Guid?>("ExecutorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("executor_id");
+
                     b.Property<string>("InputJson")
                         .IsRequired()
                         .HasColumnType("jsonb")
@@ -1941,6 +1949,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_approvals");
+
+                    b.HasIndex("DecidedAt")
+                        .HasDatabaseName("ix_approvals_unrecorded")
+                        .HasFilter("status = 'Approved' AND result_json IS NULL AND execution_error IS NULL");
 
                     b.HasIndex("TenantId", "Status", "CreatedAt")
                         .HasDatabaseName("ix_approvals_tenant_id_status_created_at");
@@ -3469,6 +3481,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("event_type");
 
+                    b.Property<Guid?>("ExecutorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("executor_id");
+
                     b.Property<DateTimeOffset?>("FinishedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("finished_at");
@@ -3477,6 +3493,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("jsonb")
                         .HasColumnName("input_json");
+
+                    b.Property<int>("InterruptionCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("interruption_count");
 
                     b.Property<Guid?>("ParentRunId")
                         .HasColumnType("uuid")
@@ -3684,6 +3704,61 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_workflow_run_steps_run_id_path");
 
                     b.ToTable("workflow_run_steps", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Infrastructure.Cluster.ClusterInstance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("HostName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("host_name");
+
+                    b.Property<DateTimeOffset>("LastSeenAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_seen_at");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cluster_instances");
+
+                    b.HasIndex("LastSeenAt")
+                        .HasDatabaseName("ix_cluster_instances_last_seen_at");
+
+                    b.ToTable("cluster_instances", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Infrastructure.Cluster.ClusterMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload");
+
+                    b.HasKey("Id")
+                        .HasName("pk_cluster_messages");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("ix_cluster_messages_created_at");
+
+                    b.ToTable("cluster_messages", (string)null);
                 });
 
             modelBuilder.Entity("AiNative.Domain.Agents.Agent", b =>

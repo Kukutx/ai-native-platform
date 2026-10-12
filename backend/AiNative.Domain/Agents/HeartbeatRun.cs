@@ -48,6 +48,11 @@ public sealed class HeartbeatRun : TenantEntity
 
     public string? Error { get; set; }
 
+    /// <summary>
+    /// 领取并执行这次运行的服务实例。实例失联后，存活的实例据此接手收尾。
+    /// </summary>
+    public Guid? ExecutorId { get; set; }
+
     public bool IsFinished => Status is RunStatus.Succeeded or RunStatus.Failed or RunStatus.Cancelled or RunStatus.TimedOut;
 }
 

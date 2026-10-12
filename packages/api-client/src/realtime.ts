@@ -1,4 +1,4 @@
-import { HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
+import { HttpTransportType, HubConnection, HubConnectionBuilder, HubConnectionState, LogLevel } from '@microsoft/signalr';
 import type { RunEventDto } from './generated';
 import type { ChatStreamEvent } from './stream';
 
@@ -58,8 +58,11 @@ export class RealtimeClient {
 
   constructor(options: RealtimeOptions) {
     this.connection = new HubConnectionBuilder()
+      // 跳过协商直接建立 WebSocket：整个连接只有一条长连接，服务端多实例部署时负载均衡不需要会话保持。
       .withUrl(`${options.baseUrl.replace(/\/+$/, '')}/hubs/realtime`, {
         accessTokenFactory: () => options.getToken() ?? '',
+        skipNegotiation: true,
+        transport: HttpTransportType.WebSockets,
       })
       .withAutomaticReconnect()
       .configureLogging(LogLevel.Warning)
