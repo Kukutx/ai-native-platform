@@ -37,4 +37,15 @@ public sealed class WorkflowOptions
     public TimeSpan LlmTimeout { get; set; } = TimeSpan.FromMinutes(3);
 
     public int LlmMaxOutputTokens { get; set; } = 8_000;
+
+    /// <summary>
+    /// 「遍历」步骤单次最多处理的列表项数，超出时该步骤失败。
+    /// </summary>
+    public int MaxLoopItems { get; set; } = 100;
+
+    /// <summary>
+    /// 是否允许「HTTP 请求」步骤访问内网和本机地址。默认关闭，防止借工作流探测内网；
+    /// 需要调用同一内网里的服务时再打开。
+    /// </summary>
+    public bool AllowPrivateNetworkRequests { get; set; }
 }

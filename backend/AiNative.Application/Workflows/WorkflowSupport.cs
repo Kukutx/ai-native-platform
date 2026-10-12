@@ -27,7 +27,7 @@ internal static class WorkflowMapping
         TimeZone = workflow.TimeZone,
     };
 
-    public static WorkflowDto ToDto(this Workflow workflow, Func<Actor, ActorDto> actors, WorkflowRunSummaryDto? lastRun) => new(
+    public static WorkflowDto ToDto(this Workflow workflow, Func<Actor, ActorDto> actors, WorkflowRunSummaryDto? lastRun, bool includeWebhookToken) => new(
         workflow.Id,
         workflow.Name,
         workflow.Description,
@@ -39,7 +39,11 @@ internal static class WorkflowMapping
         workflow.NextRunAt,
         lastRun,
         workflow.CreatedAt,
-        workflow.UpdatedAt);
+        workflow.UpdatedAt)
+    {
+        // 拿到令牌就能触发工作流，只给能修改工作流的人看。
+        WebhookToken = includeWebhookToken ? workflow.WebhookToken : null,
+    };
 
     public static WorkflowRunSummaryDto ToSummary(this WorkflowRun run, Func<Actor, ActorDto> actors) => new(
         run.Id,
@@ -58,6 +62,7 @@ internal static class WorkflowMapping
 
     public static WorkflowRunStepDto ToDto(this WorkflowRunStep step) => new(
         step.Index,
+        step.Path,
         step.StepKey,
         step.Name,
         step.Kind,
@@ -68,7 +73,7 @@ internal static class WorkflowMapping
         step.StartedAt,
         step.FinishedAt);
 
-    public static async Task<IReadOnlyList<WorkflowDto>> ToDtosAsync(IAppDbContext db, IReadOnlyList<Workflow> workflows, CancellationToken cancellationToken)
+    public static async Task<IReadOnlyList<WorkflowDto>> ToDtosAsync(IAppDbContext db, ITenantContext tenant, IReadOnlyList<Workflow> workflows, CancellationToken cancellationToken)
     {
         var ids = workflows.Select(w => w.Id).ToList();
         var lastRuns = ids.Count == 0
@@ -84,7 +89,8 @@ internal static class WorkflowMapping
             workflows.Select(w => w.Owner).Concat(lastRuns.Select(r => r.TriggeredBy)),
             cancellationToken).ConfigureAwait(false);
         var byWorkflow = lastRuns.ToDictionary(r => r.WorkflowId);
-        return [.. workflows.Select(w => w.ToDto(actors, byWorkflow.TryGetValue(w.Id, out var run) ? run.ToSummary(actors) : null))];
+        var includeWebhookToken = tenant.Can(Features.Workflows.Manage);
+        return [.. workflows.Select(w => w.ToDto(actors, byWorkflow.TryGetValue(w.Id, out var run) ? run.ToSummary(actors) : null, includeWebhookToken))];
     }
 }
 
@@ -153,9 +159,15 @@ internal sealed partial class WorkflowDefinitionValidator(
     ITenantContext tenant,
     TimeProvider clock)
 {
-    public const int MaxSteps = 30;
+    public const int MaxSteps = 50;
+    public const int MaxNesting = 3;
+    public const int MaxBranches = 10;
+    public const int MaxHeaders = 20;
+    public const int MaxHttpTimeoutSeconds = 120;
     public const int MaxDelaySeconds = 30 * 24 * 3600;
     public const int MaxTimeoutMinutes = 30 * 24 * 60;
+
+    private static readonly string[] HttpMethods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 
     [GeneratedRegex("^[a-z][a-z0-9_]{0,39}$")]
     private static partial Regex StepKeyPattern();
@@ -252,6 +264,15 @@ internal sealed partial class WorkflowDefinitionValidator(
 
                 return new WorkflowTriggerDto { Kind = WorkflowTriggerKind.Schedule, Cron = schedule?.Expression ?? cron, TimeZone = timeZone };
 
+            case WorkflowTriggerKind.Webhook:
+                var webhookFilter = string.IsNullOrWhiteSpace(trigger.Filter) ? null : trigger.Filter.Trim();
+                if (webhookFilter is not null && WorkflowExpression.Validate(webhookFilter) is { } webhookFilterError)
+                {
+                    add("trigger.filter", webhookFilterError);
+                }
+
+                return new WorkflowTriggerDto { Kind = WorkflowTriggerKind.Webhook, Filter = webhookFilter };
+
             default:
                 return new WorkflowTriggerDto { Kind = WorkflowTriggerKind.Manual };
         }
@@ -259,28 +280,42 @@ internal sealed partial class WorkflowDefinitionValidator(
 
     private async Task<List<WorkflowStep>> ValidateStepsAsync(IReadOnlyList<WorkflowStep> steps, Action<string, string> add, CancellationToken cancellationToken)
     {
+        var all = steps.Where(s => s is not null).SelectMany(s => s.SelfAndDescendants()).ToList();
         if (steps.Count == 0)
         {
             add("steps", "至少需要一个步骤。");
         }
-        else if (steps.Count > MaxSteps)
+        else if (all.Count > MaxSteps)
         {
-            add("steps", $"步骤不能超过 {MaxSteps} 个。");
+            add("steps", $"步骤总数（含分支和遍历里的步骤）不能超过 {MaxSteps} 个。");
         }
 
-        var agentIds = steps.Where(s => s.Kind == WorkflowStepKind.AgentTask && s.AgentId is not null).Select(s => s.AgentId!.Value).Distinct().ToList();
+        var agentIds = all.Where(s => s.Kind == WorkflowStepKind.AgentTask && s.AgentId is not null).Select(s => s.AgentId!.Value).Distinct().ToList();
         var agents = agentIds.Count == 0
             ? new Dictionary<Guid, AgentStatus>()
             : await db.Agents.AsNoTracking().Where(a => agentIds.Contains(a.Id))
                 .ToDictionaryAsync(a => a.Id, a => a.Status, cancellationToken).ConfigureAwait(false);
         var enabledModules = await modules.GetEnabledAsync(cancellationToken).ConfigureAwait(false);
 
+        // 步骤标识在整棵树里唯一：分支和遍历里的步骤同样用 steps.<key> 引用。
         var keys = new HashSet<string>(StringComparer.Ordinal);
-        var result = new List<WorkflowStep>(steps.Count);
-        for (var i = 0; i < steps.Count; i++)
+
+        List<WorkflowStep> Sequence(IReadOnlyList<WorkflowStep>? list, string prefix, int depth)
         {
-            var step = steps[i];
-            var path = $"steps[{i}]";
+            var result = new List<WorkflowStep>(list?.Count ?? 0);
+            for (var i = 0; i < (list?.Count ?? 0); i++)
+            {
+                if (list![i] is { } step)
+                {
+                    result.Add(Step(step, $"{prefix}[{i}]", depth));
+                }
+            }
+
+            return result;
+        }
+
+        WorkflowStep Step(WorkflowStep step, string path, int depth)
+        {
             var key = step.Key?.Trim() ?? string.Empty;
             if (!StepKeyPattern().IsMatch(key))
             {
@@ -325,6 +360,14 @@ internal sealed partial class WorkflowDefinitionValidator(
                 }
             }
 
+            void CheckNesting()
+            {
+                if (depth >= MaxNesting)
+                {
+                    add($"{path}.kind", $"分支和遍历最多嵌套 {MaxNesting} 层。");
+                }
+            }
+
             var normalized = new WorkflowStep { Key = key, Name = name, Kind = step.Kind, When = when, ContinueOnError = step.ContinueOnError };
             switch (step.Kind)
             {
@@ -353,8 +396,7 @@ internal sealed partial class WorkflowDefinitionValidator(
                         }
                     }
 
-                    normalized = normalized with { ActionKey = actionKey, Input = input?.Clone() };
-                    break;
+                    return normalized with { ActionKey = actionKey, Input = input?.Clone() };
 
                 case WorkflowStepKind.AgentTask:
                     if (step.AgentId is not { } agentId)
@@ -382,7 +424,7 @@ internal sealed partial class WorkflowDefinitionValidator(
                         add($"{path}.timeoutMinutes", $"等待时长需在 1 到 {MaxTimeoutMinutes} 分钟之间。");
                     }
 
-                    normalized = normalized with
+                    return normalized with
                     {
                         AgentId = step.AgentId,
                         Title = step.Title?.Trim(),
@@ -390,12 +432,10 @@ internal sealed partial class WorkflowDefinitionValidator(
                         WaitForCompletion = step.WaitForCompletion,
                         TimeoutMinutes = step.WaitForCompletion ? step.TimeoutMinutes : null,
                     };
-                    break;
 
                 case WorkflowStepKind.Llm:
                     CheckTemplate("prompt", step.Prompt, 20_000, required: true);
-                    normalized = normalized with { Prompt = step.Prompt?.Trim() };
-                    break;
+                    return normalized with { Prompt = step.Prompt?.Trim() };
 
                 case WorkflowStepKind.Delay:
                     if (step.DelaySeconds is not { } seconds || seconds < 1 || seconds > MaxDelaySeconds)
@@ -403,17 +443,157 @@ internal sealed partial class WorkflowDefinitionValidator(
                         add($"{path}.delaySeconds", $"等待时长需在 1 秒到 {MaxDelaySeconds / 86400} 天之间。");
                     }
 
-                    normalized = normalized with { DelaySeconds = step.DelaySeconds };
-                    break;
+                    return normalized with { DelaySeconds = step.DelaySeconds };
+
+                case WorkflowStepKind.Branch:
+                    CheckNesting();
+                    var branches = step.Branches ?? [];
+                    if (branches.Count == 0)
+                    {
+                        add($"{path}.branches", "至少需要一个分支。");
+                    }
+                    else if (branches.Count > MaxBranches)
+                    {
+                        add($"{path}.branches", $"分支不能超过 {MaxBranches} 个。");
+                    }
+
+                    var normalizedBranches = new List<WorkflowBranch>(branches.Count);
+                    for (var b = 0; b < branches.Count; b++)
+                    {
+                        var branch = branches[b];
+                        var branchPath = $"{path}.branches[{b}]";
+                        var branchName = string.IsNullOrWhiteSpace(branch?.Name) ? $"分支 {b + 1}" : branch.Name.Trim();
+                        if (branchName.Length > 50)
+                        {
+                            add($"{branchPath}.name", "分支名称不能超过 50 个字符。");
+                        }
+
+                        var condition = string.IsNullOrWhiteSpace(branch?.When) ? null : branch.When.Trim();
+                        if (condition is null && b != branches.Count - 1)
+                        {
+                            add($"{branchPath}.when", "只有最后一个分支可以不写条件（表示其他情况）。");
+                        }
+                        else if (condition is not null && WorkflowExpression.Validate(condition) is { } conditionError)
+                        {
+                            add($"{branchPath}.when", conditionError);
+                        }
+
+                        normalizedBranches.Add(new WorkflowBranch { Name = branchName, When = condition, Steps = Sequence(branch?.Steps, $"{branchPath}.steps", depth + 1) });
+                    }
+
+                    return normalized with { Branches = normalizedBranches };
+
+                case WorkflowStepKind.ForEach:
+                    CheckNesting();
+                    var items = UnwrapExpression(step.Items);
+                    if (items is null)
+                    {
+                        add($"{path}.items", "请填写要遍历的列表，例如 steps.find.output.items。");
+                    }
+                    else if (WorkflowExpression.Validate(items) is { } itemsError)
+                    {
+                        add($"{path}.items", itemsError);
+                    }
+
+                    var body = Sequence(step.Steps, $"{path}.steps", depth + 1);
+                    if (body.Count == 0)
+                    {
+                        add($"{path}.steps", "遍历里至少需要一个步骤。");
+                    }
+
+                    return normalized with { Items = items, Steps = body };
+
+                case WorkflowStepKind.Http:
+                    var method = string.IsNullOrWhiteSpace(step.Method) ? "GET" : step.Method.Trim().ToUpperInvariant();
+                    if (!HttpMethods.Contains(method))
+                    {
+                        add($"{path}.method", $"请求方法只能是 {string.Join("、", HttpMethods)}。");
+                    }
+
+                    var url = step.Url?.Trim();
+                    CheckTemplate("url", url, 2000, required: true);
+                    if (!string.IsNullOrEmpty(url) && !url.Contains("{{", StringComparison.Ordinal) && !IsHttpUrl(url))
+                    {
+                        add($"{path}.url", "请填写以 http:// 或 https:// 开头的完整地址。");
+                    }
+
+                    var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var (headerName, headerValue) in step.Headers ?? [])
+                    {
+                        var trimmedName = headerName?.Trim() ?? string.Empty;
+                        if (!HeaderNamePattern().IsMatch(trimmedName))
+                        {
+                            add($"{path}.headers", $"请求头名称 {trimmedName} 不合法。");
+                            continue;
+                        }
+
+                        CheckTemplate("headers", headerValue, 2000, required: false);
+                        headers[trimmedName] = headerValue ?? string.Empty;
+                    }
+
+                    if (headers.Count > MaxHeaders)
+                    {
+                        add($"{path}.headers", $"请求头不能超过 {MaxHeaders} 个。");
+                    }
+
+                    JsonElement? requestBody = step.Body is { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) } bodyValue ? bodyValue : null;
+                    if (requestBody is { } bodyElement)
+                    {
+                        if (method is "GET" or "DELETE")
+                        {
+                            add($"{path}.body", $"{method} 请求不能带请求体。");
+                        }
+                        else if (WorkflowTemplate.Validate(bodyElement) is { } bodyError)
+                        {
+                            add($"{path}.body", bodyError);
+                        }
+                    }
+
+                    if (step.TimeoutSeconds is { } timeoutSeconds && (timeoutSeconds < 1 || timeoutSeconds > MaxHttpTimeoutSeconds))
+                    {
+                        add($"{path}.timeoutSeconds", $"超时需在 1 到 {MaxHttpTimeoutSeconds} 秒之间。");
+                    }
+
+                    return normalized with
+                    {
+                        Method = method,
+                        Url = url,
+                        Headers = headers.Count == 0 ? null : headers,
+                        Body = requestBody?.Clone(),
+                        TimeoutSeconds = step.TimeoutSeconds,
+                    };
 
                 default:
                     add($"{path}.kind", "未知的步骤类型。");
-                    break;
+                    return normalized;
             }
-
-            result.Add(normalized);
         }
 
-        return result;
+        return Sequence(steps, "steps", 0);
     }
+
+    /// <summary>
+    /// 遍历列表写的是表达式；习惯写成模板（{{ ... }}）时去掉外层括号。
+    /// </summary>
+    private static string? UnwrapExpression(string? text)
+    {
+        var trimmed = text?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+        {
+            return null;
+        }
+
+        if (trimmed.StartsWith("{{", StringComparison.Ordinal) && trimmed.EndsWith("}}", StringComparison.Ordinal) && trimmed.IndexOf("{{", 2, StringComparison.Ordinal) < 0)
+        {
+            trimmed = trimmed[2..^2].Trim();
+        }
+
+        return trimmed.Length == 0 ? null : trimmed;
+    }
+
+    private static bool IsHttpUrl(string url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+    [GeneratedRegex("^[A-Za-z0-9!#$%&'*+.^_`|~-]{1,100}$")]
+    private static partial Regex HeaderNamePattern();
 }

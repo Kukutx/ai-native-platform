@@ -433,8 +433,12 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.Property(x => x.EventFilter).HasMaxLength(2000);
             b.Property(x => x.Cron).HasMaxLength(100);
             b.Property(x => x.TimeZone).HasMaxLength(64);
+            b.Property(x => x.WebhookToken).HasMaxLength(64);
             b.ComplexProperty(x => x.Owner);
             JsonList(b.Property(x => x.Steps));
+
+            // Webhook 请求只带令牌，跨空间按令牌查找。
+            b.HasIndex(x => x.WebhookToken).IsUnique().HasFilter("webhook_token IS NOT NULL");
 
             // 事件分发按事件类型找订阅者；定时扫描只看启用的定时工作流。
             b.HasIndex(x => new { x.TenantId, x.EventType }).HasFilter("is_enabled AND trigger_kind = 'Event'");
@@ -466,9 +470,10 @@ public sealed class AppDbContext : DbContext, IAppDbContext
         {
             b.Property(x => x.StepKey).HasMaxLength(40);
             b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.Path).HasMaxLength(200);
             b.Property(x => x.InputJson).HasColumnType("jsonb");
             b.Property(x => x.OutputJson).HasColumnType("jsonb");
-            b.HasIndex(x => new { x.RunId, x.Index }).IsUnique();
+            b.HasIndex(x => new { x.RunId, x.Path }).IsUnique();
             b.HasOne<WorkflowRun>().WithMany().HasForeignKey(x => x.RunId).OnDelete(DeleteBehavior.Cascade);
         });
 
