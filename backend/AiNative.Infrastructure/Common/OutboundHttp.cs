@@ -23,12 +23,14 @@ public sealed class PrivateNetworkBlockedException(string message) : IOException
 /// 平台主动访问外部地址时共用的连接处理器。每次建立连接时检查目标地址，默认拒绝本机、内网、链路本地等地址，
 /// 重定向和 DNS 指向内网的域名同样被挡住（检查的是实际要连的 IP）。
 /// 不走系统代理：经过代理时只能检查代理本身的地址，起不到防护作用。
+/// 不保存 Cookie：处理器被所有空间共用，自动保存的 Cookie 会按地址发给别的空间的请求。
 /// </summary>
 public static class OutboundHttp
 {
     public static SocketsHttpHandler CreateHandler(bool allowPrivateNetwork, bool allowRedirects = true) => new()
     {
         UseProxy = false,
+        UseCookies = false,
         AllowAutoRedirect = allowRedirects,
         MaxAutomaticRedirections = 5,
         AutomaticDecompression = DecompressionMethods.All,

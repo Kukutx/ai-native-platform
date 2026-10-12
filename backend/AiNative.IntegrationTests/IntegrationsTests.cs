@@ -53,11 +53,13 @@ public sealed class IntegrationsTests(PostgresFixture postgres) : IntegrationTes
 
         mcp.LastError.Should().BeNull();
         mcp.ToolsRefreshedAt.Should().NotBeNull();
-        mcp.Tools.Select(t => (t.Name, t.Key, t.ReadOnly, t.RequiresApproval)).Should().BeEquivalentTo(new[]
+        // 服务自己声明的只读不算数：管理员确认之前都要审批。
+        mcp.Tools.Select(t => (t.Name, t.Key, t.ReadOnly, t.ReadOnlyHint, t.RequiresApproval)).Should().BeEquivalentTo(new[]
         {
-            ("echo", "mcp.test.echo", true, false),
-            ("issues/create", "mcp.test.issues_create", false, true),
-            ("explode", "mcp.test.explode", false, true),
+            ("echo", "mcp.test.echo", false, true, true),
+            ("issues/create", "mcp.test.issues_create", false, false, true),
+            ("explode", "mcp.test.explode", false, false, true),
+            ("whoami", "mcp.test.whoami", false, false, true),
         });
         server.Authorizations.Should().NotBeEmpty().And.OnlyContain(a => a == $"Bearer {Token}");
 
@@ -82,11 +84,25 @@ public sealed class IntegrationsTests(PostgresFixture postgres) : IntegrationTes
         failed.Status.Should().Be("failed");
         failed.Error.Should().Be("仓库不存在");
 
-        // 关掉的工具从目录里消失，也不能再调用。
-        var updated = await PutAsync<McpServerDto>(client, $"/api/integrations/mcp-servers/{mcp.Id}/disabled-tools", new SetMcpDisabledToolsRequest { Tools = ["echo", "不存在"] });
-        updated.Tools.Single(t => t.Name == "echo").Enabled.Should().BeFalse();
+        // 服务把令牌原样回显时，结果里抹掉它，不写进执行记录、不交给模型。
+        var whoami = await InvokeAsync(client, "mcp.test.whoami", new { });
+        whoami.GetProperty("content").GetString().Should().Be("收到令牌：Bearer ***");
+        whoami.GetProperty("structured").GetProperty("authorization").GetString().Should().Be("Bearer ***");
+        PlatformJson.Serialize(whoami).Should().NotContain(Token);
+
+        // 确认只读后不再需要审批；关掉的工具从目录里消失，也不能再调用。
+        var confirmed = await PutAsync<McpServerDto>(client, $"/api/integrations/mcp-servers/{mcp.Id}/tools", new UpdateMcpToolRequest { Tool = "echo", ReadOnly = true });
+        confirmed.Tools.Single(t => t.Name == "echo").Should().Match<McpToolDto>(t => t.ReadOnly && !t.RequiresApproval && t.Enabled);
+        var updated = await PutAsync<McpServerDto>(client, $"/api/integrations/mcp-servers/{mcp.Id}/tools", new UpdateMcpToolRequest { Tool = "echo", Enabled = false });
+        updated.Tools.Single(t => t.Name == "echo").Should().Match<McpToolDto>(t => t.ReadOnly && !t.Enabled, "只改给出的项");
         (await GetAsync<List<ActionDescriptorDto>>(client, "/api/actions")).Should().NotContain(a => a.Key == "mcp.test.echo");
         (await PostAsync<InvokeActionResponse>(client, "/api/actions/mcp.test.echo/invoke", new { text = "x" })).Status.Should().Be("not_found");
+        (await client.PutAsJsonAsync($"/api/integrations/mcp-servers/{mcp.Id}/tools", new UpdateMcpToolRequest { Tool = "不存在", Enabled = false }, PlatformJson.Options, Ct))
+            .StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        // 刷新工具列表保留管理员的调整和工具标识。
+        var refreshed = await PostAsync<McpServerDto>(client, $"/api/integrations/mcp-servers/{mcp.Id}/refresh", new { });
+        refreshed.Tools.Single(t => t.Name == "echo").Should().Match<McpToolDto>(t => t.ReadOnly && !t.Enabled && t.Key == "mcp.test.echo");
 
         // 平台自己的 MCP 服务不转出外部工具。
         var mcpTools = await PlatformToolsAsync(auth.AccessToken);
@@ -113,7 +129,8 @@ public sealed class IntegrationsTests(PostgresFixture postgres) : IntegrationTes
         var agent = await StarterAgentAsync(client);
         agent.Permissions.Should().Contain("integrations.tools.use");
         await PostAsync<TenantSecretDto>(client, "/api/integrations/secrets", new CreateTenantSecretRequest { Name = "MCP_TOKEN", Value = Token });
-        await PostAsync<McpServerDto>(client, "/api/integrations/mcp-servers", Server(server.Url));
+        var mcp = await PostAsync<McpServerDto>(client, "/api/integrations/mcp-servers", Server(server.Url));
+        await PutAsync<McpServerDto>(client, $"/api/integrations/mcp-servers/{mcp.Id}/tools", new UpdateMcpToolRequest { Tool = "echo", ReadOnly = true });
 
         await PostAsync<WakeupDto>(client, $"/api/agents/{agent.Id}/wake", new WakeAgentRequest { Reason = "处理缺陷" });
         var runs = await EventuallyAsync(RunsAsync, r => r.Count == 1 && r[0].Status == RunStatus.Succeeded);
@@ -174,6 +191,9 @@ public sealed class IntegrationsTests(PostgresFixture postgres) : IntegrationTes
         server.Traces.Should().Equal("{{ secrets.MCP_TOKEN }}");
         var headers = run.StepRuns[0].Input!.Value.GetProperty("headers");
         headers.GetProperty("Authorization").GetString().Should().Be("Bearer {{ secrets.MCP_TOKEN }}");
+
+        // 对方回显的令牌在记录响应前被抹掉。
+        run.StepRuns[0].Output!.Value.GetProperty("body").GetProperty("authorization").GetString().Should().Be("Bearer ***");
         PlatformJson.Serialize(run).Should().NotContain(Token);
     }
 
@@ -301,11 +321,80 @@ public sealed class IntegrationsTests(PostgresFixture postgres) : IntegrationTes
 
         var fixedServer = await PutAsync<McpServerDto>(client, $"/api/integrations/mcp-servers/{broken.Id}", Server(server.Url));
         fixedServer.LastError.Should().BeNull();
-        fixedServer.Tools.Should().HaveCount(3);
+        fixedServer.Tools.Should().HaveCount(4);
 
         var refreshed = await PostAsync<McpServerDto>(client, $"/api/integrations/mcp-servers/{broken.Id}/refresh", new { });
-        refreshed.Tools.Should().HaveCount(3);
+        refreshed.Tools.Should().HaveCount(4);
         refreshed.ToolsRefreshedAt.Should().BeOnOrAfter(fixedServer.ToolsRefreshedAt!.Value);
+    }
+
+    [Fact]
+    public async Task Referencing_secrets_in_mcp_headers_requires_secret_use_permission()
+    {
+        await using var server = await TestMcpServer.StartAsync();
+        var owner = await RegisterAsync();
+        using var ownerClient = Client(owner.AccessToken);
+        await PostAsync<TenantSecretDto>(ownerClient, "/api/integrations/secrets", new CreateTenantSecretRequest { Name = "MCP_TOKEN", Value = Token });
+        await PostAsync<TenantSecretDto>(ownerClient, "/api/integrations/secrets", new CreateTenantSecretRequest { Name = "OTHER_TOKEN", Value = "other-token-value" });
+        var mcp = await PostAsync<McpServerDto>(ownerClient, "/api/integrations/mcp-servers", Server(server.Url));
+
+        // 能管理集成、但没被授权使用密钥：引用了就能把密钥发往自己的地址，等同于读取。
+        var role = await PostAsync<RoleDto>(ownerClient, "/api/roles", new SaveRoleRequest
+        {
+            Key = "integrator",
+            Name = "集成管理员",
+            Features = ["integrations.view", "integrations.manage"],
+        });
+        using var client = Client(await AddMemberAsync(ownerClient, "integrator@example.com", role.Id));
+        var calls = server.Authorizations.Count;
+
+        async Task<string[]> HeaderErrorsAsync(HttpResponseMessage response)
+        {
+            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+            return problem.GetProperty("errors").GetProperty("headers").Deserialize<string[]>()!;
+        }
+
+        (await HeaderErrorsAsync(await client.PostAsJsonAsync("/api/integrations/mcp-servers", Server(server.Url) with { Key = "mine" }, PlatformJson.Options, Ct)))
+            .Should().ContainSingle().Which.Should().Contain("integrations.secrets.use");
+        (await HeaderErrorsAsync(await client.PutAsJsonAsync($"/api/integrations/mcp-servers/{mcp.Id}", Server($"{server.BaseUrl}/other"), PlatformJson.Options, Ct)))
+            .Should().ContainSingle().Which.Should().Contain("integrations.secrets.use");
+        var addedReference = Server(server.Url) with { Headers = [.. Server(server.Url).Headers, new McpServerHeader("X-Other", "{{ secrets.OTHER_TOKEN }}")] };
+        (await HeaderErrorsAsync(await client.PutAsJsonAsync($"/api/integrations/mcp-servers/{mcp.Id}", addedReference, PlatformJson.Options, Ct)))
+            .Should().ContainSingle().Which.Should().Contain("integrations.secrets.use");
+        server.Authorizations.Count.Should().Be(calls, "被挡回的请求不会连外部服务");
+
+        // 地址和引用不变，只改其他设置可以。
+        var renamed = await PutAsync<McpServerDto>(client, $"/api/integrations/mcp-servers/{mcp.Id}", Server(server.Url) with { Name = "改名后的服务" });
+        renamed.Name.Should().Be("改名后的服务");
+    }
+
+    [Fact]
+    public async Task Mcp_urls_cannot_carry_credentials()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+
+        var response = await client.PostAsJsonAsync("/api/integrations/mcp-servers", Server("https://user:p4ss@example.com/mcp") with { Headers = [] }, PlatformJson.Options, Ct);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>(Ct);
+        problem.GetProperty("errors").GetProperty("url")[0].GetString().Should().Contain("不能包含用户名和密码");
+    }
+
+    [Fact]
+    public async Task Discovery_stops_reading_once_enough_tools_are_collected()
+    {
+        await using var server = await TestMcpServer.StartAsync(extraTools: 450);
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        await PostAsync<TenantSecretDto>(client, "/api/integrations/secrets", new CreateTenantSecretRequest { Name = "MCP_TOKEN", Value = Token });
+
+        var mcp = await PostAsync<McpServerDto>(client, "/api/integrations/mcp-servers", Server(server.Url));
+
+        mcp.Tools.Should().HaveCount(200);
+        mcp.LastError.Should().Contain("超过 200 个");
+        server.ListPages.Should().Be(3, "每页 100 个，读到第 201 个就停，不再往后翻");
     }
 
     /// <summary>
@@ -366,23 +455,41 @@ public sealed class IntegrationsTests(PostgresFixture postgres) : IntegrationTes
 
         public ConcurrentQueue<string> Calls { get; } = new();
 
-        public static async Task<TestMcpServer> StartAsync()
+        private int _listPages;
+
+        /// <summary>
+        /// 被请求了几页工具列表。
+        /// </summary>
+        public int ListPages => Volatile.Read(ref _listPages);
+
+        /// <param name="extraTools">另外再提供多少个工具，每页 100 个分页返回。</param>
+        public static async Task<TestMcpServer> StartAsync(int extraTools = 0)
         {
+            const int pageSize = 100;
             TestMcpServer? server = null;
+            List<Tool> tools =
+            [
+                new Tool { Name = "echo", Title = "回声", Description = "原样返回文字。", InputSchema = TextSchema, Annotations = new ToolAnnotations { ReadOnlyHint = true } },
+                new Tool { Name = "issues/create", Description = "创建缺陷单。", InputSchema = TitleSchema },
+                new Tool { Name = "explode", Description = "总是失败。", InputSchema = TitleSchema },
+                new Tool { Name = "whoami", Description = "回显收到的令牌。", InputSchema = TitleSchema },
+                .. Enumerable.Range(1, extraTools).Select(i => new Tool { Name = $"extra{i}", Description = "批量工具。", InputSchema = TitleSchema }),
+            ];
             var builder = WebApplication.CreateSlimBuilder();
             builder.WebHost.UseUrls("http://127.0.0.1:0");
             builder.Logging.ClearProviders();
             builder.Services.AddMcpServer(options => options.ServerInfo = new Implementation { Name = "test-server", Version = "1.0.0" })
                 .WithHttpTransport()
-                .WithListToolsHandler((_, _) => ValueTask.FromResult(new ListToolsResult
+                .WithListToolsHandler((context, _) =>
                 {
-                    Tools =
-                    [
-                        new Tool { Name = "echo", Title = "回声", Description = "原样返回文字。", InputSchema = TextSchema, Annotations = new ToolAnnotations { ReadOnlyHint = true } },
-                        new Tool { Name = "issues/create", Description = "创建缺陷单。", InputSchema = TitleSchema },
-                        new Tool { Name = "explode", Description = "总是失败。", InputSchema = TitleSchema },
-                    ],
-                }))
+                    Interlocked.Increment(ref server!._listPages);
+                    var offset = int.TryParse(context.Params?.Cursor, out var cursor) ? cursor : 0;
+                    return ValueTask.FromResult(new ListToolsResult
+                    {
+                        Tools = [.. tools.Skip(offset).Take(pageSize)],
+                        NextCursor = offset + pageSize < tools.Count ? (offset + pageSize).ToString(System.Globalization.CultureInfo.InvariantCulture) : null,
+                    });
+                })
                 .WithCallToolHandler((context, _) =>
                 {
                     var name = context.Params!.Name;
@@ -391,6 +498,11 @@ public sealed class IntegrationsTests(PostgresFixture postgres) : IntegrationTes
                     return ValueTask.FromResult(name switch
                     {
                         "echo" => new CallToolResult { Content = [new TextContentBlock { Text = $"回声：{args["text"].GetString()}" }] },
+                        "whoami" => new CallToolResult
+                        {
+                            Content = [new TextContentBlock { Text = $"收到令牌：{server.Authorizations.Last()}" }],
+                            StructuredContent = JsonSerializer.SerializeToElement(new { authorization = server.Authorizations.Last() }),
+                        },
                         "issues/create" => new CallToolResult
                         {
                             Content = [new TextContentBlock { Text = "已创建" }],
@@ -413,7 +525,7 @@ public sealed class IntegrationsTests(PostgresFixture postgres) : IntegrationTes
             app.MapPost("/echo", (HttpContext context) =>
             {
                 server!.Traces.Enqueue(context.Request.Headers["X-Trace"].ToString());
-                return Results.Json(new { ok = true });
+                return Results.Json(new { ok = true, authorization = context.Request.Headers.Authorization.ToString() });
             });
             await app.StartAsync();
             var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();

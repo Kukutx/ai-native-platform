@@ -70,13 +70,25 @@ internal sealed class McpToolActionSource(IAppDbContext db, McpServerTools tools
         }
 
         var endpoint = await tools.EndpointAsync(server, cancellationToken).ConfigureAwait(false);
-        var result = await gateway.CallToolAsync(endpoint, tool.Name, arguments, cancellationToken).ConfigureAwait(false);
-        if (result.IsError)
+
+        // 返回的内容会写进执行记录、交给模型：服务回显的密钥要先抹掉。
+        var redactor = await tools.RedactorAsync(server, cancellationToken).ConfigureAwait(false);
+        McpCallResult result;
+        try
         {
-            throw new McpToolFailedException(string.IsNullOrWhiteSpace(result.Text) ? $"「{server.Name}」的工具 {tool.Name} 执行失败。" : result.Text);
+            result = await gateway.CallToolAsync(endpoint, tool.Name, arguments, cancellationToken).ConfigureAwait(false);
+        }
+        catch (McpGatewayException ex) when (redactor.Redact(ex.Message) != ex.Message)
+        {
+            throw new McpGatewayException(redactor.Redact(ex.Message));
         }
 
-        return new McpToolOutput(server.Name, result.Text, result.Structured);
+        if (result.IsError)
+        {
+            throw new McpToolFailedException(string.IsNullOrWhiteSpace(result.Text) ? $"「{server.Name}」的工具 {tool.Name} 执行失败。" : redactor.Redact(result.Text));
+        }
+
+        return new McpToolOutput(server.Name, redactor.Redact(result.Text), result.Structured is { } structured ? redactor.Redact(structured) : null);
     }
 }
 
@@ -87,10 +99,12 @@ internal sealed record McpToolOutput(string Source, string Content, JsonElement?
 
 /// <summary>
 /// 外部 MCP 服务的一个工具。和内置动作一样经过统一入口：要求 integrations.tools.use 权限，
-/// 智能体调用时按服务的审批设置决定是否先提交审批。
+/// 智能体调用时按服务的审批设置决定是否先提交审批。是否只读以管理员的确认为准，服务自己的声明不可信。
 /// </summary>
 internal sealed class McpToolAction(McpServer server, McpToolSnapshot tool, McpToolActionSource source) : IDynamicPlatformAction
 {
+    private readonly bool _readOnly = server.ReadOnlyTools.Contains(tool.Name);
+
     public string Key { get; } = McpToolNames.ActionKey(server.Key, tool.Slug);
 
     public string ModuleKey => IntegrationsModule.ModuleKey;
@@ -103,14 +117,15 @@ internal sealed class McpToolAction(McpServer server, McpToolSnapshot tool, McpT
 
     public string RequiredFeature => IntegrationFeatures.ToolsUse;
 
-    public bool IsMutation => !tool.ReadOnly;
+    public bool IsMutation => !_readOnly;
 
-    public ApprovalPolicy ApprovalPolicy => RequiresApproval(server.ApprovalMode, tool.ReadOnly) ? ApprovalPolicy.RequiredForAgents : ApprovalPolicy.None;
+    public ApprovalPolicy ApprovalPolicy => RequiresApproval(server.ApprovalMode, _readOnly) ? ApprovalPolicy.RequiredForAgents : ApprovalPolicy.None;
 
     public Type InputType => typeof(JsonElement);
 
     public JsonElement InputSchema => tool.InputSchema;
 
+    /// <param name="readOnly">管理员确认工具只读。</param>
     public static bool RequiresApproval(McpApprovalMode mode, bool readOnly) => mode switch
     {
         McpApprovalMode.Always => true,

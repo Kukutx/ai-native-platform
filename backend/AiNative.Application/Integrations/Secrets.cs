@@ -1,4 +1,7 @@
+using System.Buffers;
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
@@ -125,6 +128,132 @@ public static partial class SecretTemplate
     }
 }
 
+/// <summary>
+/// 从外部返回的内容里抹掉本次发出去的密钥明文。对方可能把请求头原样回显（调试接口、部分错误响应），
+/// 这些内容会写进运行记录、交给模型，能看到它们的人不一定有权看密钥。太短的值不处理，免得误伤正常文字。
+/// </summary>
+public sealed class SecretRedactor
+{
+    public const string Mask = "***";
+
+    public const int MinLength = 4;
+
+    public static readonly SecretRedactor None = new([]);
+
+    private static readonly JsonWriterOptions WriterOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    private readonly string[] _values;
+
+    public SecretRedactor(IEnumerable<string> values)
+        => _values = [.. values.Where(v => v.Length >= MinLength).Distinct(StringComparer.Ordinal).OrderByDescending(v => v.Length)];
+
+    public string Redact(string text)
+    {
+        foreach (var value in _values)
+        {
+            if (text.Contains(value, StringComparison.Ordinal))
+            {
+                text = text.Replace(value, Mask, StringComparison.Ordinal);
+            }
+        }
+
+        return text;
+    }
+
+    public string? RedactNullable(string? text) => text is null ? null : Redact(text);
+
+    /// <summary>
+    /// 抹掉 JSON 里字符串值和属性名中的密钥；没有命中时原样返回。
+    /// </summary>
+    public JsonElement Redact(JsonElement element)
+    {
+        if (_values.Length == 0 || !Contains(element))
+        {
+            return element;
+        }
+
+        var buffer = new ArrayBufferWriter<byte>();
+        using (var writer = new Utf8JsonWriter(buffer, WriterOptions))
+        {
+            Write(writer, element);
+        }
+
+        using var document = JsonDocument.Parse(buffer.WrittenMemory);
+        return document.RootElement.Clone();
+    }
+
+    private bool Contains(string text) => _values.Any(v => text.Contains(v, StringComparison.Ordinal));
+
+    private bool Contains(JsonElement element) => element.ValueKind switch
+    {
+        JsonValueKind.String => Contains(element.GetString()!),
+        JsonValueKind.Object => element.EnumerateObject().Any(p => Contains(p.Name) || Contains(p.Value)),
+        JsonValueKind.Array => element.EnumerateArray().Any(Contains),
+        _ => false,
+    };
+
+    private void Write(Utf8JsonWriter writer, JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.Object:
+                writer.WriteStartObject();
+                foreach (var property in element.EnumerateObject())
+                {
+                    writer.WritePropertyName(Redact(property.Name));
+                    Write(writer, property.Value);
+                }
+
+                writer.WriteEndObject();
+                break;
+            case JsonValueKind.Array:
+                writer.WriteStartArray();
+                foreach (var item in element.EnumerateArray())
+                {
+                    Write(writer, item);
+                }
+
+                writer.WriteEndArray();
+                break;
+            case JsonValueKind.String:
+                writer.WriteStringValue(Redact(element.GetString()!));
+                break;
+            default:
+                element.WriteTo(writer);
+                break;
+        }
+    }
+}
+
+/// <summary>
+/// 保存引用密钥的配置与删除密钥互斥：两边都在事务里先拿同一把锁再检查，
+/// 删除不会漏掉刚保存的引用，保存也不会引用刚被删掉的密钥。
+/// </summary>
+internal sealed class SecretReferences(ITenantSecrets secrets, ITransactionLock locks, ITenantContext tenant)
+{
+    public static string LockKey(Guid tenantId) => $"tenant-secrets:{tenantId}";
+
+    /// <summary>
+    /// 必须在事务里调用，锁到事务结束。
+    /// </summary>
+    public Task LockAsync(CancellationToken cancellationToken) => locks.AcquireAsync(LockKey(tenant.TenantId), cancellationToken);
+
+    /// <summary>
+    /// 加锁后返回这些名称里不存在的；没有引用时不加锁。必须在事务里调用。
+    /// </summary>
+    public async Task<IReadOnlyList<string>> LockAndFindMissingAsync(IReadOnlyCollection<string> names, CancellationToken cancellationToken)
+    {
+        if (names.Count == 0)
+        {
+            return [];
+        }
+
+        await LockAsync(cancellationToken).ConfigureAwait(false);
+        var existing = await secrets.ExistingAsync(names, cancellationToken).ConfigureAwait(false);
+        return [.. names.Where(n => !existing.Contains(n)).Distinct(StringComparer.Ordinal)];
+    }
+}
+
 internal sealed class TenantSecrets(IAppDbContext db, ITenantContext tenant, ISecretProtector protector) : ITenantSecrets
 {
     private readonly Dictionary<string, string> _cache = new(StringComparer.Ordinal);
@@ -204,6 +333,7 @@ internal sealed class TenantSecretHandlers(
     IAppDbContext db,
     ITenantContext tenant,
     ISecretProtector protector,
+    SecretReferences references,
     IChangeFeed changes,
     TimeProvider clock) :
     IRequestHandler<ListTenantSecretsQuery, IReadOnlyList<TenantSecretDto>>,
@@ -255,10 +385,11 @@ internal sealed class TenantSecretHandlers(
     }
 
     /// <summary>
-    /// 还被外部服务或工作流引用的密钥不能删，免得它们悄悄开始失败。
+    /// 还被外部服务或工作流引用的密钥不能删，免得它们悄悄开始失败。和保存引用的操作互斥，检查之后不会冒出新引用。
     /// </summary>
     public async Task<Unit> HandleAsync(DeleteTenantSecretCommand request, CancellationToken cancellationToken)
     {
+        await references.LockAsync(cancellationToken).ConfigureAwait(false);
         var secret = await db.TenantSecrets.FirstOrDefaultAsync(s => s.Id == request.Id, cancellationToken).ConfigureAwait(false)
                      ?? throw new NotFoundException("tenant_secret", request.Id, "密钥不存在。");
         var users = await FindUsersAsync(secret.Name, cancellationToken).ConfigureAwait(false);

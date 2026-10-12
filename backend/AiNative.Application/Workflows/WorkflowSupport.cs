@@ -158,7 +158,7 @@ internal sealed partial class WorkflowDefinitionValidator(
     IModuleAccess modules,
     IAppDbContext db,
     ITenantContext tenant,
-    ITenantSecrets secrets,
+    SecretReferences secretReferences,
     TimeProvider clock)
 {
     public const int MaxSteps = 50;
@@ -306,9 +306,10 @@ internal sealed partial class WorkflowDefinitionValidator(
         IPlatformAction? FindAction(string key) => actionsByKey.GetValueOrDefault(key);
 
         // 请求头里引用的密钥：保存者要能使用密钥（引用了就能把它发往任意地址），密钥要已经存在。
+        // 保存在事务里进行，先拿密钥锁再检查，提交之前引用的密钥删不掉。
         var secretNames = all.Where(s => s.Kind == WorkflowStepKind.Http).SelectMany(s => (s.Headers ?? []).Values)
             .SelectMany(SecretTemplate.References).Distinct(StringComparer.Ordinal).ToList();
-        var existingSecrets = await secrets.ExistingAsync(secretNames, cancellationToken).ConfigureAwait(false);
+        var missingSecrets = (await secretReferences.LockAndFindMissingAsync(secretNames, cancellationToken).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
         var secretsDenied = !enabledModules.Contains(IntegrationsModule.ModuleKey)
             ? "「集成」模块未启用，不能使用密钥。"
             : !tenant.Can(IntegrationFeatures.SecretsUse) ? $"在请求头里使用密钥需要权限 {IntegrationFeatures.SecretsUse}。" : null;
@@ -572,7 +573,7 @@ internal sealed partial class WorkflowDefinitionValidator(
                             {
                                 add($"{path}.headers", secretsDenied);
                             }
-                            else if (!existingSecrets.Contains(secretName))
+                            else if (missingSecrets.Contains(secretName))
                             {
                                 add($"{path}.headers", $"密钥 {secretName} 不存在，请先在「集成 → 密钥」里添加。");
                             }

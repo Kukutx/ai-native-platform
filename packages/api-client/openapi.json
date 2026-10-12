@@ -3954,13 +3954,13 @@
         }
       }
     },
-    "/api/integrations/mcp-servers/{id}/disabled-tools": {
+    "/api/integrations/mcp-servers/{id}/tools": {
       "put": {
         "tags": [
           "Integrations"
         ],
-        "summary": "设置关掉的工具，其余工具可用。",
-        "operationId": "Integrations_SetMcpDisabledTools",
+        "summary": "调整一个工具：开关、确认只读。只改给出的项。",
+        "operationId": "Integrations_UpdateMcpTool",
         "parameters": [
           {
             "name": "id",
@@ -3978,7 +3978,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SetMcpDisabledToolsRequest"
+                "$ref": "#/components/schemas/UpdateMcpToolRequest"
               }
             }
           },
@@ -10034,6 +10034,7 @@
           "key",
           "description",
           "readOnly",
+          "readOnlyHint",
           "enabled",
           "requiresApproval",
           "inputSchema"
@@ -10053,6 +10054,9 @@
             "type": "string"
           },
           "readOnly": {
+            "type": "boolean"
+          },
+          "readOnlyHint": {
             "type": "boolean"
           },
           "enabled": {
@@ -10102,15 +10106,24 @@
           }
         }
       },
-      "SetMcpDisabledToolsRequest": {
+      "UpdateMcpToolRequest": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "tool",
+          "tool"
+        ],
         "properties": {
-          "tools": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "tool": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "readOnly": {
+            "type": "boolean",
+            "nullable": true
           }
         }
       },

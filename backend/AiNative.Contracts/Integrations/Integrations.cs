@@ -39,6 +39,8 @@ public sealed record UpdateTenantSecretRequest
 }
 
 /// <param name="Key">平台里的动作键，形如 mcp.github.create_issue。</param>
+/// <param name="ReadOnly">管理员确认它只读。</param>
+/// <param name="ReadOnlyHint">服务自己声明只读，只作参考。</param>
 /// <param name="Enabled">管理员没有关掉它。</param>
 public sealed record McpToolDto(
     string Name,
@@ -46,6 +48,7 @@ public sealed record McpToolDto(
     string? Title,
     string Description,
     bool ReadOnly,
+    bool ReadOnlyHint,
     bool Enabled,
     bool RequiresApproval,
     JsonElement InputSchema);
@@ -84,10 +87,23 @@ public sealed record SaveMcpServerRequest
     public McpApprovalMode ApprovalMode { get; init; } = McpApprovalMode.WritesOnly;
 }
 
-public sealed record SetMcpDisabledToolsRequest
+/// <summary>
+/// 调整一个工具，只改给出的项。
+/// </summary>
+public sealed record UpdateMcpToolRequest
 {
     /// <summary>
-    /// 要关掉的工具名（外部服务里的名字），其余工具都可用。
+    /// 外部服务里的工具名。
     /// </summary>
-    public IReadOnlyList<string> Tools { get; init; } = [];
+    public required string Tool { get; init; }
+
+    /// <summary>
+    /// 是否可用。
+    /// </summary>
+    public bool? Enabled { get; init; }
+
+    /// <summary>
+    /// 管理员确认它只读：「只读工具免审批」模式下智能体可以直接调用。
+    /// </summary>
+    public bool? ReadOnly { get; init; }
 }

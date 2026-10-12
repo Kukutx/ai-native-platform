@@ -61,13 +61,57 @@ public sealed class IntegrationSecurityTests
 
         var act = () => gateway.ListToolsAsync(
             new McpEndpoint(Guid.NewGuid(), new Uri("http://127.0.0.1:9/mcp"), new Dictionary<string, string>()),
+            10,
             TestContext.Current.CancellationToken);
 
         (await act.Should().ThrowAsync<McpGatewayException>()).Which.Message.Should().Contain("内网");
+    }
+
+    [Fact]
+    public async Task Oversized_post_responses_are_cut_off_while_reading()
+    {
+        const int limit = 1024;
+        var ct = TestContext.Current.CancellationToken;
+        using var client = new HttpClient(new ResponseSizeLimitHandler(limit, new StubHandler(() => new StreamContent(new NonSeekableStream(new byte[limit * 4])))));
+
+        // 没有声明长度（分块传输）：读到上限时报错。
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("http://example.com/mcp"));
+        using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        await using var stream = await response.Content.ReadAsStreamAsync(ct);
+        var read = () => stream.CopyToAsync(Stream.Null, ct);
+        (await read.Should().ThrowAsync<ResponseTooLargeException>()).Which.Message.Should().Contain("1 KB");
+
+        // 默认的缓冲读取同样受限。
+        var buffered = () => client.PostAsync(new Uri("http://example.com/mcp"), null, ct);
+        (await buffered.Should().ThrowAsync<Exception>()).Which.Should().Match<Exception>(e => ResponseSizeLimitHandler.FindTooLarge(e) != null);
+
+        // 长时间保持的 GET 事件流不受限制。
+        (await client.GetByteArrayAsync(new Uri("http://example.com/mcp"), ct)).Should().HaveCount(limit * 4);
+    }
+
+    [Fact]
+    public async Task Declared_oversized_responses_are_refused_before_reading()
+    {
+        using var client = new HttpClient(new ResponseSizeLimitHandler(10, new StubHandler(() => new ByteArrayContent(new byte[100]))));
+
+        var act = () => client.PostAsync(new Uri("http://example.com/mcp"), null, TestContext.Current.CancellationToken);
+
+        (await act.Should().ThrowAsync<HttpRequestException>()).Which.InnerException.Should().BeOfType<ResponseTooLargeException>();
     }
 
     private static AesGcmSecretProtector Protector(string? masterKey, params string[] previous)
         => new(
             Options.Create(new SecretsOptions { MasterKey = masterKey, PreviousMasterKeys = [.. previous] }),
             Options.Create(new AuthOptions { SigningKey = SigningKey }));
+
+    private sealed class StubHandler(Func<HttpContent> content) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            => Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content(), RequestMessage = request });
+    }
+
+    private sealed class NonSeekableStream(byte[] data) : MemoryStream(data)
+    {
+        public override bool CanSeek => false;
+    }
 }

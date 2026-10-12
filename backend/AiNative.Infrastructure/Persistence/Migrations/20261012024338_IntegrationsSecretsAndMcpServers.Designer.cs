@@ -14,7 +14,7 @@ using NpgsqlTypes;
 namespace AiNative.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261012015013_IntegrationsSecretsAndMcpServers")]
+    [Migration("20261012024338_IntegrationsSecretsAndMcpServers")]
     partial class IntegrationsSecretsAndMcpServers
     {
         /// <inheritdoc />
@@ -2106,6 +2106,11 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
+
+                    b.Property<string>("ReadOnlyTools")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("read_only_tools");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")

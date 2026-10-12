@@ -2104,6 +2104,11 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("name");
 
+                    b.Property<string>("ReadOnlyTools")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("read_only_tools");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");

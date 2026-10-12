@@ -42,7 +42,7 @@ export function SecretsTab() {
       <div className='flex flex-wrap items-start justify-between gap-4'>
         <p className='text-muted-foreground max-w-2xl text-sm'>
           把 API 令牌等敏感值加密保存在这里，再在外部服务或工作流 HTTP 步骤的请求头里写 <code className='font-mono whitespace-nowrap'>{reference('名称')}</code> 引用。
-          保存后任何人都看不到明文，只能更换；工作流里引用密钥需要负责人有「在工作流的 HTTP 请求头里引用密钥」的权限。
+          保存后任何人都看不到明文，只能更换。引用密钥的人需要有「在工作流 HTTP 请求和外部服务的请求头里引用密钥」的权限：能引用就能把它发往任意地址。
         </p>
         {manage ? (
           <Button onClick={() => setEditing('new')}>

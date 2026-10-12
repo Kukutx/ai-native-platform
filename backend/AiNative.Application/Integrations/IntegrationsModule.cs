@@ -14,7 +14,7 @@ public static class IntegrationFeatures
     public const string ToolsUse = "integrations.tools.use";
 
     /// <summary>
-    /// 在工作流的 HTTP 请求头里引用密钥。能引用就能把密钥发往任意地址，等同于能读取，所以单独授权。
+    /// 在工作流 HTTP 请求和外部服务的请求头里引用密钥。能引用就能把密钥发往任意地址，等同于能读取，所以单独授权。
     /// </summary>
     public const string SecretsUse = "integrations.secrets.use";
 }
@@ -51,6 +51,6 @@ internal sealed class IntegrationsModule : IPlatformModule
         new(IntegrationFeatures.View, "查看接入的外部服务和密钥名称", ModuleKey),
         new(IntegrationFeatures.Manage, "管理外部 MCP 服务和密钥", ModuleKey),
         new(IntegrationFeatures.ToolsUse, "调用外部 MCP 服务提供的工具", ModuleKey),
-        new(IntegrationFeatures.SecretsUse, "在工作流的 HTTP 请求头里引用密钥", ModuleKey),
+        new(IntegrationFeatures.SecretsUse, "在工作流 HTTP 请求和外部服务的请求头里引用密钥", ModuleKey),
     ];
 }

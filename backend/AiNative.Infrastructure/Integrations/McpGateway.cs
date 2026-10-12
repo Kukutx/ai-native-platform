@@ -36,6 +36,11 @@ public sealed class IntegrationOptions
     /// 工具返回文本的最大长度，超出部分截断，免得一次调用塞满模型上下文。
     /// </summary>
     public int MaxToolResultChars { get; set; } = 50_000;
+
+    /// <summary>
+    /// 单个响应的最大字节数（工具列表、工具结果），超出就按出错处理，不把超大响应读进内存。
+    /// </summary>
+    public long McpMaxResponseBytes { get; set; } = 16 * 1024 * 1024;
 }
 
 /// <summary>
@@ -60,39 +65,57 @@ internal sealed class McpGateway : IMcpGateway, IAsyncDisposable
         _loggers = loggers;
         _logger = loggers.CreateLogger<McpGateway>();
         _clock = clock;
-        _http = new HttpClient(OutboundHttp.CreateHandler(network.Value.AllowPrivateNetworkRequests)) { Timeout = Timeout.InfiniteTimeSpan };
+        _http = new HttpClient(new ResponseSizeLimitHandler(_options.McpMaxResponseBytes, OutboundHttp.CreateHandler(network.Value.AllowPrivateNetworkRequests)))
+        {
+            Timeout = Timeout.InfiniteTimeSpan,
+            MaxResponseContentBufferSize = _options.McpMaxResponseBytes,
+        };
         _http.DefaultRequestHeaders.UserAgent.ParseAdd("AiNative-Platform/1.0");
         var interval = TimeSpan.FromMinutes(1);
         _sweeper = clock.CreateTimer(_ => _ = SweepAsync(), null, interval, interval);
     }
 
-    public async Task<IReadOnlyList<McpRemoteTool>> ListToolsAsync(McpEndpoint endpoint, CancellationToken cancellationToken)
+    public async Task<McpToolList> ListToolsAsync(McpEndpoint endpoint, int maxTools, CancellationToken cancellationToken)
     {
         // 读取列表没有副作用，复用的会话出任何连接问题都可以重连再试一次。
-        var tools = await RunAsync(endpoint, retryOnTransportError: true, async (client, token) =>
+        return await RunAsync(endpoint, retryOnTransportError: true, async (client, token) =>
         {
-            var all = new List<Tool>();
+            var tools = new List<McpRemoteTool>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
             string? cursor = null;
             for (var page = 0; page < MaxListPages; page++)
             {
                 var result = await client.ListToolsAsync(new ListToolsRequestParams { Cursor = cursor }, token).ConfigureAwait(false);
-                all.AddRange(result.Tools);
+                foreach (var tool in result.Tools)
+                {
+                    if (!seen.Add(tool.Name))
+                    {
+                        continue;
+                    }
+
+                    // 读够了就停，不再翻页：服务给多少都只留下需要的数量。
+                    if (tools.Count == maxTools)
+                    {
+                        return new McpToolList(tools, HasMore: true);
+                    }
+
+                    tools.Add(new McpRemoteTool(
+                        tool.Name,
+                        tool.Title ?? tool.Annotations?.Title,
+                        tool.Description,
+                        tool.InputSchema.Clone(),
+                        tool.Annotations?.ReadOnlyHint == true));
+                }
+
                 cursor = result.NextCursor;
                 if (string.IsNullOrEmpty(cursor))
                 {
-                    break;
+                    return new McpToolList(tools, HasMore: false);
                 }
             }
 
-            return all;
+            return new McpToolList(tools, HasMore: true);
         }, cancellationToken).ConfigureAwait(false);
-
-        return [.. tools.Select(t => new McpRemoteTool(
-            t.Name,
-            t.Title ?? t.Annotations?.Title,
-            t.Description,
-            t.InputSchema.Clone(),
-            t.Annotations?.ReadOnlyHint == true))];
     }
 
     public async Task<McpCallResult> CallToolAsync(McpEndpoint endpoint, string toolName, JsonElement arguments, CancellationToken cancellationToken)
@@ -296,6 +319,11 @@ internal sealed class McpGateway : IMcpGateway, IAsyncDisposable
         if (OutboundHttp.FindBlocked(exception) is { } blocked)
         {
             return blocked.Message;
+        }
+
+        if (ResponseSizeLimitHandler.FindTooLarge(exception) is { } tooLarge)
+        {
+            return tooLarge.Message;
         }
 
         return StatusOf(exception) switch

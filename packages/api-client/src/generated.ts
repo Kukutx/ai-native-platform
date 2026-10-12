@@ -4647,10 +4647,10 @@ export class IntegrationsClient {
     }
 
     /**
-     * 设置关掉的工具，其余工具可用。
+     * 调整一个工具：开关、确认只读。只改给出的项。
      */
-    setMcpDisabledTools(id: string, request: SetMcpDisabledToolsRequest, signal?: AbortSignal): Promise<McpServerDto> {
-        let url_ = this.baseUrl + "/api/integrations/mcp-servers/{id}/disabled-tools";
+    updateMcpTool(id: string, request: UpdateMcpToolRequest, signal?: AbortSignal): Promise<McpServerDto> {
+        let url_ = this.baseUrl + "/api/integrations/mcp-servers/{id}/tools";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
         url_ = url_.replace("{id}", encodeURIComponent("" + id));
@@ -4669,11 +4669,11 @@ export class IntegrationsClient {
         };
 
         return this.http.fetch(url_, options_).then((_response: Response) => {
-            return this.processSetMcpDisabledTools(_response);
+            return this.processUpdateMcpTool(_response);
         });
     }
 
-    protected processSetMcpDisabledTools(response: Response): Promise<McpServerDto> {
+    protected processUpdateMcpTool(response: Response): Promise<McpServerDto> {
         const status = response.status;
         let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
         if (status === 200) {
@@ -7621,6 +7621,7 @@ export interface McpToolDto {
     title?: string | undefined;
     description: string;
     readOnly: boolean;
+    readOnlyHint: boolean;
     enabled: boolean;
     requiresApproval: boolean;
     inputSchema: any;
@@ -7636,8 +7637,10 @@ export interface SaveMcpServerRequest {
     approvalMode?: McpApprovalMode;
 }
 
-export interface SetMcpDisabledToolsRequest {
-    tools?: string[];
+export interface UpdateMcpToolRequest {
+    tool: string;
+    enabled?: boolean | undefined;
+    readOnly?: boolean | undefined;
 }
 
 export interface TenantSecretDto {

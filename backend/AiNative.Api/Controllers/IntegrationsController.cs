@@ -32,11 +32,10 @@ public sealed class IntegrationsController : ApiControllerBase
     public Task<McpServerDto> RefreshMcpServer(Guid id) => SendAsync(new RefreshMcpServerToolsCommand(id));
 
     /// <summary>
-    /// 设置关掉的工具，其余工具可用。
+    /// 调整一个工具：开关、确认只读。只改给出的项。
     /// </summary>
-    [HttpPut("mcp-servers/{id:guid}/disabled-tools")]
-    public Task<McpServerDto> SetMcpDisabledTools(Guid id, SetMcpDisabledToolsRequest request)
-        => SendAsync(new SetMcpDisabledToolsCommand(id, request.Tools));
+    [HttpPut("mcp-servers/{id:guid}/tools")]
+    public Task<McpServerDto> UpdateMcpTool(Guid id, UpdateMcpToolRequest request) => SendAsync(new UpdateMcpToolCommand(id, request));
 
     [HttpDelete("mcp-servers/{id:guid}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

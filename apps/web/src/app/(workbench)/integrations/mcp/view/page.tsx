@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { McpServerDto, McpToolDto } from '@ainative/api-client';
+import type { McpServerDto, UpdateMcpToolRequest } from '@ainative/api-client';
 import { useSession } from '@/components/app/session-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { Icons } from '@/components/icons';
@@ -46,8 +46,8 @@ function McpServerDetail() {
       }
     },
   });
-  const toggle = useMutation({
-    mutationFn: (tools: string[]) => api.integrations.setMcpDisabledTools(id, { tools }),
+  const updateTool = useMutation({
+    mutationFn: (request: UpdateMcpToolRequest) => api.integrations.updateMcpTool(id, request),
     onSuccess: applied,
   });
   const remove = useMutation({
@@ -68,11 +68,6 @@ function McpServerDetail() {
   if (!server) {
     return <p className='text-muted-foreground p-6'>服务不存在或已被删除。</p>;
   }
-
-  const setEnabled = (tool: McpToolDto, enabled: boolean) => {
-    const disabled = server.tools.filter((t) => (t.name === tool.name ? !enabled : !t.enabled)).map((t) => t.name);
-    toggle.mutate(disabled);
-  };
 
   return (
     <div className='space-y-6 p-6'>
@@ -156,7 +151,9 @@ function McpServerDetail() {
       <section className='space-y-3'>
         <div className='flex flex-wrap items-baseline justify-between gap-2'>
           <h2 className='text-lg font-semibold'>工具</h2>
-          <p className='text-muted-foreground text-sm'>停用的工具不会出现在智能体、对话和工作流的动作列表里。</p>
+          <p className='text-muted-foreground max-w-2xl text-sm'>
+            停用的工具不会出现在智能体、对话和工作流的动作列表里。确认为只读的工具，在「只读工具免审批」模式下智能体可以直接调用；服务自己标注的只读只作参考，确认前请看清工具说明。
+          </p>
         </div>
         {server.tools.length ? (
           <Table>
@@ -165,6 +162,7 @@ function McpServerDetail() {
                 <TableHead>工具</TableHead>
                 <TableHead>说明</TableHead>
                 <TableHead>类型</TableHead>
+                <TableHead>只读</TableHead>
                 <TableHead>启用</TableHead>
               </TableRow>
             </TableHeader>
@@ -184,16 +182,29 @@ function McpServerDetail() {
                   </TableCell>
                   <TableCell className='align-top'>
                     <div className='flex flex-wrap gap-1'>
-                      <Badge variant={tool.readOnly ? 'secondary' : 'outline'}>{tool.readOnly ? '只读' : '会修改数据'}</Badge>
+                      <Badge variant={tool.readOnly ? 'secondary' : 'outline'}>{tool.readOnly ? '只读' : '可能修改数据'}</Badge>
+                      {tool.readOnlyHint && !tool.readOnly ? (
+                        <Badge variant='outline' title='服务自己声明这个工具只读，只作参考；确认后打开「只读」。'>
+                          服务标注只读
+                        </Badge>
+                      ) : null}
                       {tool.requiresApproval ? <Badge variant='outline'>智能体需审批</Badge> : null}
                     </div>
                   </TableCell>
                   <TableCell className='align-top'>
                     <Switch
+                      aria-label={`确认 ${tool.name} 只读`}
+                      checked={tool.readOnly}
+                      disabled={!manage || updateTool.isPending}
+                      onCheckedChange={(readOnly) => updateTool.mutate({ tool: tool.name, readOnly })}
+                    />
+                  </TableCell>
+                  <TableCell className='align-top'>
+                    <Switch
                       aria-label={`启用 ${tool.name}`}
                       checked={tool.enabled}
-                      disabled={!manage || toggle.isPending}
-                      onCheckedChange={(checked) => setEnabled(tool, checked)}
+                      disabled={!manage || updateTool.isPending}
+                      onCheckedChange={(enabled) => updateTool.mutate({ tool: tool.name, enabled })}
                     />
                   </TableCell>
                 </TableRow>

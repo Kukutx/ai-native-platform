@@ -24,6 +24,7 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     is_enabled = table.Column<bool>(type: "boolean", nullable: false),
                     approval_mode = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     disabled_tools = table.Column<string>(type: "jsonb", nullable: false),
+                    read_only_tools = table.Column<string>(type: "jsonb", nullable: false),
                     tools = table.Column<string>(type: "jsonb", nullable: false),
                     tools_refreshed_at = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     last_error = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),

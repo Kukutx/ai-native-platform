@@ -47,6 +47,7 @@ public static class DependencyInjection
         services.AddScoped<Analytics.MetricLabels>();
         services.AddScoped<Analytics.AnalyticsEngine>();
         services.AddScoped<Integrations.ITenantSecrets, Integrations.TenantSecrets>();
+        services.AddScoped<Integrations.SecretReferences>();
         services.AddScoped<Integrations.McpServerTools>();
         services.AddScoped<AgentPromptBuilder>();
         services.AddScoped<IAgentRuntime, AgentRuntime>();

@@ -360,6 +360,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.ComplexProperty(x => x.CreatedBy);
             JsonList(b.Property(x => x.Headers));
             JsonList(b.Property(x => x.DisabledTools));
+            JsonList(b.Property(x => x.ReadOnlyTools));
             JsonList(b.Property(x => x.Tools));
             b.HasIndex(x => new { x.TenantId, x.Key }).IsUnique();
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);

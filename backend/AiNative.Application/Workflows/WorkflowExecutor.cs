@@ -390,6 +390,8 @@ internal sealed class WorkflowExecutor(
             return StepOutcome.Stopped;
         }
 
+        // 对方可能把请求头原样回显：记录响应和错误前抹掉发出去的密钥。
+        var redactor = new SecretRedactor(secrets.Values);
         WorkflowHttpResponse response;
         try
         {
@@ -397,10 +399,16 @@ internal sealed class WorkflowExecutor(
         }
         catch (WorkflowHttpException ex)
         {
-            return await FailStepAsync(run, step, position, null, ex.Message, cancellationToken).ConfigureAwait(false);
+            return await FailStepAsync(run, step, position, null, redactor.Redact(ex.Message), cancellationToken).ConfigureAwait(false);
         }
 
-        var output = PlatformJson.ToElement(new { status = response.Status, ok = response.IsSuccess, contentType = response.ContentType, body = HttpBody(response) });
+        var responseBody = HttpBody(response) switch
+        {
+            JsonElement json => redactor.Redact(json),
+            string text => (object)redactor.Redact(text),
+            var other => other,
+        };
+        var output = PlatformJson.ToElement(new { status = response.Status, ok = response.IsSuccess, contentType = response.ContentType, body = responseBody });
         var status = response.IsSuccess ? WorkflowStepStatus.Succeeded : WorkflowStepStatus.Failed;
         var error = response.IsSuccess ? null : $"服务器返回 HTTP {response.Status}。";
         return await InUnitAsync(() => CompleteInAsync(db, changes, run, step, position, status, null, output, error, cancellationToken), cancellationToken)

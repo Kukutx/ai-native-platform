@@ -53,6 +53,7 @@ openssl rand -base64 48   # 令牌签名密钥
 | `Secrets__PreviousMasterKeys__0` | 更换主密钥时把旧主密钥放这里，旧密钥照样能解开；在界面上重新保存一遍各个密钥后就可以去掉。先用派生密钥、后来才设置 `Secrets__MasterKey` 的部署不需要这一项（派生的那把总会参与解密，只要签名密钥没换）。 |
 | `Integrations__McpConnectTimeout` / `Integrations__McpCallTimeout` | 连接外部 MCP 服务、调用一次外部工具的超时，默认 `00:00:30`、`00:01:00`。 |
 | `Integrations__MaxToolResultChars` | 外部工具返回文本的最大长度，超出部分截断，默认 50000。 |
+| `Integrations__McpMaxResponseBytes` | 外部 MCP 服务单个响应（工具列表、工具结果）的最大字节数，超出按出错处理，默认 16777216（16 MB）。 |
 | `Cors__AllowedOrigins__N` | 允许跨域访问的来源。默认已包含桌面端（Tauri）的来源；镜像自带的 Web 页面同源，不需要配置。只有把 Web 单独部署到另一个域名时才需要加。 |
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | 信任反向代理传来的 `X-Forwarded-For` / `X-Forwarded-Proto`。示例 Compose 里已打开，此时应用端口只应通过反向代理访问。 |
 | `Serilog__MinimumLevel__Default` | 日志级别，默认 `Information`。日志写到标准输出，用 `docker compose logs` 查看。 |

@@ -11,7 +11,12 @@ namespace AiNative.Application.Integrations;
 /// </summary>
 public sealed record McpEndpoint(Guid ServerId, Uri Url, IReadOnlyDictionary<string, string> Headers);
 
-public sealed record McpRemoteTool(string Name, string? Title, string? Description, JsonElement InputSchema, bool ReadOnly);
+/// <param name="ReadOnlyHint">服务声明工具只读。MCP 规定工具标注不可信，只作参考。</param>
+public sealed record McpRemoteTool(string Name, string? Title, string? Description, JsonElement InputSchema, bool ReadOnlyHint);
+
+/// <param name="Tools">按服务返回的顺序，工具名不重复，最多为请求的数量。</param>
+/// <param name="HasMore">服务还有更多工具没有读取。</param>
+public sealed record McpToolList(IReadOnlyList<McpRemoteTool> Tools, bool HasMore);
 
 /// <param name="Text">文本内容拼在一起（图片等非文本内容给出占位说明）。</param>
 /// <param name="Structured">服务给出的结构化结果。</param>
@@ -27,7 +32,10 @@ public sealed class McpGatewayException(string message) : AppException("integrat
 /// </summary>
 public interface IMcpGateway
 {
-    Task<IReadOnlyList<McpRemoteTool>> ListToolsAsync(McpEndpoint endpoint, CancellationToken cancellationToken);
+    /// <summary>
+    /// 读取工具列表，读够 <paramref name="maxTools"/> 个就停止翻页，不把服务给的全部工具都读进内存。
+    /// </summary>
+    Task<McpToolList> ListToolsAsync(McpEndpoint endpoint, int maxTools, CancellationToken cancellationToken);
 
     Task<McpCallResult> CallToolAsync(McpEndpoint endpoint, string toolName, JsonElement arguments, CancellationToken cancellationToken);
 }
@@ -52,26 +60,38 @@ public static partial class McpToolNames
 
     /// <summary>
     /// 给一批外部工具名分配工具标识：不允许的字符换成下划线，过长或换完撞车的截断后加上原名的哈希。
-    /// 结果只取决于这批名字本身，刷新工具列表时已有工具的标识不变，工作流和审批里的引用继续有效。
+    /// <paramref name="previous"/> 里已有的工具沿用原来的标识，不受新出现的同名工具影响：
+    /// 工作流和审批按动作键引用工具，刷新工具列表后这些引用继续有效。
     /// </summary>
-    public static IReadOnlyDictionary<string, string> AssignSlugs(IEnumerable<string> toolNames)
+    public static IReadOnlyDictionary<string, string> AssignSlugs(IEnumerable<string> toolNames, IReadOnlyDictionary<string, string>? previous = null)
     {
         var names = toolNames.Distinct(StringComparer.Ordinal).ToList();
-        var sanitized = names.ToDictionary(n => n, Sanitize, StringComparer.Ordinal);
+        var slugs = new Dictionary<string, string>(StringComparer.Ordinal);
+        var taken = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var name in names)
+        {
+            if (previous?.TryGetValue(name, out var slug) == true && taken.Add(slug))
+            {
+                slugs[name] = slug;
+            }
+        }
+
+        var fresh = names.Where(n => !slugs.ContainsKey(n)).ToList();
+        var sanitized = fresh.ToDictionary(n => n, Sanitize, StringComparer.Ordinal);
         var collisions = sanitized.GroupBy(kv => kv.Value, StringComparer.Ordinal).Where(g => g.Count() > 1).SelectMany(g => g.Select(kv => kv.Key))
             .ToHashSet(StringComparer.Ordinal);
-        var slugs = names.ToDictionary(
-            n => n,
-            n => collisions.Contains(n) || sanitized[n].Length > MaxSlugLength ? Hashed(sanitized[n], n, 8) : sanitized[n],
-            StringComparer.Ordinal);
-
-        // 加了哈希的标识恰好和别的工具名相同时，换成更长的哈希。
-        foreach (var group in slugs.GroupBy(kv => kv.Value, StringComparer.Ordinal).Where(g => g.Count() > 1).ToList())
+        foreach (var name in fresh)
         {
-            foreach (var (name, _) in group)
+            var plain = sanitized[name];
+            var slug = collisions.Contains(name) || plain.Length > MaxSlugLength || taken.Contains(plain) ? Hashed(plain, name, 8) : plain;
+
+            // 加了哈希的标识恰好和别的工具撞上时，换成更长的哈希。
+            for (var hashLength = 12; !taken.Add(slug) && hashLength <= 32; hashLength += 4)
             {
-                slugs[name] = Hashed(sanitized[name], name, 12);
+                slug = Hashed(plain, name, hashLength);
             }
+
+            slugs[name] = slug;
         }
 
         return slugs;

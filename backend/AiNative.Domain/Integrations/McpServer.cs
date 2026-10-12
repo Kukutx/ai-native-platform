@@ -14,7 +14,7 @@ public enum McpApprovalMode
     Never = 0,
 
     /// <summary>
-    /// 服务声明为只读的工具直接执行，其余需要审批。
+    /// 管理员确认为只读的工具直接执行，其余需要审批。服务自己声明的只读不算数。
     /// </summary>
     WritesOnly = 1,
 
@@ -54,9 +54,9 @@ public sealed record McpToolSnapshot
     public JsonElement InputSchema { get; init; }
 
     /// <summary>
-    /// 服务声明工具只读（readOnlyHint）。
+    /// 服务声明工具只读（readOnlyHint）。MCP 规定工具标注不可信，只在界面上给管理员作参考，不参与审批判断。
     /// </summary>
-    public bool ReadOnly { get; init; }
+    public bool ReadOnlyHint { get; init; }
 }
 
 /// <summary>
@@ -89,9 +89,14 @@ public sealed class McpServer : TenantEntity
     public McpApprovalMode ApprovalMode { get; set; } = McpApprovalMode.WritesOnly;
 
     /// <summary>
-    /// 被管理员关掉的工具（按外部工具名）。新出现的工具默认可用。
+    /// 被管理员关掉的工具（按外部工具名）。新出现的工具默认可用；关掉的工具暂时从服务里消失后再出现，仍然关着。
     /// </summary>
     public List<string> DisabledTools { get; set; } = [];
+
+    /// <summary>
+    /// 管理员确认为只读的工具（按外部工具名）：「只读工具免审批」模式下智能体可以直接调用。
+    /// </summary>
+    public List<string> ReadOnlyTools { get; set; } = [];
 
     public List<McpToolSnapshot> Tools { get; set; } = [];
 

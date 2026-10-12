@@ -169,7 +169,7 @@ export const erpMovementKind: Record<ErpStockMovementKind, string> = {
 
 /** 数量最多 4 位小数，整数不显示小数部分。 */
 export const mcpApprovalMode: Record<McpApprovalMode, { label: string; hint: string }> = {
-  writes_only: { label: '写操作需审批', hint: '智能体调用会修改数据的工具前先提交审批，只读工具直接执行。' },
+  writes_only: { label: '只读工具免审批', hint: '管理员确认为只读的工具直接执行，其余工具智能体调用前先提交审批。服务自己标注的只读只作参考。' },
   always: { label: '全部需审批', hint: '智能体调用这个服务的任何工具前都先提交审批。' },
   never: { label: '不需审批', hint: '智能体可以直接调用全部工具。只在完全信任这个服务时选择。' },
 };
