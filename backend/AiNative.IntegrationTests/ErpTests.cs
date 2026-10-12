@@ -363,7 +363,7 @@ public sealed class ErpTests(PostgresFixture postgres) : IntegrationTest(postgre
         (await client.PostAsJsonAsync($"/api/erp/purchase-orders/{po.Id}/receive", new { }, PlatformJson.Options, Ct)).StatusCode.Should().Be(HttpStatusCode.Conflict);
         (await GetAsync<ErpSummaryDto>(client, "/api/erp/summary")).ReceivedThisMonth.Should().BeEquivalentTo([new ErpAmountDto("CNY", 120)]);
 
-        await Task.Delay(500, Ct);
+        await WaitForIdleAsync();
         (await GetAsync<PagedResult<WorkflowRunSummaryDto>>(client, "/api/workflows/runs")).Total.Should().Be(1);
     }
 
