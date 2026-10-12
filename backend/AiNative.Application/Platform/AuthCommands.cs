@@ -18,6 +18,7 @@ using AiNative.Domain.Modules;
 using AiNative.Domain.Tenancy;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace AiNative.Application.Platform;
 
@@ -31,6 +32,8 @@ public sealed record LoginCommand(LoginRequest Request) : ICommand<AuthResponse>
 public sealed record SwitchTenantCommand(Guid UserId, Guid TenantId) : ICommand<AuthResponse>;
 
 public sealed record GetSessionQuery(Guid UserId, Guid TenantId, Guid MembershipId) : IQuery<SessionDto>;
+
+public sealed record GetAuthOptionsQuery : IQuery<AuthOptionsDto>;
 
 public sealed class RegisterCommandValidator : AbstractValidator<RegisterCommand>
 {
@@ -60,14 +63,21 @@ internal sealed class AuthHandlers(
     IModuleCatalog modules,
     IEnumerable<ITenantInitializer> initializers,
     IModelGateway models,
+    IOptions<RegistrationOptions> registration,
     TimeProvider clock) :
     IRequestHandler<RegisterCommand, AuthResponse>,
+    IRequestHandler<GetAuthOptionsQuery, AuthOptionsDto>,
     IRequestHandler<LoginCommand, AuthResponse>,
     IRequestHandler<SwitchTenantCommand, AuthResponse>,
     IRequestHandler<GetSessionQuery, SessionDto>
 {
     public async Task<AuthResponse> HandleAsync(RegisterCommand request, CancellationToken cancellationToken)
     {
+        if (!registration.Value.AllowRegistration)
+        {
+            throw new ForbiddenException("这个站点已关闭自助注册，请联系管理员把你加入已有空间。", "auth.registration_disabled");
+        }
+
         var r = request.Request;
         var email = User.NormalizeEmail(r.Email);
         if (await db.Users.AnyAsync(u => u.Email == email, cancellationToken).ConfigureAwait(false))
@@ -136,6 +146,9 @@ internal sealed class AuthHandlers(
             DisabledFeatures(enabled));
         return new AuthResponse(token.AccessToken, token.ExpiresAt, session);
     }
+
+    public Task<AuthOptionsDto> HandleAsync(GetAuthOptionsQuery request, CancellationToken cancellationToken)
+        => Task.FromResult(new AuthOptionsDto(registration.Value.AllowRegistration));
 
     public async Task<AuthResponse> HandleAsync(LoginCommand request, CancellationToken cancellationToken)
     {

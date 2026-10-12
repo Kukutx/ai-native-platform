@@ -17,6 +17,13 @@ public sealed class AuthController : ApiControllerBase
     [HttpPost("register")]
     public Task<AuthResponse> Register(RegisterRequest request) => SendAsync(new RegisterCommand(request));
 
+    /// <summary>
+    /// 登录页需要的站点设置（例如是否开放注册）。
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("options")]
+    public Task<AuthOptionsDto> Options() => SendAsync(new GetAuthOptionsQuery());
+
     [AllowAnonymous]
     [HttpPost("login")]
     public Task<AuthResponse> Login(LoginRequest request) => SendAsync(new LoginCommand(request));

@@ -11,8 +11,8 @@ public abstract class AppException(string code, string message) : Exception(mess
 public sealed class NotFoundException(string entity, object id)
     : AppException($"{entity}.not_found", $"{entity} {id} 不存在。");
 
-public sealed class ForbiddenException(string message = "没有执行该操作的权限。")
-    : AppException("forbidden", message);
+public sealed class ForbiddenException(string message = "没有执行该操作的权限。", string code = "forbidden")
+    : AppException(code, message);
 
 public sealed class ConflictException(string code, string message) : AppException(code, message);
 

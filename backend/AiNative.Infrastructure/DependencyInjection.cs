@@ -1,3 +1,4 @@
+using System.Data.Common;
 using AiNative.Application.Abstractions;
 using AiNative.Application.Agents;
 using AiNative.Application.Agents.Runtime;
@@ -19,6 +20,8 @@ using AiNative.Infrastructure.Workflows;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace AiNative.Infrastructure;
 
@@ -26,10 +29,31 @@ public static class DependencyInjection
 {
     public const string ConnectionStringName = "Postgres";
 
+    /// <summary>
+    /// 读取数据库连接字符串。没有显式配置 GSS Encryption Mode 时关闭 GSS 加密协商：
+    /// Linux 容器镜像不带 Kerberos 库，Npgsql 默认的协商会在每次建连时打印「无法加载 libgssapi_krb5」的错误。
+    /// 确实要用 GSS 加密的部署在连接字符串里写明即可。
+    /// </summary>
+    public static string GetPlatformConnectionString(this IConfiguration configuration)
+    {
+        var connectionString = configuration.GetConnectionString(ConnectionStringName);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException($"缺少数据库连接字符串 ConnectionStrings:{ConnectionStringName}（环境变量 ConnectionStrings__{ConnectionStringName}）。");
+        }
+
+        var keys = new DbConnectionStringBuilder { ConnectionString = connectionString }.Keys.Cast<string>();
+        if (keys.Any(key => key.Replace(" ", string.Empty, StringComparison.Ordinal).Equals("GssEncryptionMode", StringComparison.OrdinalIgnoreCase)))
+        {
+            return connectionString;
+        }
+
+        return new NpgsqlConnectionStringBuilder(connectionString) { GssEncryptionMode = GssEncryptionMode.Disable }.ConnectionString;
+    }
+
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString(ConnectionStringName)
-            ?? throw new InvalidOperationException($"缺少连接字符串 ConnectionStrings:{ConnectionStringName}。");
+        var connectionString = configuration.GetPlatformConnectionString();
 
         services.TryAddSingleton(TimeProvider.System);
         services.AddMemoryCache();
@@ -59,8 +83,9 @@ public static class DependencyInjection
         // 身份
         services.AddOptions<AuthOptions>()
             .BindConfiguration(AuthOptions.SectionName)
-            .ValidateDataAnnotations()
             .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
+        services.AddOptions<RegistrationOptions>().BindConfiguration(RegistrationOptions.SectionName);
         services.AddSingleton<TokenService>();
         services.AddSingleton<ITokenService>(sp => sp.GetRequiredService<TokenService>());
         services.AddSingleton<IPasswordHasher, PlatformPasswordHasher>();

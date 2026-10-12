@@ -32,7 +32,8 @@ export function AuthForm({
   fields: FieldSpec[];
   submitLabel: string;
   submit: (values: Record<string, string>) => Promise<AuthResponse>;
-  footer: { text: string; href: string; link: string };
+  /** 不传则不显示底部链接（例如站点关闭了注册）。 */
+  footer?: { text: string; href: string; link: string };
 }) {
   const { signIn } = useSession();
   const mutation = useMutation({ mutationFn: submit, onSuccess: signIn });
@@ -69,12 +70,14 @@ export function AuthForm({
             {mutation.isPending ? <Spinner /> : null}
             {submitLabel}
           </Button>
-          <p className='text-muted-foreground text-center text-sm'>
-            {footer.text}{' '}
-            <Link href={footer.href} className='text-foreground underline underline-offset-4'>
-              {footer.link}
-            </Link>
-          </p>
+          {footer ? (
+            <p className='text-muted-foreground text-center text-sm'>
+              {footer.text}{' '}
+              <Link href={footer.href} className='text-foreground underline underline-offset-4'>
+                {footer.link}
+              </Link>
+            </p>
+          ) : null}
         </form>
       </CardContent>
     </Card>

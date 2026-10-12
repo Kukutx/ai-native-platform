@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage;
 using NSwag;
 using NSwag.Generation.Processors.Security;
 using Serilog;
@@ -64,7 +65,7 @@ internal static class ApiSetup
             .AllowCredentials()));
 
         services.AddHealthChecks()
-            .AddNpgSql(configuration.GetConnectionString(DependencyInjection.ConnectionStringName)!, name: "postgres", tags: ["ready"]);
+            .AddNpgSql(configuration.GetPlatformConnectionString(), name: "postgres", tags: ["ready"]);
 
         services.AddOpenApiDocument(settings =>
         {
@@ -90,7 +91,11 @@ internal static class ApiSetup
         // 不会被当成 500 错误刷屏。真正的 500 由异常处理器连同堆栈记录。
         app.UseSerilogRequestLogging();
         app.UseExceptionHandler();
+        app.Use(DisableProxyBufferingForStreams);
         app.UseCors(CorsPolicy);
+
+        // Web 工作台的静态页面（仅生产镜像里有）不需要登录，放在认证之前。
+        app.UseWebClient();
 
         // 接口文档公开可读（兜底授权策略对没有终结点的请求同样生效，所以放在授权之前）。
         app.UseOpenApi();
@@ -112,6 +117,24 @@ internal static class ApiSetup
     }
 
     /// <summary>
+    /// 流式响应（对话的 SSE、MCP 的事件流）告诉 nginx 等反向代理不要缓冲，否则整段回复结束后才一次性到达客户端。
+    /// </summary>
+    private static Task DisableProxyBufferingForStreams(HttpContext context, RequestDelegate next)
+    {
+        context.Response.OnStarting(static state =>
+        {
+            var response = (HttpResponse)state;
+            if (response.ContentType?.StartsWith("text/event-stream", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                response.Headers["X-Accel-Buffering"] = "no";
+            }
+
+            return Task.CompletedTask;
+        }, context.Response);
+        return next(context);
+    }
+
+    /// <summary>
     /// 开发环境默认启动时自动迁移数据库；生产环境建议在发布流程中单独执行迁移。
     /// </summary>
     public static async Task MigrateDatabaseIfConfiguredAsync(this WebApplication app)
@@ -124,7 +147,14 @@ internal static class ApiSetup
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // 先建好迁移历史表：空数据库上 EF 会先查询这张表，失败后才去创建，留下一条看着像故障的错误日志。
+        // 数据库本身不存在时先建库（例如连接的是一台全新的 PostgreSQL 实例）。
+        var creator = db.GetService<IRelationalDatabaseCreator>();
+        if (!await creator.ExistsAsync().ConfigureAwait(false))
+        {
+            await creator.CreateAsync().ConfigureAwait(false);
+        }
+
+        // 再建好迁移历史表：空数据库上 EF 会先查询这张表，失败后才去创建，留下一条看着像故障的错误日志。
         await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync().ConfigureAwait(false);
         await db.Database.MigrateAsync().ConfigureAwait(false);
     }

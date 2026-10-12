@@ -7,6 +7,7 @@ using AiNative.Contracts.Platform;
 using AiNative.Contracts.Work;
 using AiNative.Domain.Identity;
 using AiNative.IntegrationTests.Infrastructure;
+using Microsoft.AspNetCore.Hosting;
 
 namespace AiNative.IntegrationTests;
 
@@ -25,6 +26,34 @@ public sealed class AuthAndTenancyTests(PostgresFixture postgres) : IntegrationT
         var agent = await StarterAgentAsync(client);
         agent.Name.Should().Be("小智");
         agent.ModelProvider.Should().Be(ApiFactory.Provider);
+    }
+
+    [Fact]
+    public async Task Self_registration_can_be_closed_while_existing_members_still_sign_in()
+    {
+        await RegisterAsync();
+        using (var open = Client())
+        {
+            (await GetAsync<AuthOptionsDto>(open, "/api/auth/options")).AllowRegistration.Should().BeTrue();
+        }
+
+        using var closed = Factory
+            .WithWebHostBuilder(builder => builder.UseSetting("Auth:AllowRegistration", "false"))
+            .CreateClient();
+        (await GetAsync<AuthOptionsDto>(closed, "/api/auth/options")).AllowRegistration.Should().BeFalse();
+
+        var register = await closed.PostAsJsonAsync("/api/auth/register", new RegisterRequest
+        {
+            Email = "stranger@example.com",
+            Password = "Passw0rd!x",
+            DisplayName = "陌生人",
+            TenantName = "陌生空间",
+        }, PlatformJson.Options, Ct);
+        register.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        (await CodeAsync(register)).Should().Be("auth.registration_disabled");
+
+        var login = await closed.PostAsJsonAsync("/api/auth/login", new LoginRequest { Email = "owner@example.com", Password = "Passw0rd!x" }, PlatformJson.Options, Ct);
+        login.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]
