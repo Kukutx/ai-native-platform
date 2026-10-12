@@ -385,6 +385,13 @@ internal sealed class WorkflowExecutor(
             return await FailStepAsync(run, step, position, recorded, $"「{url}」不是有效的 http(s) 地址。", cancellationToken).ConfigureAwait(false);
         }
 
+        // 带密钥的请求只发往保存时写明的主机（保存时已校验，这里防住旧数据和渲染后的意外改写）。
+        if (HttpStepSecurity.HasSecretHeaders(step)
+            && (HttpStepSecurity.LiteralOrigin(step.Url) is not { } origin || !HttpStepSecurity.SameOrigin(uri, origin)))
+        {
+            return await FailStepAsync(run, step, position, recorded, "地址的协议或主机与工作流里写明的不一致，已拒绝发送带密钥的请求。", cancellationToken).ConfigureAwait(false);
+        }
+
         if (!await MarkRunningAsync(run, step, position, recorded, cancellationToken).ConfigureAwait(false))
         {
             return StepOutcome.Stopped;

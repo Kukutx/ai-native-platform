@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using AiNative.Api.Errors;
 using AiNative.Api.Mcp;
 using AiNative.Api.Realtime;
@@ -10,6 +11,7 @@ using AiNative.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -25,6 +27,12 @@ namespace AiNative.Api.Hosting;
 internal static class ApiSetup
 {
     private const string CorsPolicy = "clients";
+
+    /// <summary>
+    /// 登录、注册、修改密码的频率限制：按客户端 IP 每分钟最多 Auth:RateLimitPerMinute 次（0 表示不限）。
+    /// 部署在反向代理后面时需要打开 ASPNETCORE_FORWARDEDHEADERS_ENABLED，否则所有人共用代理的 IP。
+    /// </summary>
+    public const string AuthRateLimitPolicy = "auth";
 
     public static IServiceCollection AddPlatformApi(this IServiceCollection services, IConfiguration configuration)
     {
@@ -47,6 +55,16 @@ internal static class ApiSetup
         services.ConfigureHttpJsonOptions(options => PlatformJson.Apply(options.SerializerOptions));
         services.AddProblemDetails();
         services.AddExceptionHandler<ApiExceptionHandler>();
+        services.AddRateLimiter(options =>
+        {
+            var perMinute = configuration.GetValue("Auth:RateLimitPerMinute", 20);
+            options.AddPolicy(AuthRateLimitPolicy, context => perMinute <= 0
+                ? RateLimitPartition.GetNoLimiter(string.Empty)
+                : RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? string.Empty,
+                    _ => new FixedWindowRateLimiterOptions { PermitLimit = perMinute, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+            options.OnRejected = WriteRateLimitedAsync;
+        });
 
         services.AddAuthentication(TokenAuthenticationHandler.SchemeName)
             .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.SchemeName, null);
@@ -98,6 +116,7 @@ internal static class ApiSetup
         app.UseExceptionHandler();
         app.Use(DisableProxyBufferingForStreams);
         app.UseCors(CorsPolicy);
+        app.UseRateLimiter();
 
         // Web 工作台的静态页面（仅生产镜像里有）不需要登录，放在认证之前。
         app.UseWebClient();
@@ -119,6 +138,22 @@ internal static class ApiSetup
         app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false }).AllowAnonymous();
         app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains("ready") }).AllowAnonymous();
         return app;
+    }
+
+    private static async ValueTask WriteRateLimitedAsync(OnRejectedContext context, CancellationToken cancellationToken)
+    {
+        var http = context.HttpContext;
+        http.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            http.Response.Headers.RetryAfter = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var details = new ProblemDetails { Title = "请求太频繁，请稍后再试。", Status = StatusCodes.Status429TooManyRequests };
+        details.Extensions["code"] = "rate_limited";
+        await http.RequestServices.GetRequiredService<IProblemDetailsService>()
+            .WriteAsync(new ProblemDetailsContext { HttpContext = http, ProblemDetails = details })
+            .ConfigureAwait(false);
     }
 
     /// <summary>

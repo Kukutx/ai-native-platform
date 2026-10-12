@@ -187,7 +187,13 @@ internal sealed class AgentCommandHandlers(
     private async Task ApplyAsync(Agent agent, SaveAgentRequest request, CancellationToken cancellationToken)
     {
         agent.Instructions = request.Instructions.Trim();
-        agent.Permissions = [.. (request.Permissions ?? AgentDefaults.Permissions).Select(p => p.Trim()).Distinct()];
+        // 不能给智能体超出自己的权限，否则可以建一个全权限的智能体替自己办事；没指定时套用默认权限里自己能授予的部分。
+        var existing = agent.Permissions;
+        List<string> permissions = request.Permissions is { } explicitPermissions
+            ? [.. explicitPermissions.Select(p => p.Trim()).Distinct()]
+            : [.. AgentDefaults.Permissions.Where(p => existing.Contains(p) || tenant.Can(p))];
+        GrantCeiling.Ensure(tenant, permissions, existing);
+        agent.Permissions = permissions;
         agent.ApprovalRequiredActions = [.. request.ApprovalRequiredActions.Select(a => a.Trim()).Distinct()];
         agent.HeartbeatIntervalSeconds = request.HeartbeatIntervalSeconds;
         agent.MonthlyBudgetUsd = request.MonthlyBudgetUsd;

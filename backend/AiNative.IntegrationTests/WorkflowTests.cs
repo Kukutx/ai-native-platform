@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using AiNative.Application.Abstractions;
 using AiNative.Application.Common;
 using AiNative.Contracts.Actions;
 using AiNative.Contracts.Auth;
@@ -17,6 +18,7 @@ using AiNative.Domain.Workflows;
 using AiNative.IntegrationTests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AiNative.IntegrationTests;
 
@@ -233,9 +235,11 @@ public sealed class WorkflowTests(PostgresFixture postgres) : IntegrationTest(po
         var waiting = await WaitForRunAsync(client, started.Id, WorkflowRunStatus.Waiting);
         var approvalId = waiting.WaitingApprovalId!.Value;
 
-        // 模拟审批人刚批准、动作还在执行（结论已落定，结果尚未写回）。
+        // 模拟审批人刚批准、动作还在本实例上执行（结论已落定，结果尚未写回）。
+        // 执行者要记成本实例：没有执行者的已批准审批会被当成执行中断，立即标记失败。
+        var instanceId = Factory.Services.GetRequiredService<IClusterNode>().InstanceId;
         await WithDbAsync(db => db.Approvals.IgnoreQueryFilters().Where(a => a.Id == approvalId)
-            .ExecuteUpdateAsync(x => x.SetProperty(a => a.Status, ApprovalStatus.Approved).SetProperty(a => a.DecidedAt, DateTimeOffset.UtcNow), Ct));
+            .ExecuteUpdateAsync(x => x.SetProperty(a => a.Status, ApprovalStatus.Approved).SetProperty(a => a.DecidedAt, DateTimeOffset.UtcNow).SetProperty(a => a.ExecutorId, instanceId), Ct));
 
         var refused = await client.PostAsync(new Uri($"/api/workflows/runs/{started.Id}/cancel", UriKind.Relative), null, Ct);
         refused.StatusCode.Should().Be(HttpStatusCode.Conflict);

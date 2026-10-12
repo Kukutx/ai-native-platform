@@ -108,7 +108,7 @@ internal sealed class MemberHandlers(
     public async Task<MemberDto> HandleAsync(AddMemberCommand request, CancellationToken cancellationToken)
     {
         var r = request.Request;
-        await EnsureRolesAsync(r.RoleIds, cancellationToken).ConfigureAwait(false);
+        await EnsureRolesAsync(r.RoleIds, [], cancellationToken).ConfigureAwait(false);
         await EnsureOrganizationAsync(r.OrganizationId, cancellationToken).ConfigureAwait(false);
         var email = User.NormalizeEmail(r.Email);
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken).ConfigureAwait(false);
@@ -136,7 +136,7 @@ internal sealed class MemberHandlers(
     {
         var membership = await FindAsync(request.MembershipId, cancellationToken).ConfigureAwait(false);
         var r = request.Request;
-        await EnsureRolesAsync(r.RoleIds, cancellationToken).ConfigureAwait(false);
+        await EnsureRolesAsync(r.RoleIds, membership.RoleIds, cancellationToken).ConfigureAwait(false);
         await EnsureOrganizationAsync(r.OrganizationId, cancellationToken).ConfigureAwait(false);
         if (membership.IsOwner && r.Status != MembershipStatus.Active)
         {
@@ -173,14 +173,20 @@ internal sealed class MemberHandlers(
         => await db.Memberships.FirstOrDefaultAsync(m => m.Id == id, cancellationToken).ConfigureAwait(false)
            ?? throw new NotFoundException("member", id);
 
-    private async Task EnsureRolesAsync(IReadOnlyList<Guid> roleIds, CancellationToken cancellationToken)
+    /// <param name="currentRoleIds">成员原有的角色，不受授权上限限制。</param>
+    private async Task EnsureRolesAsync(IReadOnlyList<Guid> roleIds, IReadOnlyCollection<Guid> currentRoleIds, CancellationToken cancellationToken)
     {
         var distinct = roleIds.Distinct().ToList();
-        var found = await db.Roles.CountAsync(r => distinct.Contains(r.Id), cancellationToken).ConfigureAwait(false);
-        if (found != distinct.Count)
+        var roles = await db.Roles.AsNoTracking().Where(r => distinct.Contains(r.Id))
+            .Select(r => new { r.Id, r.Features })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (roles.Count != distinct.Count)
         {
             throw new ValidationFailedException(new Dictionary<string, string[]> { ["RoleIds"] = ["包含不存在的角色。"] });
         }
+
+        // 新分配的角色不能带有操作者自己没有的权限，否则成员管理员可以给自己或别人挂上管理员角色。
+        GrantCeiling.Ensure(tenant, roles.Where(r => !currentRoleIds.Contains(r.Id)).SelectMany(r => r.Features));
     }
 
     private async Task EnsureOrganizationAsync(Guid? organizationId, CancellationToken cancellationToken)
@@ -195,7 +201,7 @@ internal sealed class MemberHandlers(
         => new(m.Id, u.Id, u.Email, u.DisplayName, m.IsOwner, m.Status, m.OrganizationId, m.RoleIds, m.CreatedAt);
 }
 
-internal sealed class RoleHandlers(IAppDbContext db, IMemoryCache cache, IPostCommitActions postCommit, IClusterBus cluster) :
+internal sealed class RoleHandlers(IAppDbContext db, ITenantContext tenant, IMemoryCache cache, IPostCommitActions postCommit, IClusterBus cluster) :
     IRequestHandler<ListRolesQuery, IReadOnlyList<RoleDto>>,
     IRequestHandler<CreateRoleCommand, RoleDto>,
     IRequestHandler<UpdateRoleCommand, RoleDto>,
@@ -216,6 +222,7 @@ internal sealed class RoleHandlers(IAppDbContext db, IMemoryCache cache, IPostCo
             throw new ConflictException("role.key_taken", $"角色键 {r.Key} 已存在。");
         }
 
+        GrantCeiling.Ensure(tenant, r.Features);
         var role = new Role { Key = r.Key, Name = r.Name.Trim(), Description = r.Description?.Trim(), Features = [.. r.Features.Distinct()] };
         db.Roles.Add(role);
         return ToDto(role);
@@ -231,6 +238,7 @@ internal sealed class RoleHandlers(IAppDbContext db, IMemoryCache cache, IPostCo
             throw new ConflictException("role.key_taken", $"角色键 {r.Key} 已存在。");
         }
 
+        GrantCeiling.Ensure(tenant, r.Features, role.Features);
         role.Key = role.IsSystem ? role.Key : r.Key;
         role.Name = r.Name.Trim();
         role.Description = r.Description?.Trim();

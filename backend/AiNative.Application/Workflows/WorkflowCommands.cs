@@ -360,7 +360,7 @@ internal sealed class WorkflowQueryHandlers(IAppDbContext db, IModuleCatalog cat
             run.WorkflowVersion,
             PlatformJson.Parse(run.TriggerJson),
             PlatformJson.Parse(run.InputJson),
-            run.Steps,
+            tenant.Can(Features.Workflows.Manage) ? run.Steps : HttpStepSecurity.MaskSensitiveHeaders(run.Steps),
             [.. steps.Select(s => s.ToDto())],
             run.WaitingApprovalId,
             run.WaitingWorkItemId,

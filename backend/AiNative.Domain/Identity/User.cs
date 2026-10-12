@@ -15,5 +15,10 @@ public sealed class User : Entity
 
     public DateTimeOffset? LastLoginAt { get; set; }
 
+    /// <summary>
+    /// 令牌版本：写进签发的登录令牌，修改密码时递增，之前签发的令牌随之全部失效。
+    /// </summary>
+    public int TokenVersion { get; set; }
+
     public static string NormalizeEmail(string email) => email.Trim().ToLowerInvariant();
 }

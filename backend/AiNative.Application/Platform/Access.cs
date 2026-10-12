@@ -10,7 +10,8 @@ using Microsoft.Extensions.Caching.Memory;
 
 namespace AiNative.Application.Platform;
 
-public sealed record ResolvedAccess(Guid TenantId, Guid UserId, Guid MembershipId, bool IsOwner, IReadOnlyList<string> Features);
+/// <param name="TokenVersion">用户当前的令牌版本，认证时与登录令牌里的版本比对。</param>
+public sealed record ResolvedAccess(Guid TenantId, Guid UserId, Guid MembershipId, bool IsOwner, IReadOnlyList<string> Features, int TokenVersion = 0);
 
 /// <summary>
 /// 把令牌里的身份解析成当前权限：成员身份必须有效，权限 = 各角色功能键的并集，所有者拥有全部权限。
@@ -33,13 +34,17 @@ internal sealed class AccessResolver(IAppDbContext db, IMemoryCache cache) : IAc
             return cached;
         }
 
-        var membership = await db.Memberships.IgnoreQueryFilters().AsNoTracking()
-            .FirstOrDefaultAsync(m => m.Id == membershipId && m.UserId == userId && m.TenantId == tenantId, cancellationToken)
+        var row = await db.Memberships.IgnoreQueryFilters().AsNoTracking()
+            .Where(m => m.Id == membershipId && m.UserId == userId && m.TenantId == tenantId)
+            .Select(m => new { Membership = m, TokenVersion = db.Users.Where(u => u.Id == m.UserId).Select(u => u.TokenVersion).FirstOrDefault() })
+            .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
-        if (membership is null || membership.Status != MembershipStatus.Active)
+        if (row is null || row.Membership.Status != MembershipStatus.Active)
         {
             return null;
         }
+
+        var membership = row.Membership;
 
         IReadOnlyList<string> features;
         if (membership.IsOwner)
@@ -56,7 +61,7 @@ internal sealed class AccessResolver(IAppDbContext db, IMemoryCache cache) : IAc
             features = [.. roleFeatures.SelectMany(f => f).Distinct(StringComparer.Ordinal)];
         }
 
-        var access = new ResolvedAccess(tenantId, userId, membershipId, membership.IsOwner, features);
+        var access = new ResolvedAccess(tenantId, userId, membershipId, membership.IsOwner, features, row.TokenVersion);
         cache.Set(key, access, CacheDuration);
         return access;
     }

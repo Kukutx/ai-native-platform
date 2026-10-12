@@ -58,7 +58,7 @@ public sealed class RealtimeHub(ITenantContext tenant, IAppDbContext db, IChatSe
 
 /// <summary>
 /// SignalR 每次调用使用独立作用域，这里按连接上的令牌身份重新解析权限并写入租户上下文；
-/// 成员被移除后，已建立的连接也会在下一次调用时被拒绝。
+/// 成员被移除或修改了密码后，已建立的连接也会在下一次调用时被拒绝。
 /// </summary>
 internal sealed class TenantHubFilter : IHubFilter
 {
@@ -81,9 +81,18 @@ internal sealed class TenantHubFilter : IHubFilter
             throw new HubException("未登录。");
         }
 
+        if (DenyApiKeyAttribute.IsApiKey(caller.User))
+        {
+            throw new HubException("实时通道不接受 API 密钥，请使用登录令牌。");
+        }
+
         var access = await services.GetRequiredService<Application.Platform.IAccessResolver>()
             .ResolveAsync(principal.UserId, principal.TenantId, principal.MembershipId, caller.ConnectionAborted)
             .ConfigureAwait(false) ?? throw new HubException("成员身份已失效。");
+        if (Application.Platform.PlatformClaims.ReadTokenVersion(caller.User?.FindFirst(Application.Platform.PlatformClaims.TokenVersion)?.Value) != access.TokenVersion)
+        {
+            throw new HubException("登录已失效，请重新登录。");
+        }
         services.GetRequiredService<TenantContext>()
             .Enter(access.TenantId, Domain.Common.Actor.ForUser(access.UserId), access.Features, access.MembershipId);
     }

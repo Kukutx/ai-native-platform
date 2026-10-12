@@ -11,7 +11,7 @@ namespace AiNative.Api.Security;
 /// Bearer 认证，接受两种凭据：登录得到的访问令牌（JWT），以及个人 API 密钥（ank_ 开头，供 MCP 客户端与外部集成）。
 /// 凭据有效还不够：成员关系必须仍然有效（被移除或停用的成员立即失效），
 /// 解析出的权限交给 <see cref="TenantContextMiddleware"/> 写入租户上下文。
-/// WebSocket 无法设置请求头，实时通道允许用 access_token 查询参数传令牌。
+/// WebSocket 无法设置请求头，实时通道允许用 access_token 查询参数传令牌；实时通道只接受登录令牌，不接受 API 密钥。
 /// </summary>
 internal sealed class TokenAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -40,7 +40,10 @@ internal sealed class TokenAuthenticationHandler(
 
         if (ApiKeyTokens.LooksLikeApiKey(token))
         {
-            return await AuthenticateApiKeyAsync(token).ConfigureAwait(false);
+            // 实时通道按成员身份重新解析权限，套不上密钥的权限范围与吊销检查，所以不对 API 密钥开放。
+            return Request.Path.StartsWithSegments("/hubs")
+                ? AuthenticateResult.Fail("实时通道不接受 API 密钥，请使用登录令牌。")
+                : await AuthenticateApiKeyAsync(token).ConfigureAwait(false);
         }
 
         var identity = await tokens.ValidateAsync(token).ConfigureAwait(false);
@@ -60,6 +63,11 @@ internal sealed class TokenAuthenticationHandler(
         if (resolved is null)
         {
             return AuthenticateResult.Fail("成员身份已失效。");
+        }
+
+        if (PlatformClaims.ReadTokenVersion(principal.FindFirstValue(PlatformClaims.TokenVersion)) != resolved.TokenVersion)
+        {
+            return AuthenticateResult.Fail("登录已失效（密码已修改），请重新登录。");
         }
 
         Context.Features.Set(resolved);

@@ -182,6 +182,13 @@ internal sealed class ApprovalHandlers(
     private async Task ExecuteAsync(Approval approval, Agent? agent, Guid approverId, CancellationToken cancellationToken)
     {
         // 以申请人的身份与权限、在独立作用域中执行；人工审批只解除"需要审批"这道闸，不放大权限。
+        // 申请的智能体已不存在时不能退回到审批人的权限去执行。
+        if (approval.RequestedBy.IsAgent && agent is null)
+        {
+            approval.ExecutionError = "发起申请的智能体已不存在，未执行。";
+            return;
+        }
+
         var actor = agent is null ? approval.RequestedBy : Actor.ForAgent(agent.Id);
         var features = agent?.Permissions ?? (IEnumerable<string>)tenant.Features;
         try
