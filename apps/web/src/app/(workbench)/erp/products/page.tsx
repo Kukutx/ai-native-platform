@@ -1,11 +1,12 @@
 'use client';
 
-import { useDeferredValue, useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { Pager } from '@/components/app/pager';
 import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
@@ -16,9 +17,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pager } from '@/components/app/pager';
 import { ErpNav } from '@/features/erp/erp-nav';
 import { ProductFormDialog } from '@/features/erp/product-form-dialog';
+import { useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { formatAmount, formatQuantity } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -28,14 +29,21 @@ const PAGE_SIZE = 50;
 const ALL = '__all__';
 
 export default function ErpProductsPage() {
+  return (
+    <Suspense>
+      <ErpProducts />
+    </Suspense>
+  );
+}
+
+function ErpProducts() {
   const { can } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<string | undefined>();
-  const [includeInactive, setIncludeInactive] = useState(false);
-  const [page, setPage] = useState(1);
-  const term = useDeferredValue(search.trim());
+  const [filters, setFilters] = useUrlState({ q: '', category: '', inactive: false, page: 1 });
+  const { q: term, inactive: includeInactive, page } = filters;
+  const category = filters.category || undefined;
+  const [search, setSearch] = useSearchText(term, (q) => setFilters({ q, page: 1 }));
   const categories = useQuery({ queryKey: queryKeys.erpCategories, queryFn: ({ signal }) => api.erp.products.categories(signal) });
   const products = useQuery({
     queryKey: queryKeys.erpProducts({ search: term, category, includeInactive, page }),
@@ -53,20 +61,15 @@ export default function ErpProductsPage() {
           <>
             <Input
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder='搜索名称或编码'
+              aria-label='搜索产品'
               className='w-48'
             />
             {categories.data?.length ? (
               <Select
                 value={category ?? ALL}
-                onValueChange={(v) => {
-                  setCategory(v === ALL ? undefined : v);
-                  setPage(1);
-                }}
+                onValueChange={(v) => setFilters({ category: v === ALL ? '' : v, page: 1 })}
               >
                 <SelectTrigger className='w-32'>
                   <SelectValue />
@@ -83,10 +86,7 @@ export default function ErpProductsPage() {
             ) : null}
             <Select
               value={includeInactive ? 'all' : 'active'}
-              onValueChange={(v) => {
-                setIncludeInactive(v === 'all');
-                setPage(1);
-              }}
+              onValueChange={(v) => setFilters({ inactive: v === 'all', page: 1 })}
             >
               <SelectTrigger className='w-28'>
                 <SelectValue />
@@ -163,7 +163,7 @@ export default function ErpProductsPage() {
                 ))}
               </TableBody>
             </Table>
-            <Pager page={page} pageSize={PAGE_SIZE} total={products.data.total} onChange={setPage} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={products.data.total} onChange={(next) => setFilters({ page: next })} />
           </CardContent>
         </Card>
       ) : (

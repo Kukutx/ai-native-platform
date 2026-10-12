@@ -1,12 +1,13 @@
 'use client';
 
-import { useDeferredValue, useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ErpSalesOrderStatus } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { Pager } from '@/components/app/pager';
 import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
@@ -17,9 +18,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pager } from '@/components/app/pager';
 import { ErpNav } from '@/features/erp/erp-nav';
 import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
+import { pickOption, useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { erpSalesOrderStatus, formatAmount, formatDate } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -29,14 +30,21 @@ const ALL = '__all__';
 const PENDING = 'pending';
 
 export default function SalesOrdersPage() {
+  return (
+    <Suspense>
+      <SalesOrders />
+    </Suspense>
+  );
+}
+
+function SalesOrders() {
   const { can, session } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<ErpSalesOrderStatus | typeof PENDING | undefined>();
-  const [mine, setMine] = useState(false);
-  const [page, setPage] = useState(1);
-  const term = useDeferredValue(search.trim());
+  const [filters, setFilters] = useUrlState({ q: '', status: '', mine: false, page: 1 });
+  const { q: term, mine, page } = filters;
+  const status: ErpSalesOrderStatus | typeof PENDING | undefined = filters.status === PENDING ? PENDING : pickOption(filters.status, erpSalesOrderStatus);
+  const [search, setSearch] = useSearchText(term, (q) => setFilters({ q, page: 1 }));
   const owner = mine ? session?.user.id : undefined;
   const orders = useQuery({
     queryKey: queryKeys.erpSalesOrders({ search: term, status, owner, page }),
@@ -55,19 +63,14 @@ export default function SalesOrdersPage() {
           <>
             <Input
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label='搜索销售订单'
               placeholder='搜索单号或客户'
               className='w-48'
             />
             <Select
               value={status ?? ALL}
-              onValueChange={(v) => {
-                setStatus(v === ALL ? undefined : (v as ErpSalesOrderStatus | typeof PENDING));
-                setPage(1);
-              }}
+              onValueChange={(v) => setFilters({ status: v === ALL ? '' : v, page: 1 })}
             >
               <SelectTrigger className='w-28'>
                 <SelectValue />
@@ -84,10 +87,7 @@ export default function SalesOrdersPage() {
             </Select>
             <Select
               value={mine ? 'mine' : 'all'}
-              onValueChange={(v) => {
-                setMine(v === 'mine');
-                setPage(1);
-              }}
+              onValueChange={(v) => setFilters({ mine: v === 'mine', page: 1 })}
             >
               <SelectTrigger className='w-28'>
                 <SelectValue />
@@ -147,7 +147,7 @@ export default function SalesOrdersPage() {
                 ))}
               </TableBody>
             </Table>
-            <Pager page={page} pageSize={PAGE_SIZE} total={orders.data.total} onChange={setPage} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={orders.data.total} onChange={(next) => setFilters({ page: next })} />
           </CardContent>
         </Card>
       ) : (

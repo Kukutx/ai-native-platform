@@ -1,11 +1,12 @@
 'use client';
 
-import { useDeferredValue, useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { Pager } from '@/components/app/pager';
 import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
@@ -19,7 +20,7 @@ import { CompanyFormDialog } from '@/features/crm/company-form-dialog';
 import { CrmNav } from '@/features/crm/crm-nav';
 import { FieldSettingsDialog } from '@/features/crm/field-settings-dialog';
 import { ImportDialog } from '@/features/crm/import-dialog';
-import { Pager } from '@/components/app/pager';
+import { useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -27,14 +28,21 @@ import { queryKeys } from '@/lib/query-keys';
 const PAGE_SIZE = 50;
 
 export default function CrmCompaniesPage() {
+  return (
+    <Suspense>
+      <CrmCompanies />
+    </Suspense>
+  );
+}
+
+function CrmCompanies() {
   const { can } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [configuring, setConfiguring] = useState(false);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const term = useDeferredValue(search.trim());
+  const [{ q: term, page }, setFilters] = useUrlState({ q: '', page: 1 });
+  const [search, setSearch] = useSearchText(term, (q) => setFilters({ q, page: 1 }));
   const companies = useQuery({
     queryKey: queryKeys.crmCompanies({ search: term, page }),
     queryFn: ({ signal }) => api.crm.companies.list(term || undefined, undefined, undefined, page, PAGE_SIZE, signal),
@@ -50,11 +58,9 @@ export default function CrmCompaniesPage() {
           <>
             <Input
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder='搜索名称、行业、电话'
+              aria-label='搜索客户'
               className='w-56'
             />
             {can('crm.configure') ? (
@@ -123,7 +129,7 @@ export default function CrmCompaniesPage() {
                 ))}
               </TableBody>
             </Table>
-            <Pager page={page} pageSize={PAGE_SIZE} total={companies.data.total} onChange={setPage} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={companies.data.total} onChange={(next) => setFilters({ page: next })} />
           </CardContent>
         </Card>
       ) : (

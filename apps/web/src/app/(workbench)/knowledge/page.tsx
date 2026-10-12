@@ -1,6 +1,6 @@
 'use client';
 
-import { useDeferredValue, useState } from 'react';
+import { Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/app/page-header';
 import { useSession } from '@/components/app/session-provider';
@@ -10,13 +10,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DocumentsTab } from '@/features/knowledge/documents-tab';
 import { MemoriesTab } from '@/features/knowledge/memories-tab';
 import { SearchResults } from '@/features/knowledge/search-results';
+import { useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 
 export default function KnowledgePage() {
+  return (
+    <Suspense>
+      <Knowledge />
+    </Suspense>
+  );
+}
+
+function Knowledge() {
   const { can } = useSession();
-  const [search, setSearch] = useState('');
-  const query = useDeferredValue(search.trim());
+  const [filters, setFilters] = useUrlState({ q: '', tab: 'documents' });
+  const query = filters.q;
+  const tab = filters.tab === 'memories' && can('memory.use') ? 'memories' : 'documents';
+  const [search, setSearch] = useSearchText(query, (q) => setFilters({ q }));
   const status = useQuery({ queryKey: queryKeys.knowledgeStatus, queryFn: ({ signal }) => api.knowledge.status(signal) });
 
   return (
@@ -40,13 +51,14 @@ export default function KnowledgePage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder='用自然语言检索文档和记忆，例如：出差住宿每晚能报多少？'
+          aria-label='检索知识库'
           className='h-11 pl-9'
         />
       </div>
       {query ? (
         <SearchResults query={query} />
       ) : (
-        <Tabs defaultValue='documents'>
+        <Tabs value={tab} onValueChange={(next) => setFilters({ tab: next })}>
           <TabsList>
             <TabsTrigger value='documents'>文档{status.data ? ` ${status.data.documents}` : ''}</TabsTrigger>
             {can('memory.use') ? <TabsTrigger value='memories'>记忆{status.data ? ` ${status.data.memories}` : ''}</TabsTrigger> : null}

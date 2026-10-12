@@ -1,12 +1,13 @@
 'use client';
 
-import { useDeferredValue, useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ErpPurchaseOrderStatus } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { Pager } from '@/components/app/pager';
 import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
@@ -17,9 +18,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pager } from '@/components/app/pager';
 import { ErpNav } from '@/features/erp/erp-nav';
 import { PurchaseOrderFormDialog } from '@/features/erp/purchase-order-form-dialog';
+import { pickOption, useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { erpPurchaseOrderStatus, formatAmount, formatDate } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -29,13 +30,21 @@ const ALL = '__all__';
 const PENDING = 'pending';
 
 export default function PurchaseOrdersPage() {
+  return (
+    <Suspense>
+      <PurchaseOrders />
+    </Suspense>
+  );
+}
+
+function PurchaseOrders() {
   const { can } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<ErpPurchaseOrderStatus | typeof PENDING | undefined>();
-  const [page, setPage] = useState(1);
-  const term = useDeferredValue(search.trim());
+  const [filters, setFilters] = useUrlState({ q: '', status: '', page: 1 });
+  const { q: term, page } = filters;
+  const status: ErpPurchaseOrderStatus | typeof PENDING | undefined = filters.status === PENDING ? PENDING : pickOption(filters.status, erpPurchaseOrderStatus);
+  const [search, setSearch] = useSearchText(term, (q) => setFilters({ q, page: 1 }));
   const orders = useQuery({
     queryKey: queryKeys.erpPurchaseOrders({ search: term, status, page }),
     queryFn: ({ signal }) =>
@@ -53,19 +62,14 @@ export default function PurchaseOrdersPage() {
           <>
             <Input
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label='搜索采购订单'
               placeholder='搜索单号或供应商'
               className='w-48'
             />
             <Select
               value={status ?? ALL}
-              onValueChange={(v) => {
-                setStatus(v === ALL ? undefined : (v as ErpPurchaseOrderStatus | typeof PENDING));
-                setPage(1);
-              }}
+              onValueChange={(v) => setFilters({ status: v === ALL ? '' : v, page: 1 })}
             >
               <SelectTrigger className='w-28'>
                 <SelectValue />
@@ -127,7 +131,7 @@ export default function PurchaseOrdersPage() {
                 ))}
               </TableBody>
             </Table>
-            <Pager page={page} pageSize={PAGE_SIZE} total={orders.data.total} onChange={setPage} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={orders.data.total} onChange={(next) => setFilters({ page: next })} />
           </CardContent>
         </Card>
       ) : (

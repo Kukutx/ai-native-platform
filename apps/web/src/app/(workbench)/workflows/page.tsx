@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { WorkflowRunStatus } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
 import { Pager } from '@/components/app/pager';
@@ -12,27 +13,40 @@ import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { describeTrigger } from '@/features/workflows/describe';
 import { RunWorkflowButton } from '@/features/workflows/run-workflow-dialog';
 import { WorkflowRunTable } from '@/features/workflows/workflow-run-table';
+import { pickOption, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { formatTime, workflowRunStatus, workflowTriggerKind } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
 const PAGE_SIZE = 20;
+const ALL = '__all__';
 
 export default function WorkflowsPage() {
+  return (
+    <Suspense>
+      <Workflows />
+    </Suspense>
+  );
+}
+
+function Workflows() {
   const { can } = useSession();
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
+  const [filters, setFilters] = useUrlState({ runStatus: '', page: 1 });
+  const page = filters.page;
+  const runStatus: WorkflowRunStatus | undefined = pickOption(filters.runStatus, workflowRunStatus);
   const workflows = useQuery({ queryKey: queryKeys.workflows, queryFn: ({ signal }) => api.workflows.list(signal) });
   const catalog = useQuery({ queryKey: queryKeys.workflowCatalog, queryFn: ({ signal }) => api.workflows.catalog(signal) });
   const runs = useQuery({
-    queryKey: queryKeys.workflowRuns({ page }),
-    queryFn: ({ signal }) => api.workflows.runs(undefined, undefined, page, PAGE_SIZE, signal),
+    queryKey: queryKeys.workflowRuns({ status: runStatus, page }),
+    queryFn: ({ signal }) => api.workflows.runs(undefined, runStatus, page, PAGE_SIZE, signal),
     placeholderData: keepPreviousData,
   });
   const setEnabled = useMutation({
@@ -145,14 +159,35 @@ export default function WorkflowsPage() {
         </EmptyState>
       )}
 
-      {runs.data?.items.length ? (
+      {runs.data?.items.length || runStatus ? (
         <Card>
           <CardHeader>
             <CardTitle>最近运行</CardTitle>
+            <CardAction>
+              <Select value={runStatus ?? ALL} onValueChange={(v) => setFilters({ runStatus: v === ALL ? '' : v, page: 1 })}>
+                <SelectTrigger className='w-28' size='sm' aria-label='按运行状态筛选'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL}>全部状态</SelectItem>
+                  {Object.entries(workflowRunStatus).map(([key, meta]) => (
+                    <SelectItem key={key} value={key}>
+                      {meta.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardAction>
           </CardHeader>
           <CardContent>
-            <WorkflowRunTable runs={runs.data.items} />
-            <Pager page={page} pageSize={PAGE_SIZE} total={runs.data.total} onChange={setPage} />
+            {runs.data?.items.length ? (
+              <>
+                <WorkflowRunTable runs={runs.data.items} />
+                <Pager page={page} pageSize={PAGE_SIZE} total={runs.data.total} onChange={(next) => setFilters({ page: next })} />
+              </>
+            ) : (
+              <p className='text-muted-foreground py-6 text-center text-sm'>{runs.isPending ? '加载中…' : '没有这个状态的运行。'}</p>
+            )}
           </CardContent>
         </Card>
       ) : null}

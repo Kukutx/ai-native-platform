@@ -1,11 +1,12 @@
 'use client';
 
-import { useDeferredValue, useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { Pager } from '@/components/app/pager';
 import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
@@ -18,7 +19,7 @@ import { ContactFormDialog } from '@/features/crm/contact-form-dialog';
 import { CrmNav } from '@/features/crm/crm-nav';
 import { FieldSettingsDialog } from '@/features/crm/field-settings-dialog';
 import { ImportDialog } from '@/features/crm/import-dialog';
-import { Pager } from '@/components/app/pager';
+import { useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -26,14 +27,21 @@ import { queryKeys } from '@/lib/query-keys';
 const PAGE_SIZE = 50;
 
 export default function CrmContactsPage() {
+  return (
+    <Suspense>
+      <CrmContacts />
+    </Suspense>
+  );
+}
+
+function CrmContacts() {
   const { can } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [configuring, setConfiguring] = useState(false);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const term = useDeferredValue(search.trim());
+  const [{ q: term, page }, setFilters] = useUrlState({ q: '', page: 1 });
+  const [search, setSearch] = useSearchText(term, (q) => setFilters({ q, page: 1 }));
   const contacts = useQuery({
     queryKey: queryKeys.crmContacts({ search: term, page }),
     queryFn: ({ signal }) => api.crm.contacts.list(term || undefined, undefined, undefined, undefined, page, PAGE_SIZE, signal),
@@ -49,11 +57,9 @@ export default function CrmContactsPage() {
           <>
             <Input
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder='搜索姓名、邮箱、电话'
+              aria-label='搜索联系人'
               className='w-56'
             />
             {can('crm.configure') ? (
@@ -123,7 +129,7 @@ export default function CrmContactsPage() {
                 ))}
               </TableBody>
             </Table>
-            <Pager page={page} pageSize={PAGE_SIZE} total={contacts.data.total} onChange={setPage} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={contacts.data.total} onChange={(next) => setFilters({ page: next })} />
           </CardContent>
         </Card>
       ) : (

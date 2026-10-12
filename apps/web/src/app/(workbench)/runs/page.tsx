@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RunTable } from '@/features/runs/run-table';
+import { useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 
@@ -17,9 +18,16 @@ const ALL = '__all__';
 const PAGE_SIZE = 30;
 
 export default function RunsPage() {
-  const [agentId, setAgentId] = useState<string>(ALL);
-  const [page, setPage] = useState(1);
-  const filter = agentId === ALL ? undefined : agentId;
+  return (
+    <Suspense>
+      <Runs />
+    </Suspense>
+  );
+}
+
+function Runs() {
+  const [{ agent, page }, setFilters] = useUrlState({ agent: '', page: 1 });
+  const filter = agent || undefined;
   const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
   const runs = useQuery({
     queryKey: [...queryKeys.runs(filter), page],
@@ -34,13 +42,10 @@ export default function RunsPage() {
         description='智能体每次被唤醒都会留下一条完整的执行记录：思考、调用了哪些动作、花了多少钱。'
         actions={
           <Select
-            value={agentId}
-            onValueChange={(value) => {
-              setAgentId(value);
-              setPage(1);
-            }}
+            value={agent || ALL}
+            onValueChange={(value) => setFilters({ agent: value === ALL ? '' : value, page: 1 })}
           >
-            <SelectTrigger className='w-48'>
+            <SelectTrigger className='w-48' aria-label='按智能体筛选'>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -62,7 +67,7 @@ export default function RunsPage() {
         <Card>
           <CardContent>
             <RunTable runs={runs.data.items} />
-            <Pager page={page} pageSize={PAGE_SIZE} total={runs.data.total} onChange={setPage} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={runs.data.total} onChange={(next) => setFilters({ page: next })} />
           </CardContent>
         </Card>
       ) : (
