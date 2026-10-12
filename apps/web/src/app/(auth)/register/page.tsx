@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthOptions } from '@/features/auth/use-auth-options';
 import { api } from '@/lib/api';
-import { localTimeZone } from '@/lib/labels';
+import { localTimeZone } from '@/lib/dates';
 
 export default function RegisterPage() {
   const options = useAuthOptions();

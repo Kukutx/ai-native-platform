@@ -165,7 +165,7 @@ function Row({ href, title, hint, value, warning }: { href: string; title: strin
         </Link>
         <p className='text-muted-foreground truncate text-xs'>{hint}</p>
       </div>
-      <span className={warning ? 'shrink-0 text-xs font-medium text-amber-600 tabular-nums dark:text-amber-500' : 'shrink-0 tabular-nums'}>{value}</span>
+      <span className={warning ? 'shrink-0 text-xs font-medium text-warning tabular-nums' : 'shrink-0 tabular-nums'}>{value}</span>
     </li>
   );
 }

@@ -17,7 +17,7 @@ import { ContactFormDialog } from '@/features/crm/contact-form-dialog';
 import { CrmNav } from '@/features/crm/crm-nav';
 import { FieldSettingsDialog } from '@/features/crm/field-settings-dialog';
 import { ImportDialog } from '@/features/crm/import-dialog';
-import { Pager } from '@/features/crm/pager';
+import { Pager } from '@/components/app/pager';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';

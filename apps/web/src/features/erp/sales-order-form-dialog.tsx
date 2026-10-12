@@ -15,8 +15,8 @@ import { OwnerSelect } from '@/features/crm/owner-select';
 import { RecordPicker, type PickedRecord } from '@/features/crm/record-picker';
 import { ownerUserId } from '@/features/crm/utils';
 import { api } from '@/lib/api';
+import { today } from '@/lib/dates';
 import { fromOrderLine, OrderLinesEditor, toLineRequests, type LineDraft } from './order-lines-editor';
-import { today } from './utils';
 import { WarehouseSelect } from './warehouse-select';
 
 /** 从商机生成订单时带入的内容。 */

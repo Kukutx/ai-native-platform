@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
+import { ValueRow } from '@/components/app/info-row';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,14 +71,14 @@ function WorkflowRunDetail() {
               <CardTitle>概览</CardTitle>
             </CardHeader>
             <CardContent className='space-y-2 text-sm'>
-              <Row label='触发' value={summary.eventType ? `${workflowTriggerKind[summary.triggerKind]} · ${summary.eventType}` : workflowTriggerKind[summary.triggerKind]} />
-              <Row label='触发者' value={summary.triggeredBy.name ?? '—'} />
-              <Row label='运行身份' value={`${run.owner.name ?? '—'}${run.owner.kind === 'agent' ? '（智能体）' : ''}`} />
-              <Row label='工作流版本' value={run.workflowVersion} />
-              <Row label='进度' value={`${Math.min(summary.currentStep, summary.stepCount)} / ${summary.stepCount}`} />
-              <Row label='创建' value={formatTime(summary.createdAt)} />
-              <Row label='开始' value={formatTime(summary.startedAt)} />
-              <Row label='结束' value={formatTime(summary.finishedAt)} />
+              <ValueRow label='触发' value={summary.eventType ? `${workflowTriggerKind[summary.triggerKind]} · ${summary.eventType}` : workflowTriggerKind[summary.triggerKind]} />
+              <ValueRow label='触发者' value={summary.triggeredBy.name ?? '—'} />
+              <ValueRow label='运行身份' value={`${run.owner.name ?? '—'}${run.owner.kind === 'agent' ? '（智能体）' : ''}`} />
+              <ValueRow label='工作流版本' value={run.workflowVersion} />
+              <ValueRow label='进度' value={`${Math.min(summary.currentStep, summary.stepCount)} / ${summary.stepCount}`} />
+              <ValueRow label='创建' value={formatTime(summary.createdAt)} />
+              <ValueRow label='开始' value={formatTime(summary.startedAt)} />
+              <ValueRow label='结束' value={formatTime(summary.finishedAt)} />
               {summary.error ? <p className='text-destructive pt-2 whitespace-pre-wrap'>{summary.error}</p> : null}
             </CardContent>
           </Card>
@@ -101,14 +102,6 @@ function WorkflowRunDetail() {
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className='flex justify-between gap-4'>
-      <span className='text-muted-foreground shrink-0'>{label}</span>
-      <span className='text-right break-all'>{value}</span>
-    </div>
-  );
-}
 
 export default function WorkflowRunPage() {
   return (

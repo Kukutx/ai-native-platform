@@ -112,7 +112,7 @@ export default function TasksPage() {
                       <p
                         className={cn(
                           'mt-1 flex items-center gap-1 text-xs',
-                          task.status !== 'done' && task.status !== 'cancelled' && isPastDate(task.dueDate) ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground',
+                          task.status !== 'done' && task.status !== 'cancelled' && isPastDate(task.dueDate) ? 'text-warning' : 'text-muted-foreground',
                         )}
                       >
                         <Icons.calendar className='size-3' />

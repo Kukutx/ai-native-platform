@@ -94,8 +94,8 @@ function TaskDetail() {
             <h1 className='text-2xl font-semibold tracking-tight'>{item.title}</h1>
           </div>
           {waiting.length > 0 && item.status !== 'done' && item.status !== 'cancelled' ? (
-            <p className='flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm'>
-              <Icons.hourglass className='size-4 shrink-0 text-amber-600 dark:text-amber-500' />
+            <p className='flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm'>
+              <Icons.hourglass className='size-4 shrink-0 text-warning' />
               等待 {waiting.map((d) => d.key).join('、')} 关闭后才能开始，负责的智能体在此之前不会领取这个任务。
             </p>
           ) : null}

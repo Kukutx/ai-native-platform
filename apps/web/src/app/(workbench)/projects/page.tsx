@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pager } from '@/features/crm/pager';
+import { Pager } from '@/components/app/pager';
 import { ProgressBar } from '@/features/projects/progress-bar';
 import { ProjectFormDialog } from '@/features/projects/project-form-dialog';
 import { api } from '@/lib/api';

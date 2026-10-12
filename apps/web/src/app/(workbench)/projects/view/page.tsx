@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { InfoRow } from '@/features/crm/info-row';
+import { InfoRow } from '@/components/app/info-row';
 import { encodeActor } from '@/features/projects/actor-select';
 import { GanttChart } from '@/features/projects/gantt-chart';
 import { MemberDialog } from '@/features/projects/member-dialog';
@@ -177,7 +177,7 @@ function ProjectDetail() {
                         <CardTitle className='flex items-center gap-2'>
                           <Icons.milestone className='text-muted-foreground size-4' />
                           {m.name}
-                          {m.completedAt ? <Badge variant='secondary'>已完成</Badge> : m.isOverdue ? <Badge variant='destructive'>已逾期</Badge> : null}
+                          {m.completedAt ? <Badge variant='success'>已完成</Badge> : m.isOverdue ? <Badge variant='destructive'>已逾期</Badge> : null}
                         </CardTitle>
                         <p className='text-muted-foreground text-xs'>
                           {m.dueDate ? `${formatDate(m.dueDate)} 截止` : '没有截止日期'}
@@ -363,7 +363,7 @@ function TaskList({ items, empty }: { items: WorkItemDto[]; empty: string }) {
               {task.title}
             </Link>
             {task.dueDate ? (
-              <span className={cn('text-xs tabular-nums', overdue ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground')}>
+              <span className={cn('text-xs tabular-nums', overdue ? 'text-warning' : 'text-muted-foreground')}>
                 {formatDate(task.dueDate)}
               </span>
             ) : null}

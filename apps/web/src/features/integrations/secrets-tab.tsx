@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
-import { fieldError, fieldErrorsOf, FieldMessage } from './field-errors';
+import { fieldError, fieldErrorsOf, FieldMessage } from '@/components/app/field-errors';
 
 const reference = (name: string) => `{{ secrets.${name} }}`;
 

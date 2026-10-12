@@ -14,7 +14,7 @@ export function ProgressBar({ progress, className, compact }: { progress: Projec
         </span>
         {!compact && progress.inProgress ? <span>进行中 {progress.inProgress}</span> : null}
         {progress.blocked ? <span className='text-destructive'>受阻 {progress.blocked}</span> : null}
-        {progress.overdue ? <span className='text-amber-600 dark:text-amber-500'>逾期 {progress.overdue}</span> : null}
+        {progress.overdue ? <span className='text-warning'>逾期 {progress.overdue}</span> : null}
       </div>
     </div>
   );

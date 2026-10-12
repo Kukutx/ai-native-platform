@@ -15,6 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { localTimeZone } from '@/lib/dates';
 import { workflowTriggerKind } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 import { cronPresets } from './describe';
@@ -27,14 +28,6 @@ interface Draft {
   isEnabled: boolean;
   trigger: WorkflowTriggerDto;
   steps: DraftStep[];
-}
-
-function localTimeZone() {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
-  }
 }
 
 function toDraft(workflow?: WorkflowDto): Draft {
@@ -163,7 +156,7 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
                 type='button'
                 size='sm'
                 variant={(draft.trigger.kind ?? 'manual') === kind ? 'default' : 'outline'}
-                onClick={() => setTrigger(kind === 'schedule' && !draft.trigger.timeZone ? { kind, timeZone: localTimeZone(), cron: draft.trigger.cron ?? '0 9 * * *' } : { kind })}
+                onClick={() => setTrigger(kind === 'schedule' && !draft.trigger.timeZone ? { kind, timeZone: localTimeZone() ?? 'UTC', cron: draft.trigger.cron ?? '0 9 * * *' } : { kind })}
               >
                 {workflowTriggerKind[kind]}
               </Button>

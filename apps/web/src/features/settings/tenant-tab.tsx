@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { api } from '@/lib/api';
-import { localTimeZone } from '@/lib/labels';
+import { localTimeZone } from '@/lib/dates';
 import { queryKeys } from '@/lib/query-keys';
 
 export function TenantTab() {

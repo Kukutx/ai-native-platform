@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
+import { ValueRow } from '@/components/app/info-row';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -112,10 +113,10 @@ function AgentDetail() {
             <CardTitle>运行情况</CardTitle>
           </CardHeader>
           <CardContent className='space-y-2 text-sm'>
-            <Row label='模型' value={`${a.model}（${a.modelProvider}）`} />
-            <Row label='本月花费' value={`${formatUsd(a.spentThisMonthUsd)}${a.monthlyBudgetUsd > 0 ? ` / ${formatUsd(a.monthlyBudgetUsd)}` : ''}`} />
-            <Row label='定时心跳' value={a.heartbeatIntervalSeconds ? `每 ${a.heartbeatIntervalSeconds} 秒` : '关闭'} />
-            <Row label='上次心跳' value={formatTime(a.lastHeartbeatAt)} />
+            <ValueRow label='模型' value={`${a.model}（${a.modelProvider}）`} />
+            <ValueRow label='本月花费' value={`${formatUsd(a.spentThisMonthUsd)}${a.monthlyBudgetUsd > 0 ? ` / ${formatUsd(a.monthlyBudgetUsd)}` : ''}`} />
+            <ValueRow label='定时心跳' value={a.heartbeatIntervalSeconds ? `每 ${a.heartbeatIntervalSeconds} 秒` : '关闭'} />
+            <ValueRow label='上次心跳' value={formatTime(a.lastHeartbeatAt)} />
             {can('agents.wake') && a.status !== 'terminated' ? (
               <form
                 className='flex gap-2 pt-2'
@@ -169,14 +170,6 @@ function AgentDetail() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className='flex justify-between gap-4'>
-      <span className='text-muted-foreground'>{label}</span>
-      <span className='text-right'>{value}</span>
-    </div>
-  );
-}
 
 export default function AgentDetailPage() {
   return (

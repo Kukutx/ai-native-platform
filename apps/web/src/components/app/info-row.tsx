@@ -8,3 +8,13 @@ export function InfoRow({ icon: Icon, label, children }: { icon: React.Component
     </div>
   );
 }
+
+/** 概览卡里的一行：左边名称，右边内容；内容过长时在任意位置折行。 */
+export function ValueRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className='flex justify-between gap-4'>
+      <span className='text-muted-foreground shrink-0'>{label}</span>
+      <span className='min-w-0 text-right [overflow-wrap:anywhere]'>{value}</span>
+    </div>
+  );
+}

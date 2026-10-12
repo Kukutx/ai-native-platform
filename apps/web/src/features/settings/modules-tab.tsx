@@ -44,7 +44,7 @@ export function ModulesTab() {
                 {m.enabled ? '停用' : '启用'}
               </Button>
             ) : (
-              <Badge variant={m.enabled ? 'secondary' : 'outline'}>{m.enabled ? '已启用' : '未启用'}</Badge>
+              <Badge variant={m.enabled ? 'success' : 'outline'}>{m.enabled ? '已启用' : '未启用'}</Badge>
             )}
           </CardHeader>
           <CardContent className='space-y-2 text-sm'>

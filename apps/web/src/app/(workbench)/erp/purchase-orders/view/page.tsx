@@ -10,7 +10,7 @@ import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { InfoRow } from '@/features/crm/info-row';
+import { InfoRow } from '@/components/app/info-row';
 import { DeliveryDialog, type DeliveryMode } from '@/features/erp/delivery-dialog';
 import { OrderLinesTable } from '@/features/erp/order-lines-table';
 import { PurchaseOrderFormDialog } from '@/features/erp/purchase-order-form-dialog';

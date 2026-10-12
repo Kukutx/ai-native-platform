@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { InfoRow } from '@/features/crm/info-row';
+import { InfoRow } from '@/components/app/info-row';
 import { MovementTable } from '@/features/erp/movement-table';
 import { ProductFormDialog } from '@/features/erp/product-form-dialog';
 import { AdjustStockDialog, TransferStockDialog } from '@/features/erp/stock-dialogs';

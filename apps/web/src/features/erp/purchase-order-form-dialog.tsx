@@ -11,8 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RecordPicker, type PickedRecord } from '@/features/crm/record-picker';
 import { api } from '@/lib/api';
+import { today } from '@/lib/dates';
 import { fromOrderLine, OrderLinesEditor, toLineRequests, type LineDraft } from './order-lines-editor';
-import { today } from './utils';
 import { WarehouseSelect } from './warehouse-select';
 
 /** order 为 null 时新建，否则编辑（只有草稿可以编辑）。供应商就是客户管理里的客户（公司或组织）。 */

@@ -19,7 +19,7 @@ import { queryKeys } from '@/lib/query-keys';
 
 const NEVER = 'never';
 
-function keyState(key: ApiKeyDto): { label: string; tone: 'secondary' | 'outline' | 'destructive' } {
+function keyState(key: ApiKeyDto): { label: string; tone: 'success' | 'outline' | 'destructive' } {
   if (key.revokedAt) {
     return { label: '已吊销', tone: 'destructive' };
   }
@@ -28,7 +28,7 @@ function keyState(key: ApiKeyDto): { label: string; tone: 'secondary' | 'outline
     return { label: '已过期', tone: 'outline' };
   }
 
-  return { label: '有效', tone: 'secondary' };
+  return { label: '有效', tone: 'success' };
 }
 
 /**

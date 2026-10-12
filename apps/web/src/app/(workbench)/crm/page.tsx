@@ -179,7 +179,7 @@ function ColumnHeader({ column, closedWindowDays }: { column: CrmPipelineStageDt
     <div className='space-y-0.5 px-2 py-1.5'>
       <div className='flex items-center justify-between text-sm font-medium'>
         <span className='flex items-center gap-1.5'>
-          {column.stage.kind === 'won' ? <Icons.circleCheck className='size-4 text-emerald-600' /> : null}
+          {column.stage.kind === 'won' ? <Icons.circleCheck className='text-success size-4' /> : null}
           {column.stage.kind === 'lost' ? <Icons.circleX className='text-muted-foreground size-4' /> : null}
           {column.stage.name}
         </span>

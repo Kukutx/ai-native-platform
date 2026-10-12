@@ -93,7 +93,7 @@ function DocumentDetail() {
             <div key={chunk.id} className='bg-card rounded-xl border p-3'>
               <div className='text-muted-foreground mb-1 flex items-center justify-between text-xs'>
                 片段 {chunk.seq + 1}
-                <Badge variant={chunk.embedded ? 'secondary' : 'outline'}>{chunk.embedded ? '已向量化' : '向量化中'}</Badge>
+                <Badge variant={chunk.embedded ? 'success' : 'outline'}>{chunk.embedded ? '已向量化' : '向量化中'}</Badge>
               </div>
               <p className='text-sm whitespace-pre-wrap'>{chunk.content}</p>
             </div>

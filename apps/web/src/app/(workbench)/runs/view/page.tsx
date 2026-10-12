@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RunEventDto } from '@ainative/api-client';
 import { StatusBadge } from '@/components/app/status-badge';
+import { ValueRow } from '@/components/app/info-row';
 import { Icons } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -109,15 +110,15 @@ function RunDetail() {
               <CardTitle>概览</CardTitle>
             </CardHeader>
             <CardContent className='space-y-2 text-sm'>
-              <Row label='模型' value={`${run.provider} / ${run.model}`} />
-              <Row label='步数' value={run.steps} />
-              <Row label='输入 tokens' value={run.inputTokens.toLocaleString()} />
-              <Row label='输出 tokens' value={run.outputTokens.toLocaleString()} />
-              <Row label='花费' value={formatUsd(run.costUsd)} />
-              <Row label='开始' value={formatTime(run.startedAt)} />
-              <Row label='结束' value={formatTime(run.finishedAt)} />
+              <ValueRow label='模型' value={`${run.provider} / ${run.model}`} />
+              <ValueRow label='步数' value={run.steps} />
+              <ValueRow label='输入 tokens' value={run.inputTokens.toLocaleString()} />
+              <ValueRow label='输出 tokens' value={run.outputTokens.toLocaleString()} />
+              <ValueRow label='花费' value={formatUsd(run.costUsd)} />
+              <ValueRow label='开始' value={formatTime(run.startedAt)} />
+              <ValueRow label='结束' value={formatTime(run.finishedAt)} />
               {run.workItemId ? (
-                <Row
+                <ValueRow
                   label='关联任务'
                   value={
                     <Link href={`/tasks/view?id=${run.workItemId}`} className='underline'>
@@ -155,14 +156,6 @@ function RunDetail() {
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className='flex justify-between gap-4'>
-      <span className='text-muted-foreground'>{label}</span>
-      <span className='text-right'>{value}</span>
-    </div>
-  );
-}
 
 export default function RunDetailPage() {
   return (

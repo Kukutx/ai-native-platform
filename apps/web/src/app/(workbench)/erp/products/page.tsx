@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pager } from '@/features/crm/pager';
+import { Pager } from '@/components/app/pager';
 import { ErpNav } from '@/features/erp/erp-nav';
 import { ProductFormDialog } from '@/features/erp/product-form-dialog';
 import { api } from '@/lib/api';
@@ -147,7 +147,7 @@ export default function ErpProductsPage() {
                       <>
                         <TableCell className='text-right tabular-nums'>{formatQuantity(p.onHand)}</TableCell>
                         <TableCell className='text-muted-foreground text-right tabular-nums'>{formatQuantity(p.reserved)}</TableCell>
-                        <TableCell className={cn('text-right font-medium tabular-nums', p.lowStock && 'text-amber-600 dark:text-amber-500')}>
+                        <TableCell className={cn('text-right font-medium tabular-nums', p.lowStock && 'text-warning')}>
                           {formatQuantity(p.available, p.unit)}
                         </TableCell>
                       </>

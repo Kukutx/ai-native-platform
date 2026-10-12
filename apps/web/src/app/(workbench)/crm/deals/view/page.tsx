@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ActivityTimeline } from '@/features/crm/activity-timeline';
 import { CustomFieldValues } from '@/features/crm/custom-fields';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
-import { InfoRow } from '@/features/crm/info-row';
+import { InfoRow } from '@/components/app/info-row';
 import { CloseDealDialog, useMoveDeal, type MoveRequest } from '@/features/crm/move-deal';
 import { isOverdue } from '@/features/crm/utils';
 import { DealOrders } from '@/features/erp/deal-orders';
@@ -198,7 +198,7 @@ function StageBar({ deal, stages, disabled, onSelect }: { deal: CrmDealDto; stag
             onClick={() => onSelect(stage)}
             className={cn(
               'min-w-24 flex-1 rounded-md border px-3 py-2 text-left text-sm transition-colors disabled:cursor-default',
-              active && stage.kind === 'won' && 'border-emerald-600 bg-emerald-600 text-white',
+              active && stage.kind === 'won' && 'border-success bg-success text-success-foreground',
               active && stage.kind === 'lost' && 'bg-muted-foreground border-muted-foreground text-background',
               active && stage.kind === 'open' && 'bg-primary border-primary text-primary-foreground',
               !active && reached(stage) && 'bg-primary/10 border-primary/30',

@@ -71,7 +71,7 @@ export function McpServersTab() {
                         连接异常
                       </Badge>
                     ) : (
-                      <Badge variant='secondary'>正常</Badge>
+                      <Badge variant='success'>正常</Badge>
                     )}
                   </TableCell>
                   <TableCell className='text-muted-foreground text-sm'>{formatTime(server.toolsRefreshedAt)}</TableCell>

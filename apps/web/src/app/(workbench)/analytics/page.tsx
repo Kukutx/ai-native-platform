@@ -158,7 +158,7 @@ function Sections({ overview }: { overview: AnalyticsOverviewDto }) {
                       <TableCell className='text-right text-xs tabular-nums'>
                         {project.openTasks}
                         {project.blocked ? <span className='text-destructive block'>受阻 {project.blocked}</span> : null}
-                        {project.overdue ? <span className='block text-amber-600 dark:text-amber-500'>逾期 {project.overdue}</span> : null}
+                        {project.overdue ? <span className='block text-warning'>逾期 {project.overdue}</span> : null}
                       </TableCell>
                       <TableCell className={cn('text-right text-xs', project.isOverdue && 'text-destructive')}>{formatDate(project.targetDate)}</TableCell>
                     </TableRow>
@@ -231,7 +231,7 @@ function Sections({ overview }: { overview: AnalyticsOverviewDto }) {
                           {item.name}
                         </Link>
                       </TableCell>
-                      <TableCell className='text-right text-amber-600 tabular-nums dark:text-amber-500'>{formatQuantity(item.available, item.unit)}</TableCell>
+                      <TableCell className='text-right text-warning tabular-nums'>{formatQuantity(item.available, item.unit)}</TableCell>
                       <TableCell className='text-muted-foreground text-right tabular-nums'>{formatQuantity(item.reorderPoint, item.unit)}</TableCell>
                     </TableRow>
                   ))}

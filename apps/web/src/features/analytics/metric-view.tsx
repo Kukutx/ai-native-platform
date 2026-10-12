@@ -76,7 +76,7 @@ export function ChangeBadge({ value, previous, isRatio, label }: { value?: numbe
     <span
       className={cn(
         'inline-flex items-center gap-1 text-xs tabular-nums',
-        change.direction === 'up' && 'text-emerald-600 dark:text-emerald-500',
+        change.direction === 'up' && 'text-success',
         change.direction === 'down' && 'text-rose-600 dark:text-rose-500',
         change.direction === 'flat' && 'text-muted-foreground',
       )}

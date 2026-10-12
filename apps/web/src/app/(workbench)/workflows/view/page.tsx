@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Pager } from '@/components/app/pager';
 import { useSession } from '@/components/app/session-provider';
+import { ValueRow } from '@/components/app/info-row';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -57,7 +59,6 @@ function WorkflowDetail() {
 
   const workflow = detail.data;
   const manage = can('workflows.manage');
-  const pages = runs.data ? Math.max(1, Math.ceil(runs.data.total / PAGE_SIZE)) : 1;
   return (
     <div className='space-y-6 p-6'>
       <Link href='/workflows' className='text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm'>
@@ -68,7 +69,7 @@ function WorkflowDetail() {
         <div className='space-y-1'>
           <div className='flex flex-wrap items-center gap-3'>
             <h1 className='text-2xl font-semibold tracking-tight'>{workflow.name}</h1>
-            <Badge variant={workflow.isEnabled ? 'secondary' : 'outline'}>{workflow.isEnabled ? '已启用' : '已停用'}</Badge>
+            <Badge variant={workflow.isEnabled ? 'success' : 'outline'}>{workflow.isEnabled ? '已启用' : '已停用'}</Badge>
           </div>
           {workflow.description ? <p className='text-muted-foreground text-sm'>{workflow.description}</p> : null}
         </div>
@@ -108,12 +109,12 @@ function WorkflowDetail() {
             <CardTitle>概览</CardTitle>
           </CardHeader>
           <CardContent className='space-y-2 text-sm'>
-            <Row label='触发方式' value={workflowTriggerKind[workflow.trigger.kind ?? 'manual']} />
-            {workflow.trigger.kind && workflow.trigger.kind !== 'manual' ? <Row label='规则' value={describeTrigger(workflow.trigger, catalog.data?.events)} /> : null}
-            {workflow.nextRunAt ? <Row label='下次运行' value={formatTime(workflow.nextRunAt)} /> : null}
-            <Row label='运行身份' value={`${workflow.owner.name ?? '—'}${workflow.owner.kind === 'agent' ? '（智能体）' : ''}`} />
-            <Row label='版本' value={workflow.version} />
-            <Row label='更新时间' value={formatTime(workflow.updatedAt)} />
+            <ValueRow label='触发方式' value={workflowTriggerKind[workflow.trigger.kind ?? 'manual']} />
+            {workflow.trigger.kind && workflow.trigger.kind !== 'manual' ? <ValueRow label='规则' value={describeTrigger(workflow.trigger, catalog.data?.events)} /> : null}
+            {workflow.nextRunAt ? <ValueRow label='下次运行' value={formatTime(workflow.nextRunAt)} /> : null}
+            <ValueRow label='运行身份' value={`${workflow.owner.name ?? '—'}${workflow.owner.kind === 'agent' ? '（智能体）' : ''}`} />
+            <ValueRow label='版本' value={workflow.version} />
+            <ValueRow label='更新时间' value={formatTime(workflow.updatedAt)} />
           </CardContent>
         </Card>
       </div>
@@ -128,15 +129,7 @@ function WorkflowDetail() {
           {runs.data?.items.length ? (
             <>
               <WorkflowRunTable runs={runs.data.items} showWorkflow={false} />
-              <div className='text-muted-foreground flex items-center justify-end gap-2 pt-4 text-sm'>
-                第 {page} / {pages} 页
-                <Button size='sm' variant='outline' disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                  上一页
-                </Button>
-                <Button size='sm' variant='outline' disabled={page >= pages} onClick={() => setPage(page + 1)}>
-                  下一页
-                </Button>
-              </div>
+              <Pager page={page} pageSize={PAGE_SIZE} total={runs.data.total} onChange={setPage} />
             </>
           ) : (
             <p className='text-muted-foreground text-sm'>还没有运行过。</p>
@@ -147,14 +140,6 @@ function WorkflowDetail() {
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className='flex justify-between gap-4'>
-      <span className='text-muted-foreground shrink-0'>{label}</span>
-      <span className='text-right break-all'>{value}</span>
-    </div>
-  );
-}
 
 export default function WorkflowDetailPage() {
   return (

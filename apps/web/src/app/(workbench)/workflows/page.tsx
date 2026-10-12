@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { Pager } from '@/components/app/pager';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -39,7 +40,6 @@ export default function WorkflowsPage() {
   });
   const manage = can('workflows.manage');
   const run = can('workflows.run');
-  const pages = runs.data ? Math.max(1, Math.ceil(runs.data.total / PAGE_SIZE)) : 1;
 
   return (
     <div className='space-y-6 p-6'>
@@ -110,10 +110,10 @@ export default function WorkflowsPage() {
                           onClick={() => setEnabled.mutate({ id: w.id, enabled: !w.isEnabled })}
                           title={w.isEnabled ? '点击停用' : '点击启用'}
                         >
-                          <Badge variant={w.isEnabled ? 'secondary' : 'outline'}>{w.isEnabled ? '已启用' : '已停用'}</Badge>
+                          <Badge variant={w.isEnabled ? 'success' : 'outline'}>{w.isEnabled ? '已启用' : '已停用'}</Badge>
                         </Button>
                       ) : (
-                        <Badge variant={w.isEnabled ? 'secondary' : 'outline'}>{w.isEnabled ? '已启用' : '已停用'}</Badge>
+                        <Badge variant={w.isEnabled ? 'success' : 'outline'}>{w.isEnabled ? '已启用' : '已停用'}</Badge>
                       )}
                     </TableCell>
                     <TableCell className='text-right'>
@@ -149,15 +149,7 @@ export default function WorkflowsPage() {
           </CardHeader>
           <CardContent>
             <WorkflowRunTable runs={runs.data.items} />
-            <div className='text-muted-foreground flex items-center justify-end gap-2 pt-4 text-sm'>
-              第 {page} / {pages} 页
-              <Button size='sm' variant='outline' disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                上一页
-              </Button>
-              <Button size='sm' variant='outline' disabled={page >= pages} onClick={() => setPage(page + 1)}>
-                下一页
-              </Button>
-            </div>
+            <Pager page={page} pageSize={PAGE_SIZE} total={runs.data.total} onChange={setPage} />
           </CardContent>
         </Card>
       ) : null}
