@@ -28,7 +28,7 @@ public sealed class TenantSwitchTests(PostgresFixture postgres) : IntegrationTes
         await PostAsync<WorkItemDto>(bobClient, "/api/work-items", new CreateWorkItemRequest { Title = "乙的任务" });
 
         // 不是成员不能切过去。
-        (await SwitchAsync(aliceClient, other)).StatusCode.Should().BeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden);
+        (await SwitchAsync(aliceClient, other)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
         // 被加入乙空间后可以切换：新令牌是普通成员身份，只看得到乙空间的数据；原令牌仍停在甲空间。
         var memberRole = (await GetAsync<List<RoleDto>>(bobClient, "/api/roles")).Single(r => r.Key == "member");
@@ -57,7 +57,7 @@ public sealed class TenantSwitchTests(PostgresFixture postgres) : IntegrationTes
             RoleIds = membership.RoleIds,
             Status = MembershipStatus.Suspended,
         });
-        (await SwitchAsync(aliceClient, other)).StatusCode.Should().BeOneOf(HttpStatusCode.Unauthorized, HttpStatusCode.Forbidden);
+        (await SwitchAsync(aliceClient, other)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         using var anonymous = Client();
         var direct = await anonymous.PostAsJsonAsync("/api/auth/login", new LoginRequest { Email = "alice@example.com", Password = "Passw0rd!x", TenantId = other }, PlatformJson.Options, Ct);
         direct.IsSuccessStatusCode.Should().BeFalse();

@@ -195,7 +195,7 @@ internal sealed class AuthHandlers(
     {
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == request.UserId, cancellationToken).ConfigureAwait(false)
                    ?? throw new UnauthorizedException();
-        return await IssueAsync(user, request.TenantId, cancellationToken).ConfigureAwait(false);
+        return await IssueAsync(user, request.TenantId, cancellationToken, switching: true).ConfigureAwait(false);
     }
 
     public async Task<AuthResponse> HandleAsync(ChangePasswordCommand request, CancellationToken cancellationToken)
@@ -240,13 +240,19 @@ internal sealed class AuthHandlers(
         return await BuildSessionAsync(user, membership, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<AuthResponse> IssueAsync(User user, Guid? tenantId, CancellationToken cancellationToken)
+    private async Task<AuthResponse> IssueAsync(User user, Guid? tenantId, CancellationToken cancellationToken, bool switching = false)
     {
         var memberships = await db.Memberships.IgnoreQueryFilters().AsNoTracking()
             .Where(m => m.UserId == user.Id && m.Status == MembershipStatus.Active)
             .OrderByDescending(m => m.CreatedAt)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         var membership = tenantId is { } id ? memberships.FirstOrDefault(m => m.TenantId == id) : memberships.FirstOrDefault();
+        if (membership is null && switching)
+        {
+            // 已登录的用户切换到不是成员的空间：身份没问题，只是无权访问，返回 403（客户端遇到 401 会直接登出）。
+            throw new ForbiddenException("你不是该空间的成员。", "auth.not_a_member");
+        }
+
         if (membership is null)
         {
             throw new UnauthorizedException(tenantId is null ? "该账号还没有加入任何空间。" : "你不是该空间的成员。");

@@ -34,6 +34,33 @@ internal static class ChatMapping
     public static ConversationDto ToDto(this Conversation c) => new(c.Id, c.Title, c.AgentId, c.LastMessageAt, c.CreatedAt);
 
     /// <summary>
+    /// 工具结果保存时是一段 JSON 文本；从 jsonb 读回后变成字符串类型的 JsonElement，两种情况都还原成对象。
+    /// 不是合法 JSON 的旧数据原样作为字符串返回。
+    /// </summary>
+    private static JsonElement ResultElement(object? value)
+    {
+        var text = value switch
+        {
+            string s => s,
+            JsonElement { ValueKind: JsonValueKind.String } element => element.GetString(),
+            _ => null,
+        };
+        if (text is null)
+        {
+            return value is JsonElement json ? json : JsonSerializer.SerializeToElement(value, AIJsonUtilities.DefaultOptions);
+        }
+
+        try
+        {
+            return PlatformJson.Parse(text);
+        }
+        catch (JsonException)
+        {
+            return JsonSerializer.SerializeToElement(text);
+        }
+    }
+
+    /// <summary>
     /// 把存储的模型消息转换成界面消息：工具结果并入对应的工具调用，工具消息本身不单独展示。
     /// </summary>
     public static IReadOnlyList<ChatMessageDto> ToDtos(IReadOnlyList<ConversationMessage> rows, Func<string, string> actionKeyOf)
@@ -44,7 +71,7 @@ internal static class ChatMapping
             var message = Deserialize(row);
             foreach (var result in message?.Contents.OfType<FunctionResultContent>() ?? [])
             {
-                var element = result.Result is string s ? PlatformJson.Parse(s) : JsonSerializer.SerializeToElement(result.Result, AIJsonUtilities.DefaultOptions);
+                var element = ResultElement(result.Result);
                 var status = element.ValueKind == JsonValueKind.Object && element.TryGetProperty("status", out var st) ? st.GetString() : null;
                 results[result.CallId] = (element, status);
             }

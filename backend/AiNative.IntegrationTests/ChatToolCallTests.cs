@@ -39,7 +39,7 @@ public sealed class ChatToolCallTests(PostgresFixture postgres) : IntegrationTes
         call.GetProperty("data").GetProperty("title").GetString().Should().Be("整理会议纪要");
         var result = events.Single(e => e.GetProperty("type").GetString() == "tool_result");
         result.GetProperty("callId").GetString().Should().Be(call.GetProperty("callId").GetString());
-        result.GetProperty("data").GetProperty("status").GetString().Should().Be("ok");
+        result.GetProperty("data").GetProperty("status").GetString().Should().Be("succeeded");
         var taskId = result.GetProperty("data").GetProperty("output").GetProperty("id").GetGuid();
         Text(events).Should().Be("我来建个任务。已经建好了。");
 
@@ -89,7 +89,7 @@ public sealed class ChatToolCallTests(PostgresFixture postgres) : IntegrationTes
         offered.Should().Contain("tasks_create").And.NotContain("agents_hire");
         events.Select(e => e.GetProperty("type").GetString()).Should().NotContain("error").And.EndWith("done");
         var result = events.Single(e => e.GetProperty("type").GetString() == "tool_result").GetProperty("data");
-        result.GetProperty("status").GetString().Should().NotBe("ok");
+        result.GetProperty("status").GetString().Should().NotBe("succeeded");
         result.GetProperty("error").GetString().Should().NotBeNullOrWhiteSpace();
         Text(events).Should().Be("抱歉，这件事我做不了。");
         (await GetAsync<List<AgentDto>>(ownerClient, "/api/agents")).Should().ContainSingle();
@@ -119,7 +119,7 @@ public sealed class ChatToolCallTests(PostgresFixture postgres) : IntegrationTes
 
         // agents.hire 只在智能体发起时需要审批；对话以成员身份执行，直接生效、不产生审批单。
         var result = events.Single(e => e.GetProperty("type").GetString() == "tool_result").GetProperty("data");
-        result.GetProperty("status").GetString().Should().Be("ok");
+        result.GetProperty("status").GetString().Should().Be("succeeded");
         var hiredId = result.GetProperty("output").GetProperty("id").GetGuid();
         var hired = (await GetAsync<List<AgentDto>>(client, "/api/agents")).Should().ContainSingle(a => a.Id == hiredId).Subject;
         hired.Name.Should().Be("小研");
