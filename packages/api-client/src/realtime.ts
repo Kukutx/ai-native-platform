@@ -4,7 +4,22 @@ import type { ChatStreamEvent } from './stream';
 
 /** 实体变化通知：客户端据此让对应查询失效重取。 */
 export interface RealtimeChange {
-  entity: 'agent' | 'work_item' | 'run' | 'approval' | 'conversation' | 'module' | 'knowledge_document' | 'memory' | 'workflow' | 'workflow_run';
+  entity:
+    | 'agent'
+    | 'work_item'
+    | 'run'
+    | 'approval'
+    | 'conversation'
+    | 'module'
+    | 'knowledge_document'
+    | 'memory'
+    | 'workflow'
+    | 'workflow_run'
+    | 'crm_company'
+    | 'crm_contact'
+    | 'crm_deal'
+    | 'crm_activity'
+    | 'crm_stage';
   id: string;
   kind: 'created' | 'updated' | 'deleted';
 }

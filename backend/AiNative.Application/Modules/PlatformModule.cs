@@ -26,6 +26,15 @@ public interface IPlatformModule
     IReadOnlyList<PlatformEventDefinition> Events => [];
 }
 
+/// <summary>
+/// 新空间创建时补充模块自己的初始数据（例如 CRM 的默认销售阶段），与注册在同一事务提交。
+/// 实现类放进已注册的程序集即可被扫描。
+/// </summary>
+public interface ITenantInitializer
+{
+    Task InitializeAsync(Guid tenantId, CancellationToken cancellationToken);
+}
+
 public interface IModuleCatalog
 {
     IReadOnlyList<IPlatformModule> Modules { get; }

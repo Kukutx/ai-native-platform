@@ -6,6 +6,11 @@ import {
   ApprovalsClient,
   AuthClient,
   ConversationsClient,
+  CrmActivitiesClient,
+  CrmCompaniesClient,
+  CrmContactsClient,
+  CrmDealsClient,
+  CrmStagesClient,
   KnowledgeClient,
   MembersClient,
   MemoriesClient,
@@ -76,6 +81,13 @@ export function createApi(config: ApiConfig) {
     usage: new UsageClient(baseUrl, http),
     models: new ModelsClient(baseUrl, http),
     workflows: new WorkflowsClient(baseUrl, http),
+    crm: {
+      companies: new CrmCompaniesClient(baseUrl, http),
+      contacts: new CrmContactsClient(baseUrl, http),
+      deals: new CrmDealsClient(baseUrl, http),
+      activities: new CrmActivitiesClient(baseUrl, http),
+      stages: new CrmStagesClient(baseUrl, http),
+    },
   };
 }
 

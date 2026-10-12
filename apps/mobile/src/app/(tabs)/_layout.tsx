@@ -1,6 +1,7 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ColorValue } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
+import { sessionCan } from '@ainative/api-client';
 import { Tabs } from 'expo-router/js-tabs';
 import { getApi } from '@/lib/api';
 import { usePalette } from '@/lib/theme';
@@ -15,12 +16,18 @@ function icon(name: IconName) {
 
 export default function TabsLayout() {
   const p = usePalette();
+  const session = useQuery({ queryKey: ['session'], queryFn: ({ signal }) => getApi().auth.session(signal) });
   const pending = useQuery({ queryKey: ['approvals', 'pending'], queryFn: ({ signal }) => getApi().approvals.list('pending', signal) });
 
   return (
     <Tabs screenOptions={{ tabBarActiveTintColor: p.text, tabBarInactiveTintColor: p.muted }}>
       <Tabs.Screen name='index' options={{ title: '对话', tabBarIcon: icon('chatbubbles-outline') }} />
       <Tabs.Screen name='tasks' options={{ title: '任务', tabBarIcon: icon('checkmark-done-outline') }} />
+      {/* 没有客户管理权限或模块停用时隐藏这个标签。 */}
+      <Tabs.Screen
+        name='crm'
+        options={{ title: '客户', tabBarIcon: icon('briefcase-outline'), href: sessionCan(session.data, 'crm.view') ? undefined : null }}
+      />
       <Tabs.Screen name='knowledge' options={{ title: '知识', tabBarIcon: icon('library-outline') }} />
       <Tabs.Screen
         name='approvals'

@@ -1,5 +1,8 @@
 import type {
   ApprovalStatus,
+  CrmActivityKind,
+  CrmAmountDto,
+  CrmDealStatus,
   WorkItemPriority,
   WorkItemStatus,
   WorkflowRunStatus,
@@ -69,6 +72,49 @@ export const workflowStepKind: Record<WorkflowStepKind, string> = {
   llm: '模型处理',
   delay: '等待',
 };
+
+export const crmDealStatus: Record<CrmDealStatus, string> = {
+  open: '进行中',
+  won: '赢单',
+  lost: '输单',
+};
+
+export const crmActivityKind: Record<CrmActivityKind, string> = {
+  note: '备注',
+  call: '电话',
+  meeting: '会议',
+  email: '邮件',
+  stage_change: '阶段变化',
+};
+
+const currencySymbols: Record<string, string> = { CNY: '¥', USD: '$', EUR: '€', HKD: 'HK$', JPY: '¥', GBP: '£' };
+
+/** 金额加千分位和货币符号。不依赖 Intl 的货币格式，各平台的 JS 引擎表现一致。 */
+export function formatAmount(amount: number | null | undefined, currency = 'CNY') {
+  if (amount === null || amount === undefined) {
+    return '—';
+  }
+
+  const [whole = '0', fraction] = (Math.round(amount * 100) / 100).toString().split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const symbol = currencySymbols[currency] ?? `${currency} `;
+  return `${symbol}${grouped}${fraction ? `.${fraction}` : ''}`;
+}
+
+/** 多币种合计：每种货币一段，用「 + 」连接。 */
+export function formatTotals(totals: CrmAmountDto[] | undefined) {
+  return totals?.length ? totals.map((t) => formatAmount(t.amount, t.currency)).join(' + ') : formatAmount(0);
+}
+
+/** 只有日期的值（yyyy-MM-dd）原样按本地日期显示。 */
+export function formatDate(value?: string | null) {
+  if (!value) {
+    return '—';
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  return `${year}/${month}/${day}`;
+}
 
 export function formatTime(value?: string | null) {
   if (!value) {

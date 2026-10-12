@@ -1,6 +1,10 @@
 import type {
   AgentStatus,
   ApprovalStatus,
+  CrmActivityKind,
+  CrmAmountDto,
+  CrmDealStatus,
+  CrmStageKind,
   MemoryScope,
   RunStatus,
   WakeupSource,
@@ -101,6 +105,60 @@ export const workflowStepKind: Record<WorkflowStepKind, { label: string; hint: s
   llm: { label: '模型处理', hint: '让模型总结、分类或改写文本，内容是 JSON 时可以直接取字段。' },
   delay: { label: '等待', hint: '暂停一段时间再继续。' },
 };
+
+export const crmDealStatus: Record<CrmDealStatus, { label: string; tone: Tone }> = {
+  open: { label: '进行中', tone: 'default' },
+  won: { label: '赢单', tone: 'secondary' },
+  lost: { label: '输单', tone: 'outline' },
+};
+
+export const crmStageKind: Record<CrmStageKind, string> = {
+  open: '进行中',
+  won: '赢单',
+  lost: '输单',
+};
+
+export const crmActivityKind: Record<CrmActivityKind, string> = {
+  note: '备注',
+  call: '电话',
+  meeting: '会议',
+  email: '邮件',
+  stage_change: '阶段变化',
+};
+
+/** 金额按货币格式化；compact 用于看板等空间紧张的地方（例如 ¥12万）。 */
+export function formatAmount(amount: number | null | undefined, currency = 'CNY', compact = false) {
+  if (amount === null || amount === undefined) {
+    return '—';
+  }
+
+  try {
+    return new Intl.NumberFormat('zh-CN', {
+      style: 'currency',
+      currency,
+      notation: compact ? 'compact' : 'standard',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: compact ? 1 : 2,
+    }).format(amount);
+  } catch {
+    return `${currency} ${amount.toLocaleString('zh-CN')}`;
+  }
+}
+
+/** 多币种合计：每种货币一段，用「 + 」连接。 */
+export function formatTotals(totals: CrmAmountDto[] | undefined, compact = false) {
+  return totals?.length ? totals.map((t) => formatAmount(t.amount, t.currency, compact)).join(' + ') : formatAmount(0, 'CNY', compact);
+}
+
+/** 只有日期的值（yyyy-MM-dd），按本地日期显示，不做时区换算。 */
+export function formatDate(value?: string | null) {
+  if (!value) {
+    return '—';
+  }
+
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString('zh-CN');
+}
 
 export function formatTime(value?: string | null) {
   if (!value) {
