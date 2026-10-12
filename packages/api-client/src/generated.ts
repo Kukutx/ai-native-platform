@@ -4406,6 +4406,447 @@ export class ErpSummaryClient {
     }
 }
 
+export class IntegrationsClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 接入的外部 MCP 服务及其工具。
+     */
+    mcpServers(signal?: AbortSignal): Promise<McpServerDto[]> {
+        let url_ = this.baseUrl + "/api/integrations/mcp-servers";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processMcpServers(_response);
+        });
+    }
+
+    protected processMcpServers(response: Response): Promise<McpServerDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as McpServerDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<McpServerDto[]>(null as any);
+    }
+
+    /**
+     * 接入外部 MCP 服务。保存时会连接它读取工具列表；连不上也会保存，原因见 lastError。
+     */
+    createMcpServer(request: SaveMcpServerRequest, signal?: AbortSignal): Promise<McpServerDto> {
+        let url_ = this.baseUrl + "/api/integrations/mcp-servers";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreateMcpServer(_response);
+        });
+    }
+
+    protected processCreateMcpServer(response: Response): Promise<McpServerDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as McpServerDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<McpServerDto>(null as any);
+    }
+
+    getMcpServer(id: string, signal?: AbortSignal): Promise<McpServerDto> {
+        let url_ = this.baseUrl + "/api/integrations/mcp-servers/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGetMcpServer(_response);
+        });
+    }
+
+    protected processGetMcpServer(response: Response): Promise<McpServerDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as McpServerDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<McpServerDto>(null as any);
+    }
+
+    updateMcpServer(id: string, request: SaveMcpServerRequest, signal?: AbortSignal): Promise<McpServerDto> {
+        let url_ = this.baseUrl + "/api/integrations/mcp-servers/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdateMcpServer(_response);
+        });
+    }
+
+    protected processUpdateMcpServer(response: Response): Promise<McpServerDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as McpServerDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<McpServerDto>(null as any);
+    }
+
+    deleteMcpServer(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/integrations/mcp-servers/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDeleteMcpServer(_response);
+        });
+    }
+
+    protected processDeleteMcpServer(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * 重新读取工具列表。
+     */
+    refreshMcpServer(id: string, signal?: AbortSignal): Promise<McpServerDto> {
+        let url_ = this.baseUrl + "/api/integrations/mcp-servers/{id}/refresh";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processRefreshMcpServer(_response);
+        });
+    }
+
+    protected processRefreshMcpServer(response: Response): Promise<McpServerDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as McpServerDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<McpServerDto>(null as any);
+    }
+
+    /**
+     * 调整一个工具：开关、确认只读。只改给出的项。
+     */
+    updateMcpTool(id: string, request: UpdateMcpToolRequest, signal?: AbortSignal): Promise<McpServerDto> {
+        let url_ = this.baseUrl + "/api/integrations/mcp-servers/{id}/tools";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdateMcpTool(_response);
+        });
+    }
+
+    protected processUpdateMcpTool(response: Response): Promise<McpServerDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as McpServerDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<McpServerDto>(null as any);
+    }
+
+    /**
+     * 密钥列表（只有名称和说明，拿不到值）。
+     */
+    secrets(signal?: AbortSignal): Promise<TenantSecretDto[]> {
+        let url_ = this.baseUrl + "/api/integrations/secrets";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processSecrets(_response);
+        });
+    }
+
+    protected processSecrets(response: Response): Promise<TenantSecretDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TenantSecretDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<TenantSecretDto[]>(null as any);
+    }
+
+    createSecret(request: CreateTenantSecretRequest, signal?: AbortSignal): Promise<TenantSecretDto> {
+        let url_ = this.baseUrl + "/api/integrations/secrets";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreateSecret(_response);
+        });
+    }
+
+    protected processCreateSecret(response: Response): Promise<TenantSecretDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TenantSecretDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<TenantSecretDto>(null as any);
+    }
+
+    /**
+     * 更换密钥的值或修改说明。不传 value 表示只改说明。
+     */
+    updateSecret(id: string, request: UpdateTenantSecretRequest, signal?: AbortSignal): Promise<TenantSecretDto> {
+        let url_ = this.baseUrl + "/api/integrations/secrets/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdateSecret(_response);
+        });
+    }
+
+    protected processUpdateSecret(response: Response): Promise<TenantSecretDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TenantSecretDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<TenantSecretDto>(null as any);
+    }
+
+    /**
+     * 删除密钥。还被外部服务或工作流引用时返回 409。
+     */
+    deleteSecret(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/integrations/secrets/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDeleteSecret(_response);
+        });
+    }
+
+    protected processDeleteSecret(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+}
+
 export class KnowledgeClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -7148,6 +7589,79 @@ export interface ErpSummaryDto {
 export interface ErpAmountDto {
     currency: string;
     amount: number;
+}
+
+export interface McpServerDto {
+    id: string;
+    key: string;
+    name: string;
+    description: string;
+    url: string;
+    headers: McpServerHeader[];
+    isEnabled: boolean;
+    approvalMode: McpApprovalMode;
+    tools: McpToolDto[];
+    toolsRefreshedAt?: string | undefined;
+    lastError?: string | undefined;
+    createdBy: ActorDto;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface McpServerHeader {
+    name: string;
+    value: string;
+}
+
+export type McpApprovalMode = "never" | "writes_only" | "always";
+
+export interface McpToolDto {
+    name: string;
+    key: string;
+    title?: string | undefined;
+    description: string;
+    readOnly: boolean;
+    readOnlyHint: boolean;
+    enabled: boolean;
+    requiresApproval: boolean;
+    inputSchema: any;
+}
+
+export interface SaveMcpServerRequest {
+    key: string;
+    name: string;
+    description?: string;
+    url: string;
+    headers?: McpServerHeader[];
+    isEnabled?: boolean;
+    approvalMode?: McpApprovalMode;
+}
+
+export interface UpdateMcpToolRequest {
+    tool: string;
+    enabled?: boolean | undefined;
+    readOnly?: boolean | undefined;
+}
+
+export interface TenantSecretDto {
+    id: string;
+    name: string;
+    description: string;
+    createdBy: ActorDto;
+    updatedBy: ActorDto;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreateTenantSecretRequest {
+    name: string;
+    value: string;
+    description?: string;
+}
+
+export interface UpdateTenantSecretRequest {
+    value?: string | undefined;
+    description?: string;
 }
 
 export interface KnowledgeDocumentDto {

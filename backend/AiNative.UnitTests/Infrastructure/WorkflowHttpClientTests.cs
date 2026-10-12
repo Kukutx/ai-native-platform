@@ -1,5 +1,6 @@
 using System.Net;
 using AiNative.Application.Workflows;
+using AiNative.Infrastructure.Common;
 using AiNative.Infrastructure.Workflows;
 using Microsoft.Extensions.Options;
 
@@ -21,7 +22,7 @@ public sealed class WorkflowHttpClientTests
     [InlineData("fd00::1")]
     [InlineData("::ffff:10.0.0.1")]
     public void Private_and_special_addresses_are_not_public(string address)
-        => WorkflowHttpClient.IsPublic(IPAddress.Parse(address)).Should().BeFalse();
+        => OutboundHttp.IsPublic(IPAddress.Parse(address)).Should().BeFalse();
 
     [Theory]
     [InlineData("8.8.8.8")]
@@ -30,7 +31,7 @@ public sealed class WorkflowHttpClientTests
     [InlineData("2606:4700:4700::1111")]
     [InlineData("::ffff:8.8.8.8")]
     public void Public_addresses_are_allowed(string address)
-        => WorkflowHttpClient.IsPublic(IPAddress.Parse(address)).Should().BeTrue();
+        => OutboundHttp.IsPublic(IPAddress.Parse(address)).Should().BeTrue();
 
     [Theory]
     [InlineData("http://127.0.0.1:9/")]
@@ -38,7 +39,7 @@ public sealed class WorkflowHttpClientTests
     [InlineData("http://169.254.169.254/latest/meta-data/")]
     public async Task Requests_to_private_networks_are_refused_by_default(string url)
     {
-        using var client = new WorkflowHttpClient(Options.Create(new WorkflowOptions()));
+        using var client = new WorkflowHttpClient(Options.Create(new OutboundNetworkOptions()));
 
         var act = () => client.SendAsync(
             new WorkflowHttpRequest("GET", new Uri(url), new Dictionary<string, string>(), null, TimeSpan.FromSeconds(5)),

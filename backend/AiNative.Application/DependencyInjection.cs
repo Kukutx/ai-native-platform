@@ -46,6 +46,9 @@ public static class DependencyInjection
         services.AddScoped<Analytics.MetricCatalog>();
         services.AddScoped<Analytics.MetricLabels>();
         services.AddScoped<Analytics.AnalyticsEngine>();
+        services.AddScoped<Integrations.ITenantSecrets, Integrations.TenantSecrets>();
+        services.AddScoped<Integrations.SecretReferences>();
+        services.AddScoped<Integrations.McpServerTools>();
         services.AddScoped<AgentPromptBuilder>();
         services.AddScoped<IAgentRuntime, AgentRuntime>();
         services.AddScoped<IChatService, ChatService>();
@@ -78,9 +81,14 @@ public static class DependencyInjection
                 }
             }
 
-            if (typeof(IPlatformAction).IsAssignableFrom(type))
+            if (typeof(IPlatformAction).IsAssignableFrom(type) && !typeof(IDynamicPlatformAction).IsAssignableFrom(type))
             {
                 services.AddScoped(typeof(IPlatformAction), type);
+            }
+
+            if (typeof(IDynamicActionSource).IsAssignableFrom(type))
+            {
+                services.AddScoped(typeof(IDynamicActionSource), type);
             }
 
             if (typeof(Analytics.IPlatformMetric).IsAssignableFrom(type))

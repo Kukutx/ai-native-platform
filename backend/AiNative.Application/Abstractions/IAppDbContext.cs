@@ -5,6 +5,7 @@ using AiNative.Domain.Crm;
 using AiNative.Domain.Erp;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
+using AiNative.Domain.Integrations;
 using AiNative.Domain.Knowledge;
 using AiNative.Domain.Modules;
 using AiNative.Domain.Projects;
@@ -98,6 +99,10 @@ public interface IAppDbContext
     DbSet<ProjectMember> ProjectMembers { get; }
 
     DbSet<AnalyticsReport> AnalyticsReports { get; }
+
+    DbSet<TenantSecret> TenantSecrets { get; }
+
+    DbSet<McpServer> McpServers { get; }
 
     DatabaseFacade Database { get; }
 

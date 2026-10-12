@@ -5,6 +5,8 @@ using AiNative.Application.Actions;
 using AiNative.Application.Agents;
 using AiNative.Application.Ai;
 using AiNative.Application.Common;
+using AiNative.Application.Integrations;
+using AiNative.Application.Modules;
 using AiNative.Application.Platform;
 using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
@@ -184,7 +186,7 @@ internal sealed class WorkflowExecutor(
                     }, cancellationToken).ConfigureAwait(false);
 
                 case WorkflowStepKind.Http:
-                    return await RunHttpAsync(run, step, position, context, cancellationToken).ConfigureAwait(false);
+                    return await RunHttpAsync(run, principal, step, position, context, cancellationToken).ConfigureAwait(false);
 
                 case WorkflowStepKind.Branch:
                     return await StartBranchAsync(state, step, position, context, cancellationToken).ConfigureAwait(false);
@@ -341,21 +343,43 @@ internal sealed class WorkflowExecutor(
             ? items.Clone()
             : null;
 
-    private async Task<StepOutcome> RunHttpAsync(WorkflowRun run, WorkflowStep step, StepPosition position, JsonElement context, CancellationToken cancellationToken)
+    private async Task<StepOutcome> RunHttpAsync(
+        WorkflowRun run,
+        WorkflowPrincipal principal,
+        WorkflowStep step,
+        StepPosition position,
+        JsonElement context,
+        CancellationToken cancellationToken)
     {
         var method = step.Method ?? "GET";
         var url = WorkflowTemplate.RenderString(step.Url, context).Trim();
+        var (secrets, secretError) = await ResolveSecretsAsync(run, principal, step.Headers?.Values ?? Enumerable.Empty<string>(), cancellationToken).ConfigureAwait(false);
+
+        // 运行详情对所有能查看工作流的人可见：引用密钥的请求头记录原始写法，其余敏感请求头打码。
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var recordedHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var (name, value) in step.Headers ?? [])
         {
-            headers[name] = WorkflowTemplate.RenderString(value, context);
+            if (SecretTemplate.HasReferences(value))
+            {
+                recordedHeaders[name] = value;
+                headers[name] = secretError is null ? SecretTemplate.Render(value, secrets, text => WorkflowTemplate.RenderString(text, context)) : string.Empty;
+            }
+            else
+            {
+                headers[name] = WorkflowTemplate.RenderString(value, context);
+                recordedHeaders[name] = SensitiveHeaders.IsSensitive(name) ? "***" : headers[name];
+            }
         }
 
         JsonElement? body = step.Body is { } template ? WorkflowTemplate.Render(template, context) : null;
         var timeout = TimeSpan.FromSeconds(step.TimeoutSeconds ?? DefaultHttpTimeoutSeconds);
+        var recorded = PlatformJson.ToElement(new { method, url, headers = recordedHeaders.Count == 0 ? null : recordedHeaders, body });
+        if (secretError is not null)
+        {
+            return await FailStepAsync(run, step, position, recorded, secretError, cancellationToken).ConfigureAwait(false);
+        }
 
-        // 记录里的敏感请求头打码：运行详情对所有能查看工作流的人可见。
-        var recorded = PlatformJson.ToElement(new { method, url, headers = headers.Count == 0 ? null : headers.ToDictionary(h => h.Key, h => IsSensitiveHeader(h.Key) ? "***" : h.Value), body });
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
         {
             return await FailStepAsync(run, step, position, recorded, $"「{url}」不是有效的 http(s) 地址。", cancellationToken).ConfigureAwait(false);
@@ -366,6 +390,8 @@ internal sealed class WorkflowExecutor(
             return StepOutcome.Stopped;
         }
 
+        // 对方可能把请求头原样回显：记录响应和错误前抹掉发出去的密钥。
+        var redactor = new SecretRedactor(secrets.Values);
         WorkflowHttpResponse response;
         try
         {
@@ -373,24 +399,21 @@ internal sealed class WorkflowExecutor(
         }
         catch (WorkflowHttpException ex)
         {
-            return await FailStepAsync(run, step, position, null, ex.Message, cancellationToken).ConfigureAwait(false);
+            return await FailStepAsync(run, step, position, null, redactor.Redact(ex.Message), cancellationToken).ConfigureAwait(false);
         }
 
-        var output = PlatformJson.ToElement(new { status = response.Status, ok = response.IsSuccess, contentType = response.ContentType, body = HttpBody(response) });
+        var responseBody = HttpBody(response) switch
+        {
+            JsonElement json => redactor.Redact(json),
+            string text => (object)redactor.Redact(text),
+            var other => other,
+        };
+        var output = PlatformJson.ToElement(new { status = response.Status, ok = response.IsSuccess, contentType = response.ContentType, body = responseBody });
         var status = response.IsSuccess ? WorkflowStepStatus.Succeeded : WorkflowStepStatus.Failed;
         var error = response.IsSuccess ? null : $"服务器返回 HTTP {response.Status}。";
         return await InUnitAsync(() => CompleteInAsync(db, changes, run, step, position, status, null, output, error, cancellationToken), cancellationToken)
             .ConfigureAwait(false);
     }
-
-    private static bool IsSensitiveHeader(string name)
-        => name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)
-           || name.Equals("Proxy-Authorization", StringComparison.OrdinalIgnoreCase)
-           || name.Equals("Cookie", StringComparison.OrdinalIgnoreCase)
-           || name.Contains("token", StringComparison.OrdinalIgnoreCase)
-           || name.Contains("secret", StringComparison.OrdinalIgnoreCase)
-           || name.Contains("key", StringComparison.OrdinalIgnoreCase)
-           || name.Contains("password", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// 响应是 JSON 时解析成对象，后续步骤可以按字段引用；否则给原文。
@@ -708,6 +731,47 @@ internal sealed class WorkflowExecutor(
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 读取请求头里引用的密钥。以所有者身份检查：模块启用、拥有引用密钥的权限（保存时检查过，之后可能被收回）。
+    /// </summary>
+    private async Task<(IReadOnlyDictionary<string, string> Values, string? Error)> ResolveSecretsAsync(
+        WorkflowRun run,
+        WorkflowPrincipal principal,
+        IEnumerable<string> headerValues,
+        CancellationToken cancellationToken)
+    {
+        var names = headerValues.SelectMany(SecretTemplate.References).Distinct(StringComparer.Ordinal).ToList();
+        IReadOnlyDictionary<string, string> none = new Dictionary<string, string>();
+        if (names.Count == 0)
+        {
+            return (none, null);
+        }
+
+        return await InOwnerScopeAsync(run, principal, async sp =>
+        {
+            if (!await sp.GetRequiredService<IModuleAccess>().IsEnabledAsync(IntegrationsModule.ModuleKey, cancellationToken).ConfigureAwait(false))
+            {
+                return (none, "「集成」模块未启用，不能使用密钥。");
+            }
+
+            if (!sp.GetRequiredService<ITenantContext>().Can(IntegrationFeatures.SecretsUse))
+            {
+                return (none, $"工作流所有者缺少权限 {IntegrationFeatures.SecretsUse}，不能在请求头里使用密钥。");
+            }
+
+            try
+            {
+                var values = await sp.GetRequiredService<ITenantSecrets>().GetAsync(names, cancellationToken).ConfigureAwait(false);
+                var missing = names.Where(n => !values.ContainsKey(n)).ToList();
+                return (values, missing.Count == 0 ? null : $"密钥 {string.Join("、", missing)} 不存在。");
+            }
+            catch (SecretUnavailableException ex)
+            {
+                return (none, ex.Message);
+            }
+        }).ConfigureAwait(false);
     }
 
     /// <summary>

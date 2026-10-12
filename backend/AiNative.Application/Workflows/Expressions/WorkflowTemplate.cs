@@ -53,6 +53,34 @@ public static class WorkflowTemplate
         _ => null,
     };
 
+    /// <summary>
+    /// 模板里是否有表达式引用了这个顶层变量。模板本身不合法时返回 false（语法错误另行报告）。
+    /// </summary>
+    public static bool UsesRoot(string? text, string root)
+    {
+        if (string.IsNullOrEmpty(text) || !text.Contains(Open, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        try
+        {
+            return Split(text).Any(s => s.IsExpression && WorkflowExpression.Parse(s.Text).Roots.Contains(root));
+        }
+        catch (WorkflowExpressionException)
+        {
+            return false;
+        }
+    }
+
+    public static bool UsesRoot(JsonElement value, string root) => value.ValueKind switch
+    {
+        JsonValueKind.String => UsesRoot(value.GetString(), root),
+        JsonValueKind.Object => value.EnumerateObject().Any(p => UsesRoot(p.Value, root)),
+        JsonValueKind.Array => value.EnumerateArray().Any(v => UsesRoot(v, root)),
+        _ => false,
+    };
+
     public static string RenderString(string? text, JsonElement context)
     {
         if (string.IsNullOrEmpty(text) || !text.Contains(Open, StringComparison.Ordinal))

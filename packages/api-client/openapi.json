@@ -3769,6 +3769,359 @@
         }
       }
     },
+    "/api/integrations/mcp-servers": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "接入的外部 MCP 服务及其工具。",
+        "operationId": "Integrations_McpServers",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/McpServerDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "接入外部 MCP 服务。保存时会连接它读取工具列表；连不上也会保存，原因见 lastError。",
+        "operationId": "Integrations_CreateMcpServer",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveMcpServerRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/mcp-servers/{id}": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "Integrations_GetMcpServer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "Integrations_UpdateMcpServer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveMcpServerRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "Integrations_DeleteMcpServer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/integrations/mcp-servers/{id}/refresh": {
+      "post": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "重新读取工具列表。",
+        "operationId": "Integrations_RefreshMcpServer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/mcp-servers/{id}/tools": {
+      "put": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "调整一个工具：开关、确认只读。只改给出的项。",
+        "operationId": "Integrations_UpdateMcpTool",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMcpToolRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpServerDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/secrets": {
+      "get": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "密钥列表（只有名称和说明，拿不到值）。",
+        "operationId": "Integrations_Secrets",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TenantSecretDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Integrations"
+        ],
+        "operationId": "Integrations_CreateSecret",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantSecretRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSecretDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/integrations/secrets/{id}": {
+      "put": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "更换密钥的值或修改说明。不传 value 表示只改说明。",
+        "operationId": "Integrations_UpdateSecret",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantSecretRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSecretDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "删除密钥。还被外部服务或工作流引用时返回 409。",
+        "operationId": "Integrations_DeleteSecret",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
     "/api/knowledge/documents": {
       "get": {
         "tags": [
@@ -9566,6 +9919,284 @@
           "amount": {
             "type": "number",
             "format": "decimal"
+          }
+        }
+      },
+      "McpServerDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "key",
+          "name",
+          "description",
+          "url",
+          "headers",
+          "isEnabled",
+          "approvalMode",
+          "tools",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerHeader"
+            }
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "approvalMode": {
+            "$ref": "#/components/schemas/McpApprovalMode"
+          },
+          "tools": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpToolDto"
+            }
+          },
+          "toolsRefreshedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "lastError": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "McpServerHeader": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "McpApprovalMode": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Never",
+          "WritesOnly",
+          "Always"
+        ],
+        "enum": [
+          "never",
+          "writes_only",
+          "always"
+        ]
+      },
+      "McpToolDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "key",
+          "description",
+          "readOnly",
+          "readOnlyHint",
+          "enabled",
+          "requiresApproval",
+          "inputSchema"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string"
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "readOnlyHint": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "requiresApproval": {
+            "type": "boolean"
+          },
+          "inputSchema": {}
+        }
+      },
+      "SaveMcpServerRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "name",
+          "url",
+          "key",
+          "name",
+          "url"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/McpServerHeader"
+            }
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "approvalMode": {
+            "$ref": "#/components/schemas/McpApprovalMode"
+          }
+        }
+      },
+      "UpdateMcpToolRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "tool",
+          "tool"
+        ],
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "readOnly": {
+            "type": "boolean",
+            "nullable": true
+          }
+        }
+      },
+      "TenantSecretDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "description",
+          "createdBy",
+          "updatedBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "updatedBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateTenantSecretRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "value",
+          "name",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateTenantSecretRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string"
           }
         }
       },

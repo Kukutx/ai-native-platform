@@ -60,6 +60,9 @@ export const queryKeys = {
   analyticsQuery: (request: object) => ['analytics', 'data', 'query', request] as const,
   analyticsReports: ['analytics', 'reports'] as const,
   analyticsReport: (id: string) => ['analytics', 'report', id] as const,
+  mcpServers: ['integrations', 'mcp-servers'] as const,
+  mcpServer: (id: string) => ['integrations', 'mcp-server', id] as const,
+  secrets: ['integrations', 'secrets'] as const,
 };
 
 /** 业务数据变化时要刷新的经营分析数据。 */
@@ -93,6 +96,9 @@ export const invalidationMap: Record<string, (id: string) => readonly (readonly 
   erp_sales_order: () => [['erp'], analyticsData],
   erp_purchase_order: () => [['erp'], analyticsData],
   analytics_report: (id) => [['analytics', 'reports'], ['analytics', 'report', id]],
+  // 外部服务的工具就是动作：服务变化时动作目录和工作流里的动作列表一并刷新。
+  mcp_server: (id) => [['integrations', 'mcp-servers'], ['integrations', 'mcp-server', id], ['actions'], ['workflows', 'catalog']],
+  tenant_secret: () => [['integrations', 'secrets']],
   // 空间名称或时区变化：会话里的空间信息和按时区统计的数据都要刷新。
   tenant: () => [['session'], ['analytics']],
 };

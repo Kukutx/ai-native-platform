@@ -11,6 +11,7 @@ using AiNative.Domain.Crm;
 using AiNative.Domain.Erp;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
+using AiNative.Domain.Integrations;
 using AiNative.Domain.Knowledge;
 using AiNative.Domain.Modules;
 using AiNative.Domain.Projects;
@@ -113,6 +114,10 @@ public sealed class AppDbContext : DbContext, IAppDbContext
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
 
     public DbSet<AnalyticsReport> AnalyticsReports => Set<AnalyticsReport>();
+
+    public DbSet<TenantSecret> TenantSecrets => Set<TenantSecret>();
+
+    public DbSet<McpServer> McpServers => Set<McpServer>();
 
     /// <summary>
     /// 查询过滤器引用的当前租户；EF 按上下文实例参数化，未进入租户时为空 Guid，什么都查不到。
@@ -332,6 +337,32 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
             b.ComplexProperty(x => x.CreatedBy);
             b.HasIndex(x => new { x.TenantId, x.Position });
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TenantSecret>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(64);
+            b.Property(x => x.Description).HasMaxLength(500);
+            b.ComplexProperty(x => x.CreatedBy);
+            b.ComplexProperty(x => x.UpdatedBy);
+            b.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<McpServer>(b =>
+        {
+            b.Property(x => x.Key).HasMaxLength(20);
+            b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.Description).HasMaxLength(1_000);
+            b.Property(x => x.Url).HasMaxLength(2_000);
+            b.Property(x => x.LastError).HasMaxLength(2_000);
+            b.ComplexProperty(x => x.CreatedBy);
+            JsonList(b.Property(x => x.Headers));
+            JsonList(b.Property(x => x.DisabledTools));
+            JsonList(b.Property(x => x.ReadOnlyTools));
+            JsonList(b.Property(x => x.Tools));
+            b.HasIndex(x => new { x.TenantId, x.Key }).IsUnique();
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
 

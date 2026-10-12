@@ -4,6 +4,7 @@ using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
 using AiNative.Application.Actions;
 using AiNative.Application.Common;
+using AiNative.Application.Integrations;
 using AiNative.Application.Modules;
 using AiNative.Application.Tenancy;
 using AiNative.Application.Workflows.Expressions;
@@ -157,6 +158,7 @@ internal sealed partial class WorkflowDefinitionValidator(
     IModuleAccess modules,
     IAppDbContext db,
     ITenantContext tenant,
+    SecretReferences secretReferences,
     TimeProvider clock)
 {
     public const int MaxSteps = 50;
@@ -166,6 +168,8 @@ internal sealed partial class WorkflowDefinitionValidator(
     public const int MaxHttpTimeoutSeconds = 120;
     public const int MaxDelaySeconds = 30 * 24 * 3600;
     public const int MaxTimeoutMinutes = 30 * 24 * 60;
+
+    private const string SecretOutsideHeaders = "密钥只能在 HTTP 请求头里引用，写成 {{ secrets.名称 }}。";
 
     private static readonly string[] HttpMethods = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 
@@ -296,6 +300,19 @@ internal sealed partial class WorkflowDefinitionValidator(
             : await db.Agents.AsNoTracking().Where(a => agentIds.Contains(a.Id))
                 .ToDictionaryAsync(a => a.Id, a => a.Status, cancellationToken).ConfigureAwait(false);
         var enabledModules = await modules.GetEnabledAsync(cancellationToken).ConfigureAwait(false);
+        var actionsByKey = all.Any(s => s.Kind == WorkflowStepKind.Action)
+            ? (await actions.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(a => a.Key, StringComparer.Ordinal)
+            : [];
+        IPlatformAction? FindAction(string key) => actionsByKey.GetValueOrDefault(key);
+
+        // 请求头里引用的密钥：保存者要能使用密钥（引用了就能把它发往任意地址），密钥要已经存在。
+        // 保存在事务里进行，先拿密钥锁再检查，提交之前引用的密钥删不掉。
+        var secretNames = all.Where(s => s.Kind == WorkflowStepKind.Http).SelectMany(s => (s.Headers ?? []).Values)
+            .SelectMany(SecretTemplate.References).Distinct(StringComparer.Ordinal).ToList();
+        var missingSecrets = (await secretReferences.LockAndFindMissingAsync(secretNames, cancellationToken).ConfigureAwait(false)).ToHashSet(StringComparer.Ordinal);
+        var secretsDenied = !enabledModules.Contains(IntegrationsModule.ModuleKey)
+            ? "「集成」模块未启用，不能使用密钥。"
+            : !tenant.Can(IntegrationFeatures.SecretsUse) ? $"在请求头里使用密钥需要权限 {IntegrationFeatures.SecretsUse}。" : null;
 
         // 步骤标识在整棵树里唯一：分支和遍历里的步骤同样用 steps.<key> 引用。
         var keys = new HashSet<string>(StringComparer.Ordinal);
@@ -358,6 +375,10 @@ internal sealed partial class WorkflowDefinitionValidator(
                 {
                     add($"{path}.{field}", templateError);
                 }
+                else if (WorkflowTemplate.UsesRoot(text, SecretTemplate.RootName))
+                {
+                    add($"{path}.{field}", SecretOutsideHeaders);
+                }
             }
 
             void CheckNesting()
@@ -373,7 +394,7 @@ internal sealed partial class WorkflowDefinitionValidator(
             {
                 case WorkflowStepKind.Action:
                     var actionKey = step.ActionKey?.Trim();
-                    var action = string.IsNullOrEmpty(actionKey) ? null : actions.Find(actionKey);
+                    var action = string.IsNullOrEmpty(actionKey) ? null : FindAction(actionKey);
                     if (action is null || !enabledModules.Contains(action.ModuleKey))
                     {
                         add($"{path}.actionKey", string.IsNullOrEmpty(actionKey) ? "请选择要执行的动作。" : $"动作 {actionKey} 不存在或所属模块未启用。");
@@ -393,6 +414,10 @@ internal sealed partial class WorkflowDefinitionValidator(
                         else if (WorkflowTemplate.Validate(inputValue) is { } inputError)
                         {
                             add($"{path}.input", inputError);
+                        }
+                        else if (WorkflowTemplate.UsesRoot(inputValue, SecretTemplate.RootName))
+                        {
+                            add($"{path}.input", SecretOutsideHeaders);
                         }
                     }
 
@@ -527,8 +552,34 @@ internal sealed partial class WorkflowDefinitionValidator(
                             continue;
                         }
 
-                        CheckTemplate("headers", headerValue, 2000, required: false);
-                        headers[trimmedName] = headerValue ?? string.Empty;
+                        var headerText = headerValue ?? string.Empty;
+                        var rest = SecretTemplate.Strip(headerText);
+                        if (headerText.Length > 2000)
+                        {
+                            add($"{path}.headers", "请求头的值不能超过 2000 个字符。");
+                        }
+                        else if (WorkflowTemplate.Validate(rest) is { } headerError)
+                        {
+                            add($"{path}.headers", headerError);
+                        }
+                        else if (WorkflowTemplate.UsesRoot(rest, SecretTemplate.RootName))
+                        {
+                            add($"{path}.headers", "密钥引用要单独写成 {{ secrets.名称 }}，名称为大写字母、数字和下划线，不能放进表达式里。");
+                        }
+
+                        foreach (var secretName in SecretTemplate.References(headerText).Distinct(StringComparer.Ordinal))
+                        {
+                            if (secretsDenied is not null)
+                            {
+                                add($"{path}.headers", secretsDenied);
+                            }
+                            else if (missingSecrets.Contains(secretName))
+                            {
+                                add($"{path}.headers", $"密钥 {secretName} 不存在，请先在「集成 → 密钥」里添加。");
+                            }
+                        }
+
+                        headers[trimmedName] = headerText;
                     }
 
                     if (headers.Count > MaxHeaders)
@@ -546,6 +597,10 @@ internal sealed partial class WorkflowDefinitionValidator(
                         else if (WorkflowTemplate.Validate(bodyElement) is { } bodyError)
                         {
                             add($"{path}.body", bodyError);
+                        }
+                        else if (WorkflowTemplate.UsesRoot(bodyElement, SecretTemplate.RootName))
+                        {
+                            add($"{path}.body", SecretOutsideHeaders);
                         }
                     }
 

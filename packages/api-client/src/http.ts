@@ -18,6 +18,7 @@ import {
   ErpStockClient,
   ErpSummaryClient,
   ErpWarehousesClient,
+  IntegrationsClient,
   KnowledgeClient,
   MembersClient,
   MemoriesClient,
@@ -92,6 +93,7 @@ export function createApi(config: ApiConfig) {
     workflows: new WorkflowsClient(baseUrl, http),
     projects: new ProjectsClient(baseUrl, http),
     analytics: new AnalyticsClient(baseUrl, http),
+    integrations: new IntegrationsClient(baseUrl, http),
     tenant: new TenantClient(baseUrl, http),
     crm: {
       companies: new CrmCompaniesClient(baseUrl, http),

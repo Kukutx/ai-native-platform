@@ -64,9 +64,12 @@ public sealed record ActionInvocationOptions
 
 public interface IActionInvoker
 {
-    IReadOnlyList<IPlatformAction> Actions { get; }
+    /// <summary>
+    /// 全部动作：内置动作加上当前租户的动态动作（外部工具），不按权限过滤。
+    /// </summary>
+    Task<IReadOnlyList<IPlatformAction>> GetAllAsync(CancellationToken cancellationToken = default);
 
-    IPlatformAction? Find(string key);
+    Task<IPlatformAction?> FindAsync(string key, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 当前身份可用的动作：所属模块已启用，且拥有所需权限。
@@ -84,6 +87,7 @@ public interface IActionInvoker
 
 internal sealed class ActionInvoker(
     IEnumerable<IPlatformAction> actions,
+    IEnumerable<IDynamicActionSource> dynamicSources,
     IServiceProvider services,
     ITenantContext tenant,
     IModuleAccess modules,
@@ -96,19 +100,54 @@ internal sealed class ActionInvoker(
 
     private readonly IReadOnlyList<IPlatformAction> _actions = [.. actions.OrderBy(a => a.Key, StringComparer.Ordinal)];
 
-    public IReadOnlyList<IPlatformAction> Actions => _actions;
+    private readonly IReadOnlyList<IDynamicActionSource> _sources = [.. dynamicSources];
 
-    public IPlatformAction? Find(string key) => _actions.FirstOrDefault(a => a.Key == key);
+    public async Task<IReadOnlyList<IPlatformAction>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        if (_sources.Count == 0)
+        {
+            return _actions;
+        }
+
+        var all = new List<IPlatformAction>(_actions);
+        foreach (var source in _sources)
+        {
+            all.AddRange(await source.GetActionsAsync(cancellationToken).ConfigureAwait(false));
+        }
+
+        return all;
+    }
+
+    public async Task<IPlatformAction?> FindAsync(string key, CancellationToken cancellationToken = default)
+    {
+        foreach (var source in _sources)
+        {
+            if (source.Owns(key))
+            {
+                return await source.FindAsync(key, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        return _actions.FirstOrDefault(a => a.Key == key);
+    }
 
     public async Task<IReadOnlyList<IPlatformAction>> GetAvailableAsync(CancellationToken cancellationToken = default)
     {
         var enabled = await modules.GetEnabledAsync(cancellationToken).ConfigureAwait(false);
-        return [.. _actions.Where(a => enabled.Contains(a.ModuleKey) && tenant.Can(a.RequiredFeature))];
+        var available = _actions.Where(a => enabled.Contains(a.ModuleKey) && tenant.Can(a.RequiredFeature)).ToList();
+        foreach (var source in _sources.Where(s => enabled.Contains(s.ModuleKey)))
+        {
+            var dynamicActions = await source.GetActionsAsync(cancellationToken).ConfigureAwait(false);
+            available.AddRange(dynamicActions.Where(a => tenant.Can(a.RequiredFeature)));
+        }
+
+        return available;
     }
 
     public JsonElement GetInputSchema(IPlatformAction action)
-        => SchemaCache.GetOrAdd(action.InputType, static type =>
-            AIJsonUtilities.CreateJsonSchema(type, serializerOptions: PlatformJson.Options));
+        => action is IDynamicPlatformAction dynamic
+            ? dynamic.InputSchema
+            : SchemaCache.GetOrAdd(action.InputType, static type => AIJsonUtilities.CreateJsonSchema(type, serializerOptions: PlatformJson.Options));
 
     public async Task<ActionInvocationResult> InvokeAsync(
         string key,
@@ -116,7 +155,7 @@ internal sealed class ActionInvoker(
         ActionInvocationOptions options,
         CancellationToken cancellationToken = default)
     {
-        var action = Find(key);
+        var action = await FindAsync(key, cancellationToken).ConfigureAwait(false);
         if (action is null || !await modules.IsEnabledAsync(action.ModuleKey, cancellationToken).ConfigureAwait(false))
         {
             return new ActionInvocationResult(ActionInvocationStatus.NotFound, Error: $"动作 {key} 不存在或所属模块未启用。");

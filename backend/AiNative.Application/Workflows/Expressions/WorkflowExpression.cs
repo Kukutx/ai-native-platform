@@ -24,13 +24,19 @@ public sealed class WorkflowExpression
 
     private readonly Node _root;
 
-    private WorkflowExpression(string source, Node root)
+    private WorkflowExpression(string source, Node root, IReadOnlySet<string> roots)
     {
         Source = source;
         _root = root;
+        Roots = roots;
     }
 
     public string Source { get; }
+
+    /// <summary>
+    /// 表达式引用的顶层变量名（trigger、steps、item 等）。
+    /// </summary>
+    public IReadOnlySet<string> Roots { get; }
 
     public static WorkflowExpression Parse(string source)
     {
@@ -45,7 +51,8 @@ public sealed class WorkflowExpression
         }
 
         var parser = new Parser(Tokenize(source));
-        return new WorkflowExpression(source, parser.ParseAll());
+        var root = parser.ParseAll();
+        return new WorkflowExpression(source, root, parser.Roots);
     }
 
     /// <summary>
@@ -188,6 +195,8 @@ public sealed class WorkflowExpression
         private int _position;
         private int _depth;
 
+        public HashSet<string> Roots { get; } = new(StringComparer.Ordinal);
+
         private Token Current => tokens[_position];
 
         public Node ParseAll()
@@ -320,6 +329,7 @@ public sealed class WorkflowExpression
                         return ParseCall(token);
                     }
 
+                    Roots.Add(token.Text);
                     return new RootNode(token.Text);
                 case TokenKind.Operator when token.Text == "(":
                     _position++;

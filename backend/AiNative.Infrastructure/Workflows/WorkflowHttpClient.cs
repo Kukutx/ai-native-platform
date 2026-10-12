@@ -1,17 +1,13 @@
-using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using AiNative.Application.Workflows;
+using AiNative.Infrastructure.Common;
 using Microsoft.Extensions.Options;
 
 namespace AiNative.Infrastructure.Workflows;
 
 /// <summary>
-/// 「HTTP 请求」步骤的出站客户端。整个进程共用一个连接池；每次建立连接时检查目标地址，
-/// 默认拒绝本机、内网、链路本地等地址，重定向和 DNS 指向内网的域名同样被挡住（检查的是实际要连的 IP）。
-/// 不走系统代理：经过代理时只能检查代理本身的地址，起不到防护作用。
+/// 「HTTP 请求」步骤的出站客户端。整个进程共用一个连接池，连接经过 <see cref="OutboundHttp"/> 的内网防护。
 /// </summary>
 internal sealed class WorkflowHttpClient : IWorkflowHttpClient, IDisposable
 {
@@ -25,20 +21,9 @@ internal sealed class WorkflowHttpClient : IWorkflowHttpClient, IDisposable
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     }
 
-    public WorkflowHttpClient(IOptions<WorkflowOptions> options)
+    public WorkflowHttpClient(IOptions<OutboundNetworkOptions> options)
     {
-        var allowPrivate = options.Value.AllowPrivateNetworkRequests;
-        var handler = new SocketsHttpHandler
-        {
-            UseProxy = false,
-            AllowAutoRedirect = true,
-            MaxAutomaticRedirections = 5,
-            AutomaticDecompression = DecompressionMethods.All,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-            ConnectTimeout = TimeSpan.FromSeconds(15),
-            ConnectCallback = (context, cancellationToken) => ConnectAsync(context.DnsEndPoint, allowPrivate, cancellationToken),
-        };
-        _client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        _client = new HttpClient(OutboundHttp.CreateHandler(options.Value.AllowPrivateNetworkRequests)) { Timeout = Timeout.InfiniteTimeSpan };
         _client.DefaultRequestHeaders.UserAgent.ParseAdd("AiNative-Workflow/1.0");
     }
 
@@ -66,7 +51,7 @@ internal sealed class WorkflowHttpClient : IWorkflowHttpClient, IDisposable
         catch (HttpRequestException ex)
         {
             // 连接回调里拒绝的地址会被包一层。
-            throw ex.InnerException as WorkflowHttpException ?? new WorkflowHttpException($"请求失败：{ex.Message}");
+            throw new WorkflowHttpException(OutboundHttp.FindBlocked(ex)?.Message ?? $"请求失败：{ex.Message}");
         }
     }
 
@@ -136,72 +121,4 @@ internal sealed class WorkflowHttpClient : IWorkflowHttpClient, IDisposable
     }
 
     private static WorkflowHttpException TooLarge() => new($"响应超过 {MaxResponseBytes / 1024 / 1024} MB，已放弃。");
-
-    private static async ValueTask<Stream> ConnectAsync(DnsEndPoint endpoint, bool allowPrivate, CancellationToken cancellationToken)
-    {
-        var addresses = IPAddress.TryParse(endpoint.Host, out var literal)
-            ? [literal]
-            : await Dns.GetHostAddressesAsync(endpoint.Host, cancellationToken).ConfigureAwait(false);
-        var allowed = allowPrivate ? addresses : [.. addresses.Where(IsPublic)];
-        if (allowed.Length == 0)
-        {
-            throw new WorkflowHttpException(addresses.Length == 0
-                ? $"无法解析域名 {endpoint.Host}。"
-                : $"不允许访问内网或本机地址（{endpoint.Host}）。需要时由管理员设置 Workflows__AllowPrivateNetworkRequests=true。");
-        }
-
-        var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
-        try
-        {
-            await socket.ConnectAsync(allowed, endpoint.Port, cancellationToken).ConfigureAwait(false);
-            return new NetworkStream(socket, ownsSocket: true);
-        }
-        catch
-        {
-            socket.Dispose();
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// 公网单播地址。排除本机、私有网段、运营商级 NAT、链路本地、文档与测试网段、组播和保留地址。
-    /// </summary>
-    internal static bool IsPublic(IPAddress address)
-    {
-        if (address.IsIPv4MappedToIPv6)
-        {
-            address = address.MapToIPv4();
-        }
-
-        if (IPAddress.IsLoopback(address))
-        {
-            return false;
-        }
-
-        if (address.AddressFamily == AddressFamily.InterNetwork)
-        {
-            var b = address.GetAddressBytes();
-            return !(b[0] is 0 or 10 or 127 or >= 224
-                     || (b[0] == 100 && b[1] is >= 64 and <= 127)
-                     || (b[0] == 169 && b[1] == 254)
-                     || (b[0] == 172 && b[1] is >= 16 and <= 31)
-                     || (b[0] == 192 && b[1] == 168)
-                     || (b[0] == 192 && b[1] == 0 && b[2] is 0 or 2)
-                     || (b[0] == 198 && b[1] is 18 or 19)
-                     || (b[0] == 198 && b[1] == 51 && b[2] == 100)
-                     || (b[0] == 203 && b[1] == 0 && b[2] == 113));
-        }
-
-        if (address.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            return !(address.Equals(IPAddress.IPv6Any)
-                     || address.IsIPv6LinkLocal
-                     || address.IsIPv6SiteLocal
-                     || address.IsIPv6UniqueLocal
-                     || address.IsIPv6Multicast
-                     || address.IsIPv6Teredo);
-        }
-
-        return false;
-    }
 }

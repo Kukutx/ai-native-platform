@@ -2050,6 +2050,189 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("AiNative.Domain.Integrations.McpServer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApprovalMode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("approval_mode");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("DisabledTools")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("disabled_tools");
+
+                    b.Property<string>("Headers")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("headers");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_enabled");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("ReadOnlyTools")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("read_only_tools");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Tools")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("tools");
+
+                    b.Property<DateTimeOffset?>("ToolsRefreshedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("tools_refreshed_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("url");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Integrations.McpServer.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_mcp_servers");
+
+                    b.HasIndex("TenantId", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_mcp_servers_tenant_id_key");
+
+                    b.ToTable("mcp_servers", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Integrations.TenantSecret", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<byte[]>("CipherText")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("cipher_text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Integrations.TenantSecret.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "UpdatedBy", "AiNative.Domain.Integrations.TenantSecret.UpdatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("updated_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("updated_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_tenant_secrets");
+
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("ix_tenant_secrets_tenant_id_name");
+
+                    b.ToTable("tenant_secrets", (string)null);
+                });
+
             modelBuilder.Entity("AiNative.Domain.Knowledge.KnowledgeChunk", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3720,6 +3903,26 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_roles_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Integrations.McpServer", b =>
+                {
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_mcp_servers_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Integrations.TenantSecret", b =>
+                {
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_tenant_secrets_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("AiNative.Domain.Knowledge.KnowledgeChunk", b =>
