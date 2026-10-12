@@ -16,6 +16,7 @@ using AiNative.Infrastructure.Dispatching;
 using AiNative.Infrastructure.Erp;
 using AiNative.Infrastructure.Integrations;
 using AiNative.Infrastructure.Knowledge;
+using AiNative.Infrastructure.Knowledge.Files;
 using AiNative.Infrastructure.Persistence;
 using AiNative.Infrastructure.Security;
 using AiNative.Infrastructure.Work;
@@ -106,6 +107,14 @@ public static class DependencyInjection
         services.AddSingleton<KnowledgeIndexSignal>();
         services.AddSingleton<IKnowledgeIndexSignal>(sp => sp.GetRequiredService<KnowledgeIndexSignal>());
         services.AddHostedService<KnowledgeIndexer>();
+
+        // 知识库上传文件的解析器（按扩展名选择）。
+        services.AddSingleton<IKnowledgeFileExtractor, PlainTextExtractor>();
+        services.AddSingleton<IKnowledgeFileExtractor, HtmlExtractor>();
+        services.AddSingleton<IKnowledgeFileExtractor, PdfExtractor>();
+        services.AddSingleton<IKnowledgeFileExtractor, WordExtractor>();
+        services.AddSingleton<IKnowledgeFileExtractor, SpreadsheetExtractor>();
+        services.AddSingleton<IKnowledgeFileExtractor, PresentationExtractor>();
 
         // 智能体调度
         services.AddOptions<AgentRunOptions>().BindConfiguration(AgentRunOptions.SectionName);

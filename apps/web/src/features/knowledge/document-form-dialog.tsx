@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { KnowledgeDocumentDto, SaveKnowledgeDocumentRequest } from '@ainative/api-client';
+import { Icons } from '@/components/icons';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -16,6 +18,10 @@ export interface DocumentDraft {
   content: string;
   fileName?: string;
   tags: string[];
+  /** 从文件提取时的来源说明。 */
+  source?: string;
+  /** 提取时需要提醒的问题（截断、空白页、乱码等）。 */
+  warnings?: string[];
 }
 
 export const emptyDraft: DocumentDraft = { title: '', content: '', tags: [] };
@@ -36,7 +42,7 @@ export function DocumentFormDialog({
 }) {
   return (
     <Dialog open={draft !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className='sm:max-w-2xl'>
+      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-2xl'>
         {draft ? <DocumentForm key={draft.id ?? draft.fileName ?? 'new'} draft={draft} onClose={onClose} onSaved={onSaved} /> : null}
       </DialogContent>
     </Dialog>
@@ -70,8 +76,21 @@ function DocumentForm({ draft, onClose, onSaved }: { draft: DocumentDraft; onClo
     >
       <DialogHeader>
         <DialogTitle>{draft.id ? '编辑文档' : '新建文档'}</DialogTitle>
-        <DialogDescription>保存后立即可以检索；支持 Markdown，标题层级会作为片段的上下文。</DialogDescription>
+        <DialogDescription>{draft.source ?? '保存后立即可以检索；支持 Markdown，标题层级会作为片段的上下文。'}</DialogDescription>
       </DialogHeader>
+      {draft.warnings?.length ? (
+        <Alert>
+          <Icons.warning />
+          <AlertTitle>提取时发现的问题</AlertTitle>
+          <AlertDescription>
+            <ul className='list-disc space-y-0.5 pl-4'>
+              {draft.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <div className='grid gap-2'>
         <Label htmlFor='doc-title'>标题</Label>
         <Input id='doc-title' value={title} onChange={(e) => setTitle(e.target.value)} required maxLength={300} />

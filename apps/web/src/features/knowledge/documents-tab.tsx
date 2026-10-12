@@ -16,8 +16,12 @@ import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 import { DocumentFormDialog, emptyDraft, type DocumentDraft } from './document-form-dialog';
 
-const ACCEPTED = '.md,.markdown,.txt,.csv,.json,.html';
-const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+// 与后端解析器支持的扩展名一致；老版 Office 格式（.doc 等）由后端提示另存为新格式。
+const ACCEPTED = '.pdf,.docx,.xlsx,.pptx,.md,.markdown,.txt,.text,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.html,.htm';
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
+/** 页数在不同格式里的含义。 */
+const PAGE_UNITS: Record<string, string> = { PDF: '页', Excel: '个工作表', PowerPoint: '页幻灯片' };
 
 export function DocumentsTab() {
   const { can } = useSession();
@@ -36,16 +40,30 @@ export function DocumentsTab() {
     mutationFn: (id: string) => api.knowledge.deleteDocument(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['knowledge'] }),
   });
+  // 文件交给后端提取正文（PDF、Word、Excel、PowerPoint、网页、文本），确认后再保存成文档。
+  const extract = useMutation({
+    mutationFn: (file: File) => api.knowledge.extractFile({ data: file, fileName: file.name }),
+    onSuccess: (result) => {
+      const unit = result.pages ? PAGE_UNITS[result.format] : undefined;
+      setDraft({
+        title: result.title,
+        content: result.content,
+        fileName: result.fileName,
+        tags: [],
+        source: `已从 ${result.fileName} 提取正文（${result.format}${unit ? `，${result.pages} ${unit}` : ''}），保存前可以修改。`,
+        warnings: result.warnings,
+      });
+    },
+  });
 
-  async function upload(file: File) {
+  function upload(file: File) {
     setUploadError(null);
     if (file.size > MAX_UPLOAD_BYTES) {
-      setUploadError('文件超过 2 MB，请拆分后再上传。');
+      setUploadError('文件超过 20 MB，请拆分后再上传。');
       return;
     }
 
-    const content = await file.text();
-    setDraft({ title: file.name.replace(/\.[^.]+$/, ''), content, fileName: file.name, tags: [] });
+    extract.mutate(file);
   }
 
   return (
@@ -63,13 +81,13 @@ export function DocumentsTab() {
                 const file = e.target.files?.[0];
                 e.target.value = '';
                 if (file) {
-                  void upload(file);
+                  upload(file);
                 }
               }}
             />
-            <Button variant='outline' onClick={() => fileInput.current?.click()}>
-              <Icons.upload />
-              上传文件
+            <Button variant='outline' disabled={extract.isPending} onClick={() => fileInput.current?.click()}>
+              {extract.isPending ? <Icons.spinner className='animate-spin' /> : <Icons.upload />}
+              {extract.isPending ? '正在读取文件…' : '上传文件'}
             </Button>
             <Button onClick={() => setDraft(emptyDraft)}>
               <Icons.add />
