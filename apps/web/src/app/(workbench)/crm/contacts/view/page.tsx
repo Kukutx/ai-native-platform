@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -26,6 +27,7 @@ function ContactDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [addingDeal, setAddingDeal] = useState(false);
   const detail = useQuery({ queryKey: queryKeys.crmContact(id), queryFn: ({ signal }) => api.crm.contacts.get(id, signal), enabled: !!id });
@@ -74,7 +76,9 @@ function ContactDetail() {
               <Icons.edit />
               编辑
             </Button>
-            <Button variant='ghost' disabled={remove.isPending} onClick={() => confirm(`删除联系人「${contact.name}」？相关商机会保留。`) && remove.mutate()}>
+            <Button variant='ghost' disabled={remove.isPending} onClick={() =>
+                void confirm({ title: `删除联系人「${contact.name}」？`, description: '相关商机会保留。', confirmLabel: '删除' }).then((ok) => ok && remove.mutate())
+              }>
               <Icons.trash />
               删除
             </Button>

@@ -3,6 +3,7 @@
 import { useDeferredValue, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
@@ -26,6 +27,7 @@ const PAGE_UNITS: Record<string, string> = { PDF: '页', Excel: '个工作表', 
 export function DocumentsTab() {
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const manage = can('knowledge.manage');
   const fileInput = useRef<HTMLInputElement>(null);
   const [filter, setFilter] = useState('');
@@ -135,7 +137,7 @@ export function DocumentsTab() {
                 <TableCell className='text-muted-foreground text-sm'>{formatTime(d.updatedAt)}</TableCell>
                 <TableCell className='text-right'>
                   {manage ? (
-                    <Button size='sm' variant='ghost' onClick={() => confirm(`删除《${d.title}》？`) && remove.mutate(d.id)}>
+                    <Button size='sm' variant='ghost' onClick={() => void confirm({ title: `删除《${d.title}》？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate(d.id))}>
                       <Icons.trash />
                     </Button>
                   ) : null}

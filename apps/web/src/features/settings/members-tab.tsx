@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AddMemberRequest, MemberDto, RoleDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { RoleChecklist } from './role-checklist';
 export function MembersTab() {
   const { can, session } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const members = useQuery({ queryKey: queryKeys.members, queryFn: ({ signal }) => api.members.list(signal) });
   const roles = useQuery({ queryKey: queryKeys.roles, queryFn: ({ signal }) => api.roles.list(signal) });
   const [adding, setAdding] = useState(false);
@@ -85,7 +87,7 @@ export function MembersTab() {
                     <Button size='sm' variant='ghost' onClick={() => toggle.mutate(m)}>
                       {m.status === 'active' ? '停用' : '启用'}
                     </Button>
-                    <Button size='sm' variant='ghost' onClick={() => confirm(`移除 ${m.displayName}？`) && remove.mutate(m.membershipId)}>
+                    <Button size='sm' variant='ghost' onClick={() => void confirm({ title: `移除 ${m.displayName}？`, confirmLabel: '移除' }).then((ok) => ok && remove.mutate(m.membershipId))}>
                       <Icons.trash />
                     </Button>
                   </div>

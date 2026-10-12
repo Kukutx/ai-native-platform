@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CrmActivityDto, CrmActivityKind } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ export interface TimelineScope {
 export function ActivityTimeline({ scope }: { scope: TimelineScope }) {
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [kind, setKind] = useState<CrmActivityKind>('note');
   const [content, setContent] = useState('');
   const activities = useInfiniteQuery({
@@ -104,7 +106,7 @@ export function ActivityTimeline({ scope }: { scope: TimelineScope }) {
                 key={activity.id}
                 activity={activity}
                 scope={scope}
-                onDelete={manage && activity.kind !== 'stage_change' ? () => confirm('删除这条跟进记录？') && remove.mutate(activity.id) : undefined}
+                onDelete={manage && activity.kind !== 'stage_change' ? () => void confirm({ title: '删除这条跟进记录？', confirmLabel: '删除' }).then((ok) => ok && remove.mutate(activity.id)) : undefined}
               />
             ))}
           </ol>

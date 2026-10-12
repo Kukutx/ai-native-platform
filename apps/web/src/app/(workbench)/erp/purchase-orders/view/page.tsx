@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -26,6 +27,7 @@ function PurchaseOrderDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [delivery, setDelivery] = useState<DeliveryMode | null>(null);
   const detail = useQuery({ queryKey: queryKeys.erpPurchaseOrder(id), queryFn: ({ signal }) => api.erp.purchaseOrders.get(id, signal), enabled: !!id });
@@ -90,7 +92,18 @@ function PurchaseOrderDetail() {
               </Button>
             ) : null}
             {order.status === 'partially_received' ? (
-              <Button variant='outline' onClick={() => confirm('剩下没到的不再收货，采购单记为已入库？') && transition.mutate('close')} disabled={busy}>
+              <Button
+                variant='outline'
+                onClick={() =>
+                  void confirm({
+                    title: '结束收货？',
+                    description: '剩下没到的不再收货，采购单记为已入库。',
+                    confirmLabel: '结束收货',
+                    destructive: false,
+                  }).then((ok) => ok && transition.mutate('close'))
+                }
+                disabled={busy}
+              >
                 <Icons.circleCheck />
                 结束收货
               </Button>
@@ -102,13 +115,19 @@ function PurchaseOrderDetail() {
               </Button>
             ) : null}
             {order.status === 'draft' || order.status === 'ordered' ? (
-              <Button variant='ghost' onClick={() => confirm('取消这张采购单？') && transition.mutate('cancel')} disabled={busy}>
+              <Button
+                variant='ghost'
+                onClick={() =>
+                  void confirm({ title: '取消这张采购单？', confirmLabel: '取消采购单', cancelLabel: '不取消' }).then((ok) => ok && transition.mutate('cancel'))
+                }
+                disabled={busy}
+              >
                 <Icons.circleX />
                 取消
               </Button>
             ) : null}
             {order.status === 'draft' || order.status === 'cancelled' ? (
-              <Button variant='ghost' onClick={() => confirm(`删除采购单 ${order.number}？`) && remove.mutate()} disabled={busy}>
+              <Button variant='ghost' onClick={() => void confirm({ title: `删除采购单 ${order.number}？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate())} disabled={busy}>
                 <Icons.trash />
                 删除
               </Button>

@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -27,6 +28,7 @@ function CompanyDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [addingContact, setAddingContact] = useState(false);
   const [addingDeal, setAddingDeal] = useState(false);
@@ -77,7 +79,11 @@ function CompanyDetail() {
             <Button
               variant='ghost'
               disabled={remove.isPending}
-              onClick={() => confirm(`删除客户「${company.name}」？联系人和商机会保留，只解除与它的关联。`) && remove.mutate()}
+              onClick={() =>
+                void confirm({ title: `删除客户「${company.name}」？`, description: '联系人和商机会保留，只解除与它的关联。', confirmLabel: '删除' }).then(
+                  (ok) => ok && remove.mutate(),
+                )
+              }
             >
               <Icons.trash />
               删除

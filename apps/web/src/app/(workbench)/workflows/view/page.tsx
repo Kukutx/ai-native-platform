@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { Pager } from '@/components/app/pager';
 import { useSession } from '@/components/app/session-provider';
 import { ValueRow } from '@/components/app/info-row';
@@ -29,6 +30,7 @@ function WorkflowDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [page, setPage] = useState(1);
   const detail = useQuery({ queryKey: queryKeys.workflow(id), queryFn: ({ signal }) => api.workflows.get(id, signal), enabled: !!id });
   const catalog = useQuery({ queryKey: queryKeys.workflowCatalog, queryFn: ({ signal }) => api.workflows.catalog(signal) });
@@ -86,7 +88,11 @@ function WorkflowDetail() {
               <Button
                 variant='ghost'
                 disabled={remove.isPending}
-                onClick={() => confirm(`删除「${workflow.name}」？运行记录一并删除，进行中的运行会被取消。`) && remove.mutate()}
+                onClick={() =>
+                  void confirm({ title: `删除「${workflow.name}」？`, description: '运行记录一并删除，进行中的运行会被取消。', confirmLabel: '删除' }).then(
+                    (ok) => ok && remove.mutate(),
+                  )
+                }
               >
                 <Icons.trash className='size-4' />
               </Button>

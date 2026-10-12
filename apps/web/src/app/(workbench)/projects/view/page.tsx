@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ProjectMilestoneDto, WorkItemDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatCard } from '@/components/app/stat-card';
 import { StatusBadge } from '@/components/app/status-badge';
@@ -39,6 +40,7 @@ function ProjectDetail() {
   const canSchedule = can('tasks.view');
   const view = canSchedule && params.get('view') === 'gantt' ? 'gantt' : 'overview';
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [milestoneDialog, setMilestoneDialog] = useState<{ milestone: ProjectMilestoneDto | null } | null>(null);
   const [addingMember, setAddingMember] = useState(false);
@@ -133,7 +135,11 @@ function ProjectDetail() {
               <Button
                 variant='ghost'
                 disabled={remove.isPending}
-                onClick={() => confirm(`删除项目「${project.name}」？里程碑和成员会一并删除，项目里的任务保留下来。`) && remove.mutate()}
+                onClick={() =>
+                  void confirm({ title: `删除项目「${project.name}」？`, description: '里程碑和成员会一并删除，项目里的任务保留下来。', confirmLabel: '删除' }).then(
+                    (ok) => ok && remove.mutate(),
+                  )
+                }
               >
                 <Icons.trash />
                 删除
@@ -212,7 +218,9 @@ function ProjectDetail() {
                                 <DropdownMenuItem onSelect={() => setMilestoneDialog({ milestone: m })}>编辑</DropdownMenuItem>
                                 <DropdownMenuItem
                                   onSelect={() =>
-                                    confirm(`删除里程碑「${m.name}」？里面的任务会留在项目里。`) && milestoneAction.mutate({ milestone: m, action: 'delete' })
+                                    void confirm({ title: `删除里程碑「${m.name}」？`, description: '里面的任务会留在项目里。', confirmLabel: '删除' }).then(
+                                      (ok) => ok && milestoneAction.mutate({ milestone: m, action: 'delete' }),
+                                    )
                                   }
                                 >
                                   删除
@@ -306,7 +314,9 @@ function ProjectDetail() {
                                 variant='ghost'
                                 aria-label='移出项目'
                                 disabled={removeMember.isPending}
-                                onClick={() => confirm(`把 ${m.member.name ?? 'TA'} 移出项目？`) && removeMember.mutate(m.id)}
+                                onClick={() =>
+                                  void confirm({ title: `把 ${m.member.name ?? 'TA'} 移出项目？`, confirmLabel: '移出' }).then((ok) => ok && removeMember.mutate(m.id))
+                                }
                               >
                                 <Icons.close />
                               </Button>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { TenantSecretDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { Icons } from '@/components/icons';
@@ -25,6 +26,7 @@ const reference = (name: string) => `{{ secrets.${name} }}`;
  */
 export function SecretsTab() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { can } = useSession();
   const manage = can('integrations.manage');
   const secrets = useQuery({ queryKey: queryKeys.secrets, queryFn: ({ signal }) => api.integrations.secrets(signal) });
@@ -83,7 +85,11 @@ export function SecretsTab() {
                         size='sm'
                         variant='ghost'
                         aria-label={`删除 ${secret.name}`}
-                        onClick={() => confirm(`删除密钥 ${secret.name}？删除后无法恢复。`) && remove.mutate(secret.id)}
+                        onClick={() =>
+                          void confirm({ title: `删除密钥 ${secret.name}？`, description: '删除后无法恢复。', confirmLabel: '删除' }).then(
+                            (ok) => ok && remove.mutate(secret.id),
+                          )
+                        }
                       >
                         <Icons.trash />
                       </Button>

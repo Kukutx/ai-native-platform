@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { toProblem } from '@ainative/api-client';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { ConfirmProvider } from './confirm-provider';
 import { RealtimeProvider } from './realtime-provider';
 import { SessionProvider } from './session-provider';
 
@@ -33,7 +34,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <SessionProvider>
           <RealtimeProvider>
-            <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+            <TooltipProvider delayDuration={200}>
+              <ConfirmProvider>{children}</ConfirmProvider>
+            </TooltipProvider>
           </RealtimeProvider>
         </SessionProvider>
         <Toaster position='top-center' richColors />

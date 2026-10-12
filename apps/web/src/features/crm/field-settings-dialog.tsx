@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CrmFieldDto, CrmFieldType, CrmRecordType } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ export function FieldSettingsDialog({
 
 function FieldSettings({ initialType, onClose }: { initialType: CrmRecordType; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [recordType, setRecordType] = useState(initialType);
   // undefined 为列表；null 为新建；否则为正在编辑的字段。
   const [editing, setEditing] = useState<CrmFieldDto | null | undefined>(undefined);
@@ -130,7 +132,13 @@ function FieldSettings({ initialType, onClose }: { initialType: CrmRecordType; o
                       variant='ghost'
                       className='size-8'
                       disabled={remove.isPending}
-                      onClick={() => confirm(`删除字段「${field.label}」？所有${crmRecordType[recordType]}里这个字段的值都会被清除，不能恢复。`) && remove.mutate(field)}
+                      onClick={() =>
+                        void confirm({
+                          title: `删除字段「${field.label}」？`,
+                          description: `所有${crmRecordType[recordType]}里这个字段的值都会被清除，不能恢复。`,
+                          confirmLabel: '删除',
+                        }).then((ok) => ok && remove.mutate(field))
+                      }
                       aria-label={`删除 ${field.label}`}
                     >
                       <Icons.trash className='size-4' />

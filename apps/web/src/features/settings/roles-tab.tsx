@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { FeatureDto, RoleDto, SaveRoleRequest } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { toggle } from './role-checklist';
 export function RolesTab() {
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const manage = can('platform.roles.manage');
   const roles = useQuery({ queryKey: queryKeys.roles, queryFn: ({ signal }) => api.roles.list(signal) });
   const features = useQuery({ queryKey: queryKeys.features, queryFn: ({ signal }) => api.roles.features(signal), enabled: manage });
@@ -54,7 +56,7 @@ export function RolesTab() {
                   <Button size='sm' variant='ghost' onClick={() => setEditing(role)}>
                     <Icons.edit />
                   </Button>
-                  <Button size='sm' variant='ghost' onClick={() => confirm(`删除角色 ${role.name}？`) && remove.mutate(role.id)}>
+                  <Button size='sm' variant='ghost' onClick={() => void confirm({ title: `删除角色「${role.name}」？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate(role.id))}>
                     <Icons.trash />
                   </Button>
                 </div>

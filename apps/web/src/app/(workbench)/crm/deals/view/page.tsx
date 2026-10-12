@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CrmDealDto, CrmStageDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -29,6 +30,7 @@ function DealDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [closing, setClosing] = useState<MoveRequest | null>(null);
   const [ordering, setOrdering] = useState(false);
@@ -105,7 +107,9 @@ function DealDetail() {
                 <Button
                   variant='ghost'
                   disabled={remove.isPending}
-                  onClick={() => confirm(`删除商机「${deal.title}」？它的阶段变化记录一并删除。`) && remove.mutate()}
+                  onClick={() =>
+                    void confirm({ title: `删除商机「${deal.title}」？`, description: '它的阶段变化记录一并删除。', confirmLabel: '删除' }).then((ok) => ok && remove.mutate())
+                  }
                 >
                   <Icons.trash />
                   删除

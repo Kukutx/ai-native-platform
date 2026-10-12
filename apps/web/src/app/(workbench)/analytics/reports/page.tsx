@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AnalyticsReportDto, MetricDefinitionDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
 import { useSession } from '@/components/app/session-provider';
@@ -20,6 +21,7 @@ import { queryKeys } from '@/lib/query-keys';
 export default function AnalyticsReportsPage() {
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const reports = useQuery({ queryKey: queryKeys.analyticsReports, queryFn: ({ signal }) => api.analytics.reports(signal) });
   const catalog = useMetricCatalog();
   const manage = can('analytics.manage');
@@ -86,7 +88,7 @@ export default function AnalyticsReportsPage() {
               first={index === 0}
               last={index === reports.data.length - 1}
               onMove={(offset) => move(index, offset)}
-              onDelete={() => confirm(`删除报表「${report.name}」？`) && remove.mutate(report.id)}
+              onDelete={() => void confirm({ title: `删除报表「${report.name}」？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate(report.id))}
             />
           ))}
         </div>

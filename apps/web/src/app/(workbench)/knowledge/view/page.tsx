@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ function DocumentDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [draft, setDraft] = useState<DocumentDraft | null>(null);
   const detail = useQuery({ queryKey: queryKeys.knowledgeDocument(id), queryFn: ({ signal }) => api.knowledge.getDocument(id, signal), enabled: !!id });
   const remove = useMutation({
@@ -69,7 +71,12 @@ function DocumentDetail() {
               <Icons.edit />
               编辑
             </Button>
-            <Button variant='ghost' onClick={() => confirm(`删除《${document.title}》？`) && remove.mutate()}>
+            <Button
+              variant='ghost'
+              aria-label='删除文档'
+              disabled={remove.isPending}
+              onClick={() => void confirm({ title: `删除《${document.title}》？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate())}
+            >
               <Icons.trash />
             </Button>
           </div>

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApiKeyDto, CreatedApiKeyDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -36,6 +37,7 @@ function keyState(key: ApiKeyDto): { label: string; tone: 'success' | 'outline' 
  */
 export function ApiKeysTab() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const keys = useQuery({ queryKey: queryKeys.apiKeys, queryFn: ({ signal }) => api.apiKeys.list(signal) });
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedApiKeyDto | null>(null);
@@ -83,7 +85,11 @@ export function ApiKeysTab() {
                   <TableCell className='text-muted-foreground text-sm'>{key.expiresAt ? formatTime(key.expiresAt) : '永不'}</TableCell>
                   <TableCell className='text-right'>
                     {key.revokedAt ? null : (
-                      <Button size='sm' variant='ghost' onClick={() => confirm(`吊销「${key.name}」？使用它的客户端会立即失去访问权限。`) && revoke.mutate(key.id)}>
+                      <Button size='sm' variant='ghost' onClick={() =>
+                          void confirm({ title: `吊销「${key.name}」？`, description: '使用它的客户端会立即失去访问权限。', confirmLabel: '吊销' }).then(
+                            (ok) => ok && revoke.mutate(key.id),
+                          )
+                        }>
                         吊销
                       </Button>
                     )}

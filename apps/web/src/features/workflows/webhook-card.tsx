@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { WorkflowDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import { queryKeys } from '@/lib/query-keys';
 /** Webhook 触发的地址、调用示例和重新生成。地址只对能管理工作流的成员返回。 */
 export function WebhookCard({ workflow, canManage }: { workflow: WorkflowDto; canManage: boolean }) {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const regenerate = useMutation({
     mutationFn: () => api.workflows.regenerateWebhook(workflow.id),
     onSuccess: async (saved) => {
@@ -48,7 +50,13 @@ export function WebhookCard({ workflow, canManage }: { workflow: WorkflowDto; ca
                 variant='outline'
                 size='sm'
                 disabled={regenerate.isPending}
-                onClick={() => confirm('换一个新地址？旧地址立即失效，已经配置了旧地址的外部系统需要更新。') && regenerate.mutate()}
+                onClick={() =>
+                  void confirm({
+                    title: '换一个新地址？',
+                    description: '旧地址立即失效，已经配置了旧地址的外部系统需要更新。',
+                    confirmLabel: '换新地址',
+                  }).then((ok) => ok && regenerate.mutate())
+                }
               >
                 <Icons.refresh className='size-4' />
                 重新生成地址

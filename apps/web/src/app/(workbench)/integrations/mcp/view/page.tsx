@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { McpServerDto, UpdateMcpToolRequest } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { Icons } from '@/components/icons';
@@ -25,6 +26,7 @@ function McpServerDetail() {
   const id = useSearchParams().get('id') ?? '';
   const router = useRouter();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { can } = useSession();
   const manage = can('integrations.manage');
   const [editing, setEditing] = useState(false);
@@ -100,7 +102,14 @@ function McpServerDetail() {
             <Button
               variant='ghost'
               aria-label='删除服务'
-              onClick={() => confirm(`删除「${server.name}」？它的工具会从动作列表里移除；被工作流引用时无法删除。`) && remove.mutate()}
+              disabled={remove.isPending}
+              onClick={() =>
+                void confirm({
+                  title: `删除「${server.name}」？`,
+                  description: '它的工具会从动作列表里移除；被工作流引用时无法删除。',
+                  confirmLabel: '删除',
+                }).then((ok) => ok && remove.mutate())
+              }
             >
               <Icons.trash />
             </Button>

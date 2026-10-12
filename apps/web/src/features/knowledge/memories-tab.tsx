@@ -3,6 +3,7 @@
 import { useDeferredValue, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { MemoryDto, MemoryScope } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
@@ -22,6 +23,7 @@ const PAGE_SIZE = 50;
 export function MemoriesTab() {
   const { can, session } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const manage = can('memory.manage');
   const [scope, setScope] = useState<MemoryScope | typeof ALL>(ALL);
   const [filter, setFilter] = useState('');
@@ -114,7 +116,7 @@ export function MemoriesTab() {
                 </p>
               </div>
               {canDelete(m) ? (
-                <Button size='sm' variant='ghost' onClick={() => confirm('忘记这条记忆？') && remove.mutate(m.id)}>
+                <Button size='sm' variant='ghost' onClick={() => void confirm({ title: '忘记这条记忆？', confirmLabel: '忘记' }).then((ok) => ok && remove.mutate(m.id))}>
                   <Icons.trash />
                 </Button>
               ) : null}

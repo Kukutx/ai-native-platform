@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
 import { useSession } from '@/components/app/session-provider';
@@ -26,6 +27,7 @@ function AgentDetail() {
   const id = useSearchParams().get('id') ?? '';
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [reason, setReason] = useState('');
   const agent = useQuery({ queryKey: queryKeys.agent(id), queryFn: ({ signal }) => api.agents.get(id, signal), enabled: !!id });
@@ -76,11 +78,12 @@ function AgentDetail() {
               </Button>
               <Button
                 variant='destructive'
-                onClick={() => {
-                  if (window.confirm(`确定终止 ${a.name}？终止后不能恢复，下属会改为向其上级汇报。`)) {
-                    terminate.mutate();
-                  }
-                }}
+                disabled={terminate.isPending}
+                onClick={() =>
+                  void confirm({ title: `终止 ${a.name}？`, description: '终止后不能恢复，下属会改为向其上级汇报。', confirmLabel: '终止' }).then(
+                    (ok) => ok && terminate.mutate(),
+                  )
+                }
               >
                 终止
               </Button>

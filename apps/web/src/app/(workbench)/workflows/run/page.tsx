@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { ValueRow } from '@/components/app/info-row';
@@ -22,6 +23,7 @@ function WorkflowRunDetail() {
   const id = useSearchParams().get('id') ?? '';
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   // 运行进度通过实时通道推送（workflow_run 变化），这里不需要轮询。
   const detail = useQuery({ queryKey: queryKeys.workflowRun(id), queryFn: ({ signal }) => api.workflows.run(id, signal), enabled: !!id });
   const cancel = useMutation({
@@ -51,7 +53,11 @@ function WorkflowRunDetail() {
           <StatusBadge meta={workflowRunStatus[summary.status]} />
         </div>
         {active.has(summary.status) && can('workflows.run') ? (
-          <Button variant='outline' disabled={cancel.isPending} onClick={() => confirm('取消这次运行？已完成的步骤不会回滚。') && cancel.mutate()}>
+          <Button variant='outline' disabled={cancel.isPending} onClick={() =>
+              void confirm({ title: '取消这次运行？', description: '已完成的步骤不会回滚。', confirmLabel: '取消运行', cancelLabel: '继续运行' }).then(
+                (ok) => ok && cancel.mutate(),
+              )
+            }>
             取消运行
           </Button>
         ) : null}

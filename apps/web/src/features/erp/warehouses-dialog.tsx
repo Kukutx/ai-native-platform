@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ErpWarehouseDto, SaveErpWarehouseRequest } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ export function WarehousesDialog({ open, onOpenChange, canManage }: { open: bool
 
 function WarehouseList({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const warehouses = useQuery({ queryKey: queryKeys.erpWarehouses, queryFn: ({ signal }) => api.erp.warehouses.list(signal) });
   const [editing, setEditing] = useState<string | null>(null);
   const done = () => queryClient.invalidateQueries({ queryKey: ['erp'] });
@@ -84,7 +86,7 @@ function WarehouseList({ canManage }: { canManage: boolean }) {
                       variant='ghost'
                       className='size-8'
                       disabled={remove.isPending}
-                      onClick={() => confirm(`删除仓库「${w.name}」？`) && remove.mutate(w.id)}
+                      onClick={() => void confirm({ title: `删除仓库「${w.name}」？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate(w.id))}
                       aria-label='删除'
                     >
                       <Icons.trash className='size-4' />
