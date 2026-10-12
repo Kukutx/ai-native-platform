@@ -7,6 +7,7 @@ using AiNative.Domain.Agents;
 using AiNative.Domain.Chat;
 using AiNative.Domain.Common;
 using AiNative.Domain.Crm;
+using AiNative.Domain.Erp;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
 using AiNative.Domain.Knowledge;
@@ -90,6 +91,18 @@ public sealed class AppDbContext : DbContext, IAppDbContext
     public DbSet<CrmDeal> CrmDeals => Set<CrmDeal>();
 
     public DbSet<CrmActivity> CrmActivities => Set<CrmActivity>();
+
+    public DbSet<ErpProduct> ErpProducts => Set<ErpProduct>();
+
+    public DbSet<ErpWarehouse> ErpWarehouses => Set<ErpWarehouse>();
+
+    public DbSet<ErpStockLevel> ErpStockLevels => Set<ErpStockLevel>();
+
+    public DbSet<ErpStockMovement> ErpStockMovements => Set<ErpStockMovement>();
+
+    public DbSet<ErpSalesOrder> ErpSalesOrders => Set<ErpSalesOrder>();
+
+    public DbSet<ErpPurchaseOrder> ErpPurchaseOrders => Set<ErpPurchaseOrder>();
 
     /// <summary>
     /// 查询过滤器引用的当前租户；EF 按上下文实例参数化，未进入租户时为空 Guid，什么都查不到。
@@ -470,11 +483,143 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasOne<CrmDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.SetNull);
         });
 
+        modelBuilder.Entity<TenantSequence>(b =>
+        {
+            b.ToTable("tenant_sequences");
+            b.HasKey(x => new { x.TenantId, x.Name });
+            b.Property(x => x.Name).HasMaxLength(50);
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ErpProduct>(b =>
+        {
+            b.Property(x => x.Sku).HasMaxLength(64);
+            b.Property(x => x.Name).HasMaxLength(200);
+            b.Property(x => x.Unit).HasMaxLength(20);
+            b.Property(x => x.Category).HasMaxLength(50);
+            b.Property(x => x.Description).HasMaxLength(10_000);
+            b.Property(x => x.Price).HasPrecision(18, 4);
+            b.Property(x => x.Cost).HasPrecision(18, 4);
+            b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+            b.Property(x => x.ReorderPoint).HasPrecision(18, 4);
+            b.ComplexProperty(x => x.CreatedBy);
+
+            // 编码在空间内唯一（保存前已转大写）；名称和编码的包含匹配走三元组索引。
+            b.HasIndex(x => new { x.TenantId, x.Sku }).IsUnique();
+            b.HasIndex(x => x.Sku).HasMethod("gin").HasOperators("gin_trgm_ops");
+            b.HasIndex(x => x.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
+            b.HasIndex(x => new { x.TenantId, x.Category });
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ErpWarehouse>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.Address).HasMaxLength(500);
+            b.HasIndex(x => new { x.TenantId, x.Name });
+
+            // 每个空间最多一个默认仓库。
+            b.HasIndex(x => x.TenantId).IsUnique().HasFilter("is_default").HasDatabaseName("ix_erp_warehouses_default");
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ErpStockLevel>(b =>
+        {
+            b.Property(x => x.OnHand).HasPrecision(18, 4);
+            b.Property(x => x.Reserved).HasPrecision(18, 4);
+
+            // 出入库时 INSERT ... ON CONFLICT (product_id, warehouse_id) 依赖这个唯一索引。
+            b.HasIndex(x => new { x.ProductId, x.WarehouseId }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.WarehouseId });
+            b.HasIndex(x => x.WarehouseId);
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<ErpProduct>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<ErpWarehouse>().WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ErpStockMovement>(b =>
+        {
+            b.Property(x => x.Quantity).HasPrecision(18, 4);
+            b.Property(x => x.BalanceAfter).HasPrecision(18, 4);
+            b.Property(x => x.Note).HasMaxLength(500);
+            b.ComplexProperty(x => x.Actor);
+            b.HasIndex(x => new { x.ProductId, x.CreatedAt });
+            b.HasIndex(x => new { x.WarehouseId, x.CreatedAt });
+            b.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            b.HasIndex(x => x.SalesOrderId);
+            b.HasIndex(x => x.PurchaseOrderId);
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<ErpProduct>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<ErpWarehouse>().WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<ErpSalesOrder>().WithMany().HasForeignKey(x => x.SalesOrderId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<ErpPurchaseOrder>().WithMany().HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ErpSalesOrder>(b =>
+        {
+            b.Property(x => x.Number).HasMaxLength(20);
+            b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+            b.Property(x => x.Note).HasMaxLength(2_000);
+            b.Property(x => x.Total).HasPrecision(18, 2);
+            b.ComplexProperty(x => x.CreatedBy);
+            b.OwnsMany(x => x.Lines, OrderLines<ErpSalesOrder>("erp_sales_order_lines"));
+            b.HasIndex(x => new { x.TenantId, x.Number }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
+            b.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            b.HasIndex(x => new { x.TenantId, x.OwnerUserId });
+            b.HasIndex(x => x.CompanyId);
+            b.HasIndex(x => x.ContactId);
+            b.HasIndex(x => x.DealId);
+            b.HasIndex(x => x.WarehouseId);
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<CrmCompany>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<CrmContact>().WithMany().HasForeignKey(x => x.ContactId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<CrmDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<ErpWarehouse>().WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<User>().WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ErpPurchaseOrder>(b =>
+        {
+            b.Property(x => x.Number).HasMaxLength(20);
+            b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+            b.Property(x => x.Note).HasMaxLength(2_000);
+            b.Property(x => x.Total).HasPrecision(18, 2);
+            b.ComplexProperty(x => x.CreatedBy);
+            b.OwnsMany(x => x.Lines, OrderLines<ErpPurchaseOrder>("erp_purchase_order_lines"));
+            b.HasIndex(x => new { x.TenantId, x.Number }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
+            b.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            b.HasIndex(x => x.SupplierId);
+            b.HasIndex(x => x.WarehouseId);
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<CrmCompany>().WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<ErpWarehouse>().WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
+        });
+
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => typeof(ITenantScoped).IsAssignableFrom(t.ClrType)))
         {
             ApplyTenantFilterMethod.MakeGenericMethod(entityType.ClrType).Invoke(this, [modelBuilder]);
         }
     }
+
+    /// <summary>
+    /// 订单行单独成表、随订单读写（自增序号保持行的先后顺序）；产品被订单用过就不能删除。
+    /// </summary>
+    private static Action<Microsoft.EntityFrameworkCore.Metadata.Builders.OwnedNavigationBuilder<TOrder, ErpOrderLine>> OrderLines<TOrder>(string table)
+        where TOrder : class
+        => l =>
+        {
+            l.ToTable(table);
+            l.WithOwner().HasForeignKey("OrderId");
+            l.Property<int>("Id").UseIdentityAlwaysColumn();
+            l.HasKey("OrderId", "Id");
+            l.Property(x => x.Quantity).HasPrecision(18, 4);
+            l.Property(x => x.UnitPrice).HasPrecision(18, 4);
+            l.Property(x => x.Amount).HasPrecision(18, 2);
+            l.HasIndex(x => x.ProductId);
+            l.HasOne<ErpProduct>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        };
 
     /// <summary>
     /// 列表存为 jsonb：按平台 JSON 约定序列化，按内容比较变化。

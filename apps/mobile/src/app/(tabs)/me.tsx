@@ -31,6 +31,20 @@ export default function MeScreen() {
           <Muted>当前空间：{session.data.tenant.name}</Muted>
         </Card>
       ) : null}
+      {sessionCan(session.data, 'erp.view') ? (
+        <Pressable onPress={() => router.push('/erp')} accessibilityRole='button'>
+          <Card>
+            <View style={styles.entry}>
+              <Ionicons name='cube-outline' size={20} color={p.text} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: p.text, fontWeight: '600' }}>进销存</Text>
+                <Muted>库存、销售订单和采购订单</Muted>
+              </View>
+              <Ionicons name='chevron-forward' size={18} color={p.muted} />
+            </View>
+          </Card>
+        </Pressable>
+      ) : null}
       {sessionCan(session.data, 'workflows.view') ? (
         <Pressable onPress={() => router.push('/workflows')} accessibilityRole='button'>
           <Card>

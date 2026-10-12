@@ -2,6 +2,7 @@ using AiNative.Application.Abstractions;
 using AiNative.Application.Agents;
 using AiNative.Application.Agents.Runtime;
 using AiNative.Application.Ai;
+using AiNative.Application.Erp;
 using AiNative.Application.Knowledge;
 using AiNative.Application.Platform;
 using AiNative.Application.Work;
@@ -9,6 +10,7 @@ using AiNative.Application.Workflows;
 using AiNative.Infrastructure.Agents;
 using AiNative.Infrastructure.Ai;
 using AiNative.Infrastructure.Dispatching;
+using AiNative.Infrastructure.Erp;
 using AiNative.Infrastructure.Knowledge;
 using AiNative.Infrastructure.Persistence;
 using AiNative.Infrastructure.Security;
@@ -84,6 +86,8 @@ public static class DependencyInjection
         services.AddSingleton<IWakeupSignal>(sp => sp.GetRequiredService<WakeupSignal>());
         services.AddScoped<IWakeupQueue, WakeupQueue>();
         services.AddScoped<IWorkItemNumbers, WorkItemNumbers>();
+        services.AddScoped<ISequenceAllocator, SequenceAllocator>();
+        services.AddScoped<IStockLedger, StockLedger>();
         services.AddScoped<IWorkItemCheckout, WorkItemCheckout>();
         services.AddHostedService<HeartbeatScheduler>();
 

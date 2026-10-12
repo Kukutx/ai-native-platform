@@ -70,6 +70,10 @@ export default function RootLayout() {
               <Stack.Screen name='crm/companies/[id]' options={{ title: '客户' }} />
               <Stack.Screen name='crm/contacts/[id]' options={{ title: '联系人' }} />
               <Stack.Screen name='crm/new' options={{ title: '新建', presentation: 'modal' }} />
+              <Stack.Screen name='erp/index' options={{ title: '进销存' }} />
+              <Stack.Screen name='erp/sales-orders/[id]' options={{ title: '销售订单' }} />
+              <Stack.Screen name='erp/purchase-orders/[id]' options={{ title: '采购订单' }} />
+              <Stack.Screen name='erp/products/[id]' options={{ title: '产品' }} />
             </Stack.Protected>
             <Stack.Protected guard={!token}>
               <Stack.Screen name='login' options={{ headerShown: false }} />

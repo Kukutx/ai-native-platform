@@ -11,6 +11,7 @@ const light = {
   bubble: '#f0f0f0',
   danger: '#dc2626',
   success: '#16a34a',
+  warning: '#d97706',
 };
 
 const dark: typeof light = {
@@ -24,6 +25,7 @@ const dark: typeof light = {
   bubble: '#262626',
   danger: '#f87171',
   success: '#4ade80',
+  warning: '#f59e0b',
 };
 
 export type Palette = typeof light;

@@ -24,6 +24,11 @@ public interface IPlatformModule
     /// 模块发布的平台事件，工作流可以订阅它们作为触发器。
     /// </summary>
     IReadOnlyList<PlatformEventDefinition> Events => [];
+
+    /// <summary>
+    /// 依赖的模块。依赖没启用时本模块也视为停用；启用本模块前要先启用依赖，停用依赖前要先停用本模块。
+    /// </summary>
+    IReadOnlyList<string> DependsOn => [];
 }
 
 /// <summary>
@@ -46,6 +51,11 @@ public interface IModuleCatalog
     IReadOnlyList<PlatformEventDefinition> AllEvents { get; }
 
     PlatformEventDefinition? FindEvent(string key);
+
+    /// <summary>
+    /// 按租户的启用设置算出实际启用的模块：核心模块总是启用；其他模块看设置（没设置过按默认），且依赖的模块都要实际启用。
+    /// </summary>
+    IReadOnlySet<string> ResolveEnabled(IReadOnlyDictionary<string, bool> overrides);
 }
 
 public sealed class ModuleCatalog(IEnumerable<IPlatformModule> modules) : IModuleCatalog
@@ -61,6 +71,43 @@ public sealed class ModuleCatalog(IEnumerable<IPlatformModule> modules) : IModul
     public IReadOnlyList<PlatformEventDefinition> AllEvents => [.. _modules.SelectMany(m => m.Events)];
 
     public PlatformEventDefinition? FindEvent(string key) => _modules.SelectMany(m => m.Events).FirstOrDefault(e => e.Key == key);
+
+    public IReadOnlySet<string> ResolveEnabled(IReadOnlyDictionary<string, bool> overrides)
+    {
+        var enabled = new HashSet<string>(StringComparer.Ordinal);
+        var visiting = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var module in _modules)
+        {
+            Resolve(module);
+        }
+
+        return enabled;
+
+        bool Resolve(IPlatformModule module)
+        {
+            if (enabled.Contains(module.Key))
+            {
+                return true;
+            }
+
+            // 循环依赖视为未启用，避免无限递归。
+            if (!visiting.Add(module.Key))
+            {
+                return false;
+            }
+
+            var on = module.IsCore
+                     || (overrides.GetValueOrDefault(module.Key, module.EnabledByDefault)
+                         && module.DependsOn.All(key => Find(key) is { } dependency && Resolve(dependency)));
+            visiting.Remove(module.Key);
+            if (on)
+            {
+                enabled.Add(module.Key);
+            }
+
+            return on;
+        }
+    }
 }
 
 /// <summary>

@@ -960,6 +960,572 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.ToTable("crm_stages", (string)null);
                 });
 
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpProduct", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("category");
+
+                    b.Property<decimal?>("Cost")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("cost");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal?>("Price")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("price");
+
+                    b.Property<decimal?>("ReorderPoint")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("reorder_point");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("sku");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<bool>("TrackInventory")
+                        .HasColumnType("boolean")
+                        .HasColumnName("track_inventory");
+
+                    b.Property<string>("Unit")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("unit");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Erp.ErpProduct.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_erp_products");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_erp_products_name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("Sku")
+                        .HasDatabaseName("ix_erp_products_sku");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Sku"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Sku"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("TenantId", "Category")
+                        .HasDatabaseName("ix_erp_products_tenant_id_category");
+
+                    b.HasIndex("TenantId", "Sku")
+                        .IsUnique()
+                        .HasDatabaseName("ix_erp_products_tenant_id_sku");
+
+                    b.ToTable("erp_products", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpPurchaseOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<DateOnly?>("ExpectedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("expected_date");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("number");
+
+                    b.Property<DateOnly>("OrderDate")
+                        .HasColumnType("date")
+                        .HasColumnName("order_date");
+
+                    b.Property<DateTimeOffset?>("OrderedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ordered_at");
+
+                    b.Property<DateTimeOffset?>("ReceivedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("received_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("SupplierId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supplier_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("total");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Erp.ErpPurchaseOrder.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_erp_purchase_orders");
+
+                    b.HasIndex("SupplierId")
+                        .HasDatabaseName("ix_erp_purchase_orders_supplier_id");
+
+                    b.HasIndex("WarehouseId")
+                        .HasDatabaseName("ix_erp_purchase_orders_warehouse_id");
+
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .HasDatabaseName("ix_erp_purchase_orders_tenant_id_created_at");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_erp_purchase_orders_tenant_id_number");
+
+                    b.HasIndex("TenantId", "Status", "CreatedAt")
+                        .HasDatabaseName("ix_erp_purchase_orders_tenant_id_status_created_at");
+
+                    b.ToTable("erp_purchase_orders", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpSalesOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("company_id");
+
+                    b.Property<DateTimeOffset?>("ConfirmedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("confirmed_at");
+
+                    b.Property<Guid?>("ContactId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("contact_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<Guid?>("DealId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("deal_id");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("number");
+
+                    b.Property<DateOnly>("OrderDate")
+                        .HasColumnType("date")
+                        .HasColumnName("order_date");
+
+                    b.Property<Guid?>("OwnerUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_user_id");
+
+                    b.Property<DateTimeOffset?>("ShippedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("shipped_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<decimal>("Total")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("total");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Erp.ErpSalesOrder.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_erp_sales_orders");
+
+                    b.HasIndex("CompanyId")
+                        .HasDatabaseName("ix_erp_sales_orders_company_id");
+
+                    b.HasIndex("ContactId")
+                        .HasDatabaseName("ix_erp_sales_orders_contact_id");
+
+                    b.HasIndex("DealId")
+                        .HasDatabaseName("ix_erp_sales_orders_deal_id");
+
+                    b.HasIndex("OwnerUserId")
+                        .HasDatabaseName("ix_erp_sales_orders_owner_user_id");
+
+                    b.HasIndex("WarehouseId")
+                        .HasDatabaseName("ix_erp_sales_orders_warehouse_id");
+
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .HasDatabaseName("ix_erp_sales_orders_tenant_id_created_at");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_erp_sales_orders_tenant_id_number");
+
+                    b.HasIndex("TenantId", "OwnerUserId")
+                        .HasDatabaseName("ix_erp_sales_orders_tenant_id_owner_user_id");
+
+                    b.HasIndex("TenantId", "Status", "CreatedAt")
+                        .HasDatabaseName("ix_erp_sales_orders_tenant_id_status_created_at");
+
+                    b.ToTable("erp_sales_orders", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpStockLevel", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal>("OnHand")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("on_hand");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<decimal>("Reserved")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("reserved");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_erp_stock_levels");
+
+                    b.HasIndex("WarehouseId")
+                        .HasDatabaseName("ix_erp_stock_levels_warehouse_id");
+
+                    b.HasIndex("ProductId", "WarehouseId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_erp_stock_levels_product_id_warehouse_id");
+
+                    b.HasIndex("TenantId", "WarehouseId")
+                        .HasDatabaseName("ix_erp_stock_levels_tenant_id_warehouse_id");
+
+                    b.ToTable("erp_stock_levels", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpStockMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("BalanceAfter")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("balance_after");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<Guid?>("PurchaseOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("purchase_order_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid?>("RunId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("run_id");
+
+                    b.Property<Guid?>("SalesOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sales_order_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "Actor", "AiNative.Domain.Erp.ErpStockMovement.Actor#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("actor_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("actor_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_erp_stock_movements");
+
+                    b.HasIndex("PurchaseOrderId")
+                        .HasDatabaseName("ix_erp_stock_movements_purchase_order_id");
+
+                    b.HasIndex("SalesOrderId")
+                        .HasDatabaseName("ix_erp_stock_movements_sales_order_id");
+
+                    b.HasIndex("ProductId", "CreatedAt")
+                        .HasDatabaseName("ix_erp_stock_movements_product_id_created_at");
+
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .HasDatabaseName("ix_erp_stock_movements_tenant_id_created_at");
+
+                    b.HasIndex("WarehouseId", "CreatedAt")
+                        .HasDatabaseName("ix_erp_stock_movements_warehouse_id_created_at");
+
+                    b.ToTable("erp_stock_movements", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpWarehouse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Address")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("address");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_default");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_erp_warehouses");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_erp_warehouses_default")
+                        .HasFilter("is_default");
+
+                    b.HasIndex("TenantId", "Name")
+                        .HasDatabaseName("ix_erp_warehouses_tenant_id_name");
+
+                    b.ToTable("erp_warehouses", (string)null);
+                });
+
             modelBuilder.Entity("AiNative.Domain.Governance.Approval", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1772,6 +2338,27 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.ToTable("tenants", (string)null);
                 });
 
+            modelBuilder.Entity("AiNative.Domain.Tenancy.TenantSequence", b =>
+                {
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.Property<long>("Value")
+                        .HasColumnType("bigint")
+                        .HasColumnName("value");
+
+                    b.HasKey("TenantId", "Name")
+                        .HasName("pk_tenant_sequences");
+
+                    b.ToTable("tenant_sequences", (string)null);
+                });
+
             modelBuilder.Entity("AiNative.Domain.Work.WorkItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2457,6 +3044,257 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_crm_stages_tenants_tenant_id");
                 });
 
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpProduct", b =>
+                {
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_products_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpPurchaseOrder", b =>
+                {
+                    b.HasOne("AiNative.Domain.Crm.CrmCompany", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_erp_purchase_orders_crm_companies_supplier_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_purchase_orders_tenants_tenant_id");
+
+                    b.HasOne("AiNative.Domain.Erp.ErpWarehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_purchase_orders_erp_warehouses_warehouse_id");
+
+                    b.OwnsMany("AiNative.Domain.Erp.ErpOrderLine", "Lines", b1 =>
+                        {
+                            b1.Property<Guid>("OrderId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("order_id");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer")
+                                .HasColumnName("id");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b1.Property<int>("Id"));
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)")
+                                .HasColumnName("amount");
+
+                            b1.Property<Guid>("ProductId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("product_id");
+
+                            b1.Property<decimal>("Quantity")
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasColumnName("quantity");
+
+                            b1.Property<decimal>("UnitPrice")
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasColumnName("unit_price");
+
+                            b1.HasKey("OrderId", "Id")
+                                .HasName("pk_erp_purchase_order_lines");
+
+                            b1.HasIndex("ProductId")
+                                .HasDatabaseName("ix_erp_purchase_order_lines_product_id");
+
+                            b1.ToTable("erp_purchase_order_lines", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrderId")
+                                .HasConstraintName("fk_erp_purchase_order_lines_erp_purchase_orders_order_id");
+
+                            b1.HasOne("AiNative.Domain.Erp.ErpProduct", null)
+                                .WithMany()
+                                .HasForeignKey("ProductId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired()
+                                .HasConstraintName("fk_erp_purchase_order_lines_erp_products_product_id");
+                        });
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpSalesOrder", b =>
+                {
+                    b.HasOne("AiNative.Domain.Crm.CrmCompany", null)
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_erp_sales_orders_crm_companies_company_id");
+
+                    b.HasOne("AiNative.Domain.Crm.CrmContact", null)
+                        .WithMany()
+                        .HasForeignKey("ContactId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_erp_sales_orders_crm_contacts_contact_id");
+
+                    b.HasOne("AiNative.Domain.Crm.CrmDeal", null)
+                        .WithMany()
+                        .HasForeignKey("DealId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_erp_sales_orders_crm_deals_deal_id");
+
+                    b.HasOne("AiNative.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_erp_sales_orders_users_owner_user_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_sales_orders_tenants_tenant_id");
+
+                    b.HasOne("AiNative.Domain.Erp.ErpWarehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_sales_orders_erp_warehouses_warehouse_id");
+
+                    b.OwnsMany("AiNative.Domain.Erp.ErpOrderLine", "Lines", b1 =>
+                        {
+                            b1.Property<Guid>("OrderId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("order_id");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer")
+                                .HasColumnName("id");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b1.Property<int>("Id"));
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)")
+                                .HasColumnName("amount");
+
+                            b1.Property<Guid>("ProductId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("product_id");
+
+                            b1.Property<decimal>("Quantity")
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasColumnName("quantity");
+
+                            b1.Property<decimal>("UnitPrice")
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasColumnName("unit_price");
+
+                            b1.HasKey("OrderId", "Id");
+
+                            b1.HasIndex("ProductId")
+                                .HasDatabaseName("ix_erp_sales_order_lines_product_id");
+
+                            b1.ToTable("erp_sales_order_lines", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("OrderId")
+                                .HasConstraintName("fk_erp_sales_order_lines_erp_sales_orders_order_id");
+
+                            b1.HasOne("AiNative.Domain.Erp.ErpProduct", null)
+                                .WithMany()
+                                .HasForeignKey("ProductId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired()
+                                .HasConstraintName("fk_erp_sales_order_lines_erp_products_product_id");
+                        });
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpStockLevel", b =>
+                {
+                    b.HasOne("AiNative.Domain.Erp.ErpProduct", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_stock_levels_erp_products_product_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_stock_levels_tenants_tenant_id");
+
+                    b.HasOne("AiNative.Domain.Erp.ErpWarehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_stock_levels_erp_warehouses_warehouse_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpStockMovement", b =>
+                {
+                    b.HasOne("AiNative.Domain.Erp.ErpProduct", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_stock_movements_erp_products_product_id");
+
+                    b.HasOne("AiNative.Domain.Erp.ErpPurchaseOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_erp_stock_movements_erp_purchase_orders_purchase_order_id");
+
+                    b.HasOne("AiNative.Domain.Erp.ErpSalesOrder", null)
+                        .WithMany()
+                        .HasForeignKey("SalesOrderId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_erp_stock_movements_erp_sales_orders_sales_order_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_stock_movements_tenants_tenant_id");
+
+                    b.HasOne("AiNative.Domain.Erp.ErpWarehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_stock_movements_erp_warehouses_warehouse_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpWarehouse", b =>
+                {
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_warehouses_tenants_tenant_id");
+                });
+
             modelBuilder.Entity("AiNative.Domain.Identity.ApiKey", b =>
                 {
                     b.HasOne("AiNative.Domain.Identity.Membership", null)
@@ -2566,6 +3404,16 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_organizations_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Tenancy.TenantSequence", b =>
+                {
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_tenant_sequences_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("AiNative.Domain.Work.WorkItem", b =>

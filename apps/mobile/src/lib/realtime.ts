@@ -27,11 +27,16 @@ const invalidation: Record<RealtimeChange['entity'], (id: string) => readonly (r
   memory: () => [['knowledge', 'search']],
   workflow: () => [['workflows']],
   workflow_run: (id) => [['workflow-runs'], ['workflow-run', id], ['workflows']],
-  crm_company: () => [['crm']],
-  crm_contact: () => [['crm']],
-  crm_deal: () => [['crm']],
+  crm_company: () => [['crm'], ['erp']],
+  crm_contact: () => [['crm'], ['erp']],
+  crm_deal: () => [['crm'], ['erp']],
   crm_activity: () => [['crm']],
   crm_stage: () => [['crm']],
+  erp_product: () => [['erp']],
+  erp_warehouse: () => [['erp']],
+  erp_stock: () => [['erp']],
+  erp_sales_order: () => [['erp']],
+  erp_purchase_order: () => [['erp']],
 };
 
 /** 登录后连接 SignalR 实时通道，服务端推送变化时让对应查询失效，界面自动刷新。 */

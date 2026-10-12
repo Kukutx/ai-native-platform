@@ -42,7 +42,7 @@
 
 ## 模块与平台动作
 
-- **模块**声明自己的功能权限，可按空间启用或停用；核心模块不可停用。
+- **模块**声明自己的功能权限，可按空间启用或停用；核心模块不可停用。模块可以声明依赖的其他模块，依赖没启用时它也不生效（见进销存）。
 - **平台动作**是一次定义、多处使用的业务操作：界面（`/api/actions`）、智能体工具调用、对话中的模型调用走同一个入口。输入类型自动生成 JSON Schema 给模型；入口统一做权限检查和审批判断，动作在独立的依赖注入作用域里执行。
 - 现有动作：`tasks.list/get/create/update_status/assign/comment`，`agents.list_team/wake/hire`，`knowledge.search/get_document/create_document`，`memory.retain/recall/forget`，`workflows.list/list_events/get/create/update/run/get_run`。`agents.hire`、`workflows.create/update` 对智能体要求人工审批。
 - 模块还可以声明自己发布的**平台事件**（`PlatformEventDefinition`，附载荷字段说明），供工作流订阅，见下文。
@@ -101,6 +101,21 @@
 - **事件**：`crm.company_created`、`crm.contact_created`、`crm.deal_created`、`crm.deal_stage_changed`、`crm.activity_logged`，例如"商机赢单（`trigger.to.kind == 'won'`）后自动建交付任务派给智能体"。
 - **新空间初始化**：模块可以实现 `ITenantInitializer`，注册新空间时在同一事务里执行（CRM 用它写入默认阶段）；已有空间由迁移补齐。
 
+## 进销存（ERP）
+
+第二个业务模块，验证模块之间的依赖。模块键 `erp`，依赖 `crm`：订单的客户、联系人、商机和供应商直接用客户管理里的记录。权限 `erp.view`、`erp.sales`（销售订单）、`erp.purchase`（采购订单）、`erp.inventory`（产品、仓库、库存调整）；内置"成员"可查看和开销售订单，"只读"可查看，首席助理默认可查看、开销售和采购订单。
+
+- **模块依赖**：模块用 `DependsOn` 声明依赖，`IModuleCatalog.ResolveEnabled` 计算实际生效的模块，依赖没启用的模块视为停用（权限、接口、动作、事件一并关闭）。启用时依赖必须已启用（409 `module.dependency_disabled`），停用时不能有已启用的模块依赖它（409 `module.required_by`），在 `modules:{tenant}` advisory lock 下判断。
+- **数据**：产品（编码唯一、单位、分类、售价与采购价、是否管理库存、补货提醒线、在售或停售）、仓库（每个空间有且只有一个默认仓库，部分唯一索引保证）、库存（产品 × 仓库的现有和已预留数量，可用 = 现有 − 已预留）、库存流水（每笔变动的数量和变动后结存，关联订单）、销售订单、采购订单。订单明细是订单的从属集合，单独成表。订单号按空间连续编号（`SO-0001`、`PO-0001`），由 `tenant_sequences` 表的 `INSERT … ON CONFLICT DO UPDATE … RETURNING` 原子分配，随事务回滚。
+- **库存一致性**：所有数量变化都经过 `IStockLedger`：一条带条件的 `UPDATE … RETURNING`（例如"现有 − 已预留 ≥ 本次数量"）同时完成检查和修改，不先读后写，所以并发下单不会超卖；库存行第一次用到时 `INSERT … ON CONFLICT DO NOTHING` 补出来。一次操作涉及多行时按产品、仓库排序加锁，避免死锁。"是否管理库存"决定确认、发货、收货、调整动不动库存：这些操作先对产品行加共享锁再读取它，修改产品时对产品行加排他锁，切换前的检查（有没有已确认未发货的订单、还有没有库存）不会和它们交错。
+- **金额与精度**：数量、单价最多 4 位小数（与 `numeric(18,4)` 一致）；行金额和订单合计在保存前检查不超过 `numeric(18,2)` 能存的范围，超出时返回 400。
+- **销售订单**：草稿 → 已确认（按明细预留库存，任一产品不够则整单不确认，错误里列出全部缺货）→ 已发货（扣减现有和预留，写出库流水）；草稿、已确认可以取消（已确认的释放预留）。状态流转以"状态仍是读到的那个"为条件先锁住订单，并发的重复确认、发货返回 409。从商机生成时带出客户、联系人和货币，商机必须属于所选客户；单价默认取产品售价，货币不同时必须手填。
+- **采购订单**：草稿 → 已下单 → 已收货（按明细入库，写入库流水）；草稿、已下单可以取消。供应商是客户管理里的公司。
+- **库存调整与调拨**：按增减数量，或按盘点后的实际数量调整（锁住库存行后计算差额）；调拨在两个仓库之间移动可用数量。不管理库存的产品（服务等）下单、发货不检查也不记录数量。库存列表按"管库存的产品 × 仓库"列出，没有记录的组合按 0 计，新产品不会漏掉。
+- **补货提醒**：发货、调整、调拨让产品的可用总数从提醒线以上降到提醒线及以下时，发布一次 `erp.stock_low`。
+- **动作**：`erp.search_products`、`erp.get_product_stock`、`erp.get_summary`、`erp.create_product`、`erp.adjust_stock`、`erp.list_sales_orders`、`erp.get_sales_order`、`erp.create_sales_order`（可以直接确认）、`erp.confirm_sales_order`、`erp.ship_sales_order`、`erp.cancel_sales_order`、`erp.list_purchase_orders`、`erp.create_purchase_order`、`erp.place_purchase_order`、`erp.receive_purchase_order`。产品按编码、仓库按名称、订单按单号指定，找不到时错误里提示怎么查（解析直接查当前空间，不要求额外的查看权限）；取消销售订单、向供应商下单、调整库存对智能体要求人工审批。
+- **事件**：`erp.sales_order_confirmed`、`erp.sales_order_shipped`、`erp.purchase_order_received`、`erp.stock_low`，例如"库存低于提醒线时让智能体起草采购单，交给人确认下单"。
+
 ## 对话
 
 对话是用户与平台的直接入口：用户消息和模型回复（含工具调用与结果）按序存储在 `conversation_messages`（jsonb）。每一轮在当前用户的身份与权限下调用平台动作，所以对话里能做的事和界面上完全一致。客户端可以用 SSE（`POST /api/conversations/{id}/messages`）或 SignalR 的 `StreamChat` 接收流式事件。
@@ -154,5 +169,5 @@
 - 知识库进阶：PDF/Word 等文件解析、按文档权限过滤、重排序模型、记忆整理（合并、过期）。
 - 接入外部 MCP 服务：让智能体调用外部 MCP 工具。
 - 工作流进阶：分支与并行、循环处理列表、外部 Webhook 触发、可视化编排，以及更多模块发布事件。
-- 业务模块：项目管理、分析报表等继续作为可启用的模块接入；CRM 进阶：按负责人或部门的数据权限、自定义字段、导入导出、报价与合同。
+- 业务模块：项目管理、分析报表等继续作为可启用的模块接入；CRM 进阶：按负责人或部门的数据权限、自定义字段、导入导出、报价与合同；进销存进阶：部分发货与分批收货、退货、批次与序列号、成本核算、多币种汇率。
 - 多实例部署：调度器的领导者选举或分布式领取，Redis 背板的 SignalR。

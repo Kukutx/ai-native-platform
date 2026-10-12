@@ -2088,6 +2088,1242 @@
         }
       }
     },
+    "/api/erp/products": {
+      "get": {
+        "tags": [
+          "ErpProducts"
+        ],
+        "summary": "产品列表，按编码排序；search 匹配名称和编码，默认不含停用的产品。库存数量为全部仓库合计。",
+        "operationId": "ErpProducts_List",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 2
+          },
+          {
+            "name": "lowStockOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "x-position": 3
+          },
+          {
+            "name": "includeInactive",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "x-position": 4
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 5
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            },
+            "x-position": 6
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfErpProductDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErpProducts"
+        ],
+        "operationId": "ErpProducts_Create",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveErpProductRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpProductDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/products/categories": {
+      "get": {
+        "tags": [
+          "ErpProducts"
+        ],
+        "summary": "已用过的产品分类，供筛选和录入时选择。",
+        "operationId": "ErpProducts_Categories",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/products/{id}": {
+      "get": {
+        "tags": [
+          "ErpProducts"
+        ],
+        "summary": "产品详情：各仓库库存与最近 50 条出入库流水。",
+        "operationId": "ErpProducts_Get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpProductDetailDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ErpProducts"
+        ],
+        "operationId": "ErpProducts_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveErpProductRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpProductDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ErpProducts"
+        ],
+        "summary": "删除从没用过的产品；已有订单或库存记录时返回 409，可以改为停用。",
+        "operationId": "ErpProducts_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/erp/warehouses": {
+      "get": {
+        "tags": [
+          "ErpWarehouses"
+        ],
+        "summary": "仓库列表，默认仓库在前。",
+        "operationId": "ErpWarehouses_List",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErpWarehouseDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErpWarehouses"
+        ],
+        "operationId": "ErpWarehouses_Create",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveErpWarehouseRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpWarehouseDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/warehouses/{id}": {
+      "put": {
+        "tags": [
+          "ErpWarehouses"
+        ],
+        "operationId": "ErpWarehouses_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveErpWarehouseRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpWarehouseDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ErpWarehouses"
+        ],
+        "summary": "删除空仓库；默认仓库、还有库存或用过的仓库返回 409。",
+        "operationId": "ErpWarehouses_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/erp/stock": {
+      "get": {
+        "tags": [
+          "ErpStock"
+        ],
+        "summary": "各产品在各仓库的库存（只含管库存的产品，没有记录的组合按 0 列出），按编码排序。",
+        "operationId": "ErpStock_Levels",
+        "parameters": [
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "productId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 2
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 3
+          },
+          {
+            "name": "lowStockOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "x-position": 4
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 5
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            },
+            "x-position": 6
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfErpStockLevelDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/stock/movements": {
+      "get": {
+        "tags": [
+          "ErpStock"
+        ],
+        "summary": "出入库流水，最新的在前。",
+        "operationId": "ErpStock_Movements",
+        "parameters": [
+          {
+            "name": "productId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "warehouseId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 2
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "nullable": true,
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ErpStockMovementKind"
+                }
+              ]
+            },
+            "x-position": 3
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 4
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            },
+            "x-position": 5
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfErpStockMovementDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/stock/adjust": {
+      "post": {
+        "tags": [
+          "ErpStock"
+        ],
+        "summary": "手工调整（期初、盘点、报损）。在库不够减时返回 409。",
+        "operationId": "ErpStock_Adjust",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdjustErpStockRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpStockLevelDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/stock/transfer": {
+      "post": {
+        "tags": [
+          "ErpStock"
+        ],
+        "summary": "仓库之间调拨，只能调出可用数量。返回调出、调入两个仓库调拨后的库存。",
+        "operationId": "ErpStock_Transfer",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransferErpStockRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ErpStockLevelDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/sales-orders": {
+      "get": {
+        "tags": [
+          "ErpSalesOrders"
+        ],
+        "summary": "销售订单，最新的在前；search 匹配订单号和客户名称。",
+        "operationId": "ErpSalesOrders_List",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "nullable": true,
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ErpSalesOrderStatus"
+                }
+              ]
+            },
+            "x-position": 2
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 3
+          },
+          {
+            "name": "dealId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 4
+          },
+          {
+            "name": "ownerUserId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 5
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 6
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            },
+            "x-position": 7
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfErpSalesOrderDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErpSalesOrders"
+        ],
+        "summary": "新建销售订单（草稿）。confirm=true 时建好立即确认并预留库存，库存不够返回 409 且不建单。",
+        "operationId": "ErpSalesOrders_Create",
+        "parameters": [
+          {
+            "name": "confirm",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "x-position": 2
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveErpSalesOrderRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpSalesOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/sales-orders/{id}": {
+      "get": {
+        "tags": [
+          "ErpSalesOrders"
+        ],
+        "operationId": "ErpSalesOrders_Get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpSalesOrderDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ErpSalesOrders"
+        ],
+        "summary": "修改草稿订单；不是草稿或已被别人修改时返回 409。",
+        "operationId": "ErpSalesOrders_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveErpSalesOrderRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpSalesOrderDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ErpSalesOrders"
+        ],
+        "summary": "删除草稿或已取消的订单。",
+        "operationId": "ErpSalesOrders_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/erp/sales-orders/{id}/confirm": {
+      "post": {
+        "tags": [
+          "ErpSalesOrders"
+        ],
+        "summary": "确认订单并预留库存；可用数量不够时返回 409，列出缺货的产品。",
+        "operationId": "ErpSalesOrders_Confirm",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpSalesOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/sales-orders/{id}/ship": {
+      "post": {
+        "tags": [
+          "ErpSalesOrders"
+        ],
+        "summary": "发货：扣减库存并记出库流水。",
+        "operationId": "ErpSalesOrders_Ship",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpSalesOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/sales-orders/{id}/cancel": {
+      "post": {
+        "tags": [
+          "ErpSalesOrders"
+        ],
+        "summary": "取消草稿或已确认的订单（释放预留）。",
+        "operationId": "ErpSalesOrders_Cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpSalesOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/purchase-orders": {
+      "get": {
+        "tags": [
+          "ErpPurchaseOrders"
+        ],
+        "summary": "采购订单，最新的在前；search 匹配订单号和供应商名称。",
+        "operationId": "ErpPurchaseOrders_List",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "nullable": true,
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/ErpPurchaseOrderStatus"
+                }
+              ]
+            },
+            "x-position": 2
+          },
+          {
+            "name": "supplierId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 3
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 4
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 50
+            },
+            "x-position": 5
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagedResultOfErpPurchaseOrderDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "ErpPurchaseOrders"
+        ],
+        "operationId": "ErpPurchaseOrders_Create",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveErpPurchaseOrderRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpPurchaseOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/purchase-orders/{id}": {
+      "get": {
+        "tags": [
+          "ErpPurchaseOrders"
+        ],
+        "operationId": "ErpPurchaseOrders_Get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpPurchaseOrderDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ErpPurchaseOrders"
+        ],
+        "operationId": "ErpPurchaseOrders_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveErpPurchaseOrderRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpPurchaseOrderDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "ErpPurchaseOrders"
+        ],
+        "operationId": "ErpPurchaseOrders_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/erp/purchase-orders/{id}/place": {
+      "post": {
+        "tags": [
+          "ErpPurchaseOrders"
+        ],
+        "summary": "下单（已发给供应商），之后不能再修改。",
+        "operationId": "ErpPurchaseOrders_Place",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpPurchaseOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/purchase-orders/{id}/receive": {
+      "post": {
+        "tags": [
+          "ErpPurchaseOrders"
+        ],
+        "summary": "到货：全部入库并记入库流水。",
+        "operationId": "ErpPurchaseOrders_Receive",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpPurchaseOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/purchase-orders/{id}/cancel": {
+      "post": {
+        "tags": [
+          "ErpPurchaseOrders"
+        ],
+        "operationId": "ErpPurchaseOrders_Cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpPurchaseOrderDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/erp/summary": {
+      "get": {
+        "tags": [
+          "ErpSummary"
+        ],
+        "summary": "进销存概况：本月发货与到货金额、待处理的订单、低库存产品数。",
+        "operationId": "ErpSummary_Get",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErpSummaryDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/knowledge/documents": {
       "get": {
         "tags": [
@@ -3521,7 +4757,8 @@
           "description",
           "isCore",
           "enabled",
-          "features"
+          "features",
+          "dependsOn"
         ],
         "properties": {
           "key": {
@@ -3543,6 +4780,12 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/FeatureDto"
+            }
+          },
+          "dependsOn": {
+            "type": "array",
+            "items": {
+              "type": "string"
             }
           }
         }
@@ -5462,6 +6705,1090 @@
           },
           "kind": {
             "$ref": "#/components/schemas/CrmStageKind"
+          }
+        }
+      },
+      "PagedResultOfErpProductDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpProductDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ErpProductDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "sku",
+          "name",
+          "unit",
+          "category",
+          "description",
+          "currency",
+          "trackInventory",
+          "isActive",
+          "onHand",
+          "reserved",
+          "available",
+          "lowStock",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "trackInventory": {
+            "type": "boolean"
+          },
+          "reorderPoint": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "onHand": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "reserved": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "available": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "lowStock": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ErpProductDetailDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "product",
+          "levels",
+          "movements"
+        ],
+        "properties": {
+          "product": {
+            "$ref": "#/components/schemas/ErpProductDto"
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpStockLevelDto"
+            }
+          },
+          "movements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpStockMovementDto"
+            }
+          }
+        }
+      },
+      "ErpStockLevelDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "productId",
+          "sku",
+          "productName",
+          "unit",
+          "warehouseId",
+          "warehouseName",
+          "onHand",
+          "reserved",
+          "available",
+          "updatedAt"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "warehouseName": {
+            "type": "string"
+          },
+          "onHand": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "reserved": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "available": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ErpStockMovementDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "productId",
+          "sku",
+          "productName",
+          "unit",
+          "warehouseId",
+          "warehouseName",
+          "kind",
+          "quantity",
+          "balanceAfter",
+          "note",
+          "actor",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "productId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "warehouseName": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ErpStockMovementKind"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "balanceAfter": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "note": {
+            "type": "string"
+          },
+          "salesOrderId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "salesOrderNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "purchaseOrderId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "purchaseOrderNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "actor": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ErpStockMovementKind": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Purchase",
+          "Sale",
+          "Adjustment",
+          "TransferIn",
+          "TransferOut"
+        ],
+        "enum": [
+          "purchase",
+          "sale",
+          "adjustment",
+          "transfer_in",
+          "transfer_out"
+        ]
+      },
+      "SaveErpProductRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "sku",
+          "name",
+          "sku",
+          "name"
+        ],
+        "properties": {
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "cost": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "trackInventory": {
+            "type": "boolean"
+          },
+          "reorderPoint": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ErpWarehouseDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "address",
+          "isDefault",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SaveErpWarehouseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PagedResultOfErpStockLevelDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpStockLevelDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "PagedResultOfErpStockMovementDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpStockMovementDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "AdjustErpStockRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "productId",
+          "productId"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "countedQuantity": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "TransferErpStockRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "productId",
+          "fromWarehouseId",
+          "toWarehouseId",
+          "quantity",
+          "productId",
+          "fromWarehouseId",
+          "toWarehouseId",
+          "quantity"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "fromWarehouseId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "toWarehouseId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "PagedResultOfErpSalesOrderDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpSalesOrderDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ErpSalesOrderDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "number",
+          "status",
+          "warehouseId",
+          "warehouseName",
+          "currency",
+          "orderDate",
+          "note",
+          "total",
+          "lines",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "number": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ErpSalesOrderStatus"
+          },
+          "companyId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "companyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "contactId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "contactName": {
+            "type": "string",
+            "nullable": true
+          },
+          "dealId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "dealTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "warehouseName": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "orderDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "note": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpOrderLineDto"
+            }
+          },
+          "owner": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ActorDto"
+              }
+            ]
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "confirmedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "shippedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ErpSalesOrderStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Draft",
+          "Confirmed",
+          "Shipped",
+          "Cancelled"
+        ],
+        "enum": [
+          "draft",
+          "confirmed",
+          "shipped",
+          "cancelled"
+        ]
+      },
+      "ErpOrderLineDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "productId",
+          "sku",
+          "productName",
+          "unit",
+          "quantity",
+          "unitPrice",
+          "amount"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "unitPrice": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "SaveErpSalesOrderRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "lines",
+          "lines"
+        ],
+        "properties": {
+          "companyId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "contactId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "dealId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "orderDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "note": {
+            "type": "string"
+          },
+          "ownerUserId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpOrderLineRequest"
+            }
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ErpOrderLineRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "productId",
+          "quantity",
+          "productId",
+          "quantity"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "unitPrice": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "PagedResultOfErpPurchaseOrderDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpPurchaseOrderDto"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ErpPurchaseOrderDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "number",
+          "status",
+          "warehouseId",
+          "warehouseName",
+          "currency",
+          "orderDate",
+          "note",
+          "total",
+          "lines",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "number": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ErpPurchaseOrderStatus"
+          },
+          "supplierId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "supplierName": {
+            "type": "string",
+            "nullable": true
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "warehouseName": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "orderDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "expectedDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "note": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpOrderLineDto"
+            }
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "orderedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "receivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "cancelledAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ErpPurchaseOrderStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Draft",
+          "Ordered",
+          "Received",
+          "Cancelled"
+        ],
+        "enum": [
+          "draft",
+          "ordered",
+          "received",
+          "cancelled"
+        ]
+      },
+      "SaveErpPurchaseOrderRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "supplierId",
+          "lines",
+          "supplierId",
+          "lines"
+        ],
+        "properties": {
+          "supplierId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "warehouseId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "orderDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "expectedDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "note": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpOrderLineRequest"
+            }
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ErpSummaryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "shippedThisMonth",
+          "receivedThisMonth",
+          "draftSalesOrders",
+          "toShipSalesOrders",
+          "toShipTotals",
+          "openPurchaseOrders",
+          "activeProducts",
+          "lowStockProducts"
+        ],
+        "properties": {
+          "shippedThisMonth": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpAmountDto"
+            }
+          },
+          "receivedThisMonth": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpAmountDto"
+            }
+          },
+          "draftSalesOrders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "toShipSalesOrders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "toShipTotals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErpAmountDto"
+            }
+          },
+          "openPurchaseOrders": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "activeProducts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lowStockProducts": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ErpAmountDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
           }
         }
       },

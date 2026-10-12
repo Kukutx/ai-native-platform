@@ -11,6 +11,12 @@ import {
   CrmContactsClient,
   CrmDealsClient,
   CrmStagesClient,
+  ErpProductsClient,
+  ErpPurchaseOrdersClient,
+  ErpSalesOrdersClient,
+  ErpStockClient,
+  ErpSummaryClient,
+  ErpWarehousesClient,
   KnowledgeClient,
   MembersClient,
   MemoriesClient,
@@ -87,6 +93,14 @@ export function createApi(config: ApiConfig) {
       deals: new CrmDealsClient(baseUrl, http),
       activities: new CrmActivitiesClient(baseUrl, http),
       stages: new CrmStagesClient(baseUrl, http),
+    },
+    erp: {
+      products: new ErpProductsClient(baseUrl, http),
+      warehouses: new ErpWarehousesClient(baseUrl, http),
+      stock: new ErpStockClient(baseUrl, http),
+      salesOrders: new ErpSalesOrdersClient(baseUrl, http),
+      purchaseOrders: new ErpPurchaseOrdersClient(baseUrl, http),
+      summary: new ErpSummaryClient(baseUrl, http),
     },
   };
 }

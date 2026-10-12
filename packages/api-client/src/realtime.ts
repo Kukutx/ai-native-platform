@@ -19,7 +19,12 @@ export interface RealtimeChange {
     | 'crm_contact'
     | 'crm_deal'
     | 'crm_activity'
-    | 'crm_stage';
+    | 'crm_stage'
+    | 'erp_product'
+    | 'erp_warehouse'
+    | 'erp_stock'
+    | 'erp_sales_order'
+    | 'erp_purchase_order';
   id: string;
   kind: 'created' | 'updated' | 'deleted';
 }

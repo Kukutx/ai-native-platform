@@ -109,10 +109,7 @@ internal sealed class ModuleAccess(IAppDbContext db, IModuleCatalog catalog, ITe
 
         var overrides = await db.TenantModules.AsNoTracking()
             .ToDictionaryAsync(m => m.ModuleKey, m => m.Enabled, cancellationToken).ConfigureAwait(false);
-        _enabled = catalog.Modules
-            .Where(m => m.IsCore || overrides.GetValueOrDefault(m.Key, m.EnabledByDefault))
-            .Select(m => m.Key)
-            .ToHashSet(StringComparer.Ordinal);
+        _enabled = catalog.ResolveEnabled(overrides);
         _loadedFor = tenant.TenantId;
         return _enabled;
     }

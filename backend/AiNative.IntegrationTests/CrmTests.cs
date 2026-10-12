@@ -242,6 +242,11 @@ public sealed class CrmTests(PostgresFixture postgres) : IntegrationTest(postgre
         (await GetAsync<PagedResult<CrmCompanyDto>>(otherClient, "/api/crm/companies")).Items.Should().BeEmpty();
         (await GetAsync<List<CrmStageDto>>(otherClient, "/api/crm/stages")).Select(s => s.Id).Should().NotIntersectWith(stages.Select(s => s.Id));
 
+        // 进销存依赖客户管理，要先停用它。
+        var blocked = await ownerClient.PutAsJsonAsync("/api/modules/crm", new SetModuleEnabledRequest { Enabled = false }, PlatformJson.Options, Ct);
+        blocked.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await CodeAsync(blocked)).Should().Be("module.required_by");
+        await PutAsync<ModuleDto>(ownerClient, "/api/modules/erp", new SetModuleEnabledRequest { Enabled = false });
         await PutAsync<ModuleDto>(ownerClient, "/api/modules/crm", new SetModuleEnabledRequest { Enabled = false });
         (await ownerClient.GetAsync(new Uri("/api/crm/companies", UriKind.Relative), Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
         // 停用模块后，它的动作对智能体和对话也不再可见。
@@ -432,13 +437,6 @@ public sealed class CrmTests(PostgresFixture postgres) : IntegrationTest(postgre
         detail.GetProperty("activities").GetArrayLength().Should().Be(2);
     }
 
-    private static async Task<JsonElement> InvokeAsync(HttpClient client, string key, object input)
-    {
-        var response = await PostAsync<InvokeActionResponse>(client, $"/api/actions/{key}/invoke", input);
-        response.Status.Should().Be("succeeded", response.Error);
-        return response.Output!.Value;
-    }
-
     private static async Task<Dictionary<string, CrmStageDto>> StagesAsync(HttpClient client)
         => (await GetAsync<List<CrmStageDto>>(client, "/api/crm/stages")).ToDictionary(s => s.Name);
 
@@ -449,22 +447,4 @@ public sealed class CrmTests(PostgresFixture postgres) : IntegrationTest(postgre
 
     private static async Task<List<string>> SearchCompaniesAsync(HttpClient client, string term)
         => [.. (await GetAsync<PagedResult<CrmCompanyDto>>(client, $"/api/crm/companies?search={Uri.EscapeDataString(term)}")).Items.Select(c => c.Name)];
-
-    private static async Task<string?> CodeAsync(HttpResponseMessage response)
-        => (await response.Content.ReadFromJsonAsync<JsonElement>(Ct)).GetProperty("code").GetString();
-
-    private static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement.Clone();
-
-    private async Task<string> AddMemberAsync(HttpClient ownerClient, string email, Guid roleId)
-    {
-        await PostAsync<MemberDto>(ownerClient, "/api/members", new AddMemberRequest
-        {
-            Email = email,
-            DisplayName = email.Split('@')[0],
-            Password = "Passw0rd!x",
-            RoleIds = [roleId],
-        });
-        var login = await PostAsync<AuthResponse>(Client(), "/api/auth/login", new LoginRequest { Email = email, Password = "Passw0rd!x" });
-        return login.AccessToken;
-    }
 }

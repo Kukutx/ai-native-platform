@@ -1,6 +1,7 @@
 using AiNative.Domain.Agents;
 using AiNative.Domain.Chat;
 using AiNative.Domain.Crm;
+using AiNative.Domain.Erp;
 using AiNative.Domain.Governance;
 using AiNative.Domain.Identity;
 using AiNative.Domain.Knowledge;
@@ -76,6 +77,18 @@ public interface IAppDbContext
 
     DbSet<CrmActivity> CrmActivities { get; }
 
+    DbSet<ErpProduct> ErpProducts { get; }
+
+    DbSet<ErpWarehouse> ErpWarehouses { get; }
+
+    DbSet<ErpStockLevel> ErpStockLevels { get; }
+
+    DbSet<ErpStockMovement> ErpStockMovements { get; }
+
+    DbSet<ErpSalesOrder> ErpSalesOrders { get; }
+
+    DbSet<ErpPurchaseOrder> ErpPurchaseOrders { get; }
+
     DatabaseFacade Database { get; }
 
     EntityEntry<TEntity> Entry<TEntity>(TEntity entity)
@@ -94,4 +107,12 @@ public interface ITextMatcher
     /// 任意一个字段包含 <paramref name="term"/> 即匹配。
     /// </summary>
     IQueryable<T> WhereContains<T>(IQueryable<T> source, string term, params Expression<Func<T, string>>[] fields);
+}
+
+/// <summary>
+/// 租户内按名称的编号序列（例如订单号），原子递增，随当前事务提交或回滚。
+/// </summary>
+public interface ISequenceAllocator
+{
+    Task<long> NextAsync(string name, CancellationToken cancellationToken = default);
 }
