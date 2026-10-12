@@ -87,7 +87,13 @@ export function MembersTab() {
                     <Button size='sm' variant='ghost' onClick={() => toggle.mutate(m)}>
                       {m.status === 'active' ? '停用' : '启用'}
                     </Button>
-                    <Button size='sm' variant='ghost' onClick={() => void confirm({ title: `移除 ${m.displayName}？`, confirmLabel: '移除' }).then((ok) => ok && remove.mutate(m.membershipId))}>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      disabled={remove.isPending}
+                      aria-label={`移除 ${m.displayName}`}
+                      onClick={() => void confirm({ title: `移除 ${m.displayName}？`, confirmLabel: '移除' }).then((ok) => ok && remove.mutate(m.membershipId))}
+                    >
                       <Icons.trash />
                     </Button>
                   </div>

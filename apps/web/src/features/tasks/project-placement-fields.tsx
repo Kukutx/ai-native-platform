@@ -1,5 +1,6 @@
 'use client';
 
+import { useId } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSession } from '@/components/app/session-provider';
 import { Label } from '@/components/ui/label';
@@ -17,6 +18,7 @@ export type Placement = { projectId?: string; milestoneId?: string };
  */
 export function ProjectPlacementFields({ value, onChange, disabled }: { value: Placement; onChange: (value: Placement) => void; disabled?: boolean }) {
   const { can } = useSession();
+  const id = useId();
   const visible = can('projects.view');
   const projects = useQuery({
     queryKey: queryKeys.projects({ open: true, picker: true }),
@@ -39,9 +41,9 @@ export function ProjectPlacementFields({ value, onChange, disabled }: { value: P
   return (
     <>
       <div className='grid gap-2'>
-        <Label>项目</Label>
+        <Label htmlFor={`${id}-project`}>项目</Label>
         <Select value={value.projectId ?? NONE} disabled={disabled} onValueChange={(v) => onChange({ projectId: v === NONE ? undefined : v })}>
-          <SelectTrigger className='w-full'>
+          <SelectTrigger id={`${id}-project`} className='w-full'>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -56,13 +58,13 @@ export function ProjectPlacementFields({ value, onChange, disabled }: { value: P
         </Select>
       </div>
       <div className='grid gap-2'>
-        <Label>里程碑</Label>
+        <Label htmlFor={`${id}-milestone`}>里程碑</Label>
         <Select
           value={value.milestoneId ?? NONE}
           disabled={disabled || !value.projectId}
           onValueChange={(v) => onChange({ projectId: value.projectId, milestoneId: v === NONE ? undefined : v })}
         >
-          <SelectTrigger className='w-full'>
+          <SelectTrigger id={`${id}-milestone`} className='w-full'>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

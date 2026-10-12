@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { api, streamChat } from '@/lib/api';
+import { errorMessage } from '@/lib/errors';
 import { queryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 import { ToolCallChip } from './tool-call-chip';
@@ -83,7 +84,7 @@ export function ConversationView({ conversationId, onCreated }: { conversationId
     } catch (error) {
       if (!controller.signal.aborted) {
         failed = true;
-        toast.error(error instanceof Error ? error.message : '对话出错了');
+        toast.error(`对话中断：${errorMessage(error)}`);
       }
     } finally {
       if (id) {

@@ -172,7 +172,6 @@ function CreateKeyDialog({ open, onOpenChange, onCreated }: { open: boolean; onO
               <span className='text-muted-foreground block text-xs'>只能查询，不能创建或修改任何数据。适合分享给只需要查资料的工具。</span>
             </span>
           </label>
-          {create.error ? <p className='text-destructive text-sm'>{create.error.message}</p> : null}
           <DialogFooter>
             <Button type='submit' disabled={create.isPending}>
               创建

@@ -140,7 +140,13 @@ export function DocumentsTab() {
                 <TableCell className='text-muted-foreground text-sm'>{formatTime(d.updatedAt)}</TableCell>
                 <TableCell className='text-right'>
                   {manage ? (
-                    <Button size='sm' variant='ghost' onClick={() => void confirm({ title: `删除《${d.title}》？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate(d.id))}>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      disabled={remove.isPending}
+                      aria-label={`删除《${d.title}》`}
+                      onClick={() => void confirm({ title: `删除《${d.title}》？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate(d.id))}
+                    >
                       <Icons.trash />
                     </Button>
                   ) : null}

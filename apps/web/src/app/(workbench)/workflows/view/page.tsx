@@ -88,6 +88,7 @@ function WorkflowDetail() {
               <Button
                 variant='ghost'
                 disabled={remove.isPending}
+                aria-label='删除工作流'
                 onClick={() =>
                   void confirm({ title: `删除「${workflow.name}」？`, description: '运行记录一并删除，进行中的运行会被取消。', confirmLabel: '删除' }).then(
                     (ok) => ok && remove.mutate(),

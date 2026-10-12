@@ -110,7 +110,6 @@ function DocumentForm({ draft, onClose, onSaved }: { draft: DocumentDraft; onClo
           className='max-h-[50vh] font-mono text-sm'
         />
       </div>
-      {save.error ? <p className='text-destructive text-sm'>{save.error.message}</p> : null}
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

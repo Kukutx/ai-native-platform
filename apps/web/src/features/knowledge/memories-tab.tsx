@@ -81,10 +81,9 @@ export function MemoriesTab() {
             记住
           </Button>
         </div>
-        {create.error ? <p className='text-destructive text-sm'>{create.error.message}</p> : null}
       </form>
       <div className='flex flex-wrap items-center gap-2'>
-        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder='搜索记忆' className='w-56' />
+        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder='搜索记忆' className='w-56' aria-label='搜索记忆' />
         <Select value={scope} onValueChange={(v) => setScope(v as MemoryScope | typeof ALL)}>
           <SelectTrigger className='w-36'>
             <SelectValue />
@@ -119,7 +118,13 @@ export function MemoriesTab() {
                 </p>
               </div>
               {canDelete(m) ? (
-                <Button size='sm' variant='ghost' onClick={() => void confirm({ title: '忘记这条记忆？', confirmLabel: '忘记' }).then((ok) => ok && remove.mutate(m.id))}>
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  disabled={remove.isPending}
+                  aria-label='忘记这条记忆'
+                  onClick={() => void confirm({ title: '忘记这条记忆？', confirmLabel: '忘记' }).then((ok) => ok && remove.mutate(m.id))}
+                >
                   <Icons.trash />
                 </Button>
               ) : null}
