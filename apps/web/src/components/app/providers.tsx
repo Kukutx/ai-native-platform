@@ -7,10 +7,14 @@ import { toast } from 'sonner';
 import { toProblem } from '@ainative/api-client';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { installHistoryGuard } from '@/hooks/use-unsaved-changes';
 import { errorMessage, mutationErrorMessage } from '@/lib/errors';
 import { ConfirmProvider } from './confirm-provider';
 import { RealtimeProvider } from './realtime-provider';
 import { SessionProvider } from './session-provider';
+
+// 编辑页的「后退前确认」要抢在 Next.js 之前收到 popstate，必须在应用启动时注册。
+installHistoryGuard();
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
