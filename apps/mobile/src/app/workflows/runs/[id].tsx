@@ -1,9 +1,10 @@
-import { Alert, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sessionCan, type WorkflowRunStepDto, type WorkflowStep } from '@ainative/api-client';
 import { Button, Card, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
+import { confirm } from '@/lib/confirm';
 import { formatTime, workflowRunStatus, workflowStepKind, workflowStepStatus, workflowTriggerKind } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
@@ -75,12 +76,14 @@ export default function WorkflowRunScreen() {
           variant='danger'
           loading={cancel.isPending}
           onPress={() =>
-            Platform.OS === 'web'
-              ? cancel.mutate()
-              : Alert.alert('取消这次运行？', '已完成的步骤不会回滚。', [
-                  { text: '不取消', style: 'cancel' },
-                  { text: '取消运行', style: 'destructive', onPress: () => cancel.mutate() },
-                ])
+            confirm({
+              title: '取消这次运行？',
+              message: '已完成的步骤不会回滚。',
+              confirmText: '取消运行',
+              cancelText: '不取消',
+              destructive: true,
+              onConfirm: () => cancel.mutate(),
+            })
           }
         />
       ) : null}
