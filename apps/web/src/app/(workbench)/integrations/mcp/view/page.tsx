@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { McpServerFormDialog } from '@/features/integrations/mcp-server-form-dialog';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { formatTime, mcpApprovalMode } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -61,6 +62,8 @@ function McpServerDetail() {
       router.push('/integrations');
     },
   });
+
+  useDocumentTitle(detail.data?.name ?? '外部服务');
 
   const server = detail.data;
   if (!server) {

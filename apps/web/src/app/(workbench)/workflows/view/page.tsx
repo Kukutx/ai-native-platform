@@ -20,6 +20,7 @@ import { StepTree } from '@/features/workflows/step-tree';
 import { WebhookCard } from '@/features/workflows/webhook-card';
 import { WorkflowRunTable } from '@/features/workflows/workflow-run-table';
 import { useUrlState } from '@/hooks/use-url-state';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { catalogQueries } from '@/lib/catalogs';
 import { formatTime, workflowTriggerKind } from '@/lib/labels';
@@ -56,6 +57,8 @@ function WorkflowDetail() {
       router.push('/workflows');
     },
   });
+
+  useDocumentTitle(detail.data?.name ?? '工作流');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='工作流' back={{ href: '/workflows', label: '自动化' }} />;

@@ -12,6 +12,7 @@ import { ValueRow } from '@/components/app/info-row';
 import { Icons } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RunTimeline } from '@/features/runs/run-timeline';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api, loadRealtime } from '@/lib/api';
 import { formatTime, formatUsd, runStatus, wakeupSource } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -88,6 +89,8 @@ function RunDetail() {
 
     return [...merged.values()].sort((a, b) => a.seq - b.seq);
   }, [detail.data, live.events]);
+
+  useDocumentTitle(detail.data ? `${detail.data.run.agentName} 的一次执行` : '执行记录');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='执行记录' back={{ href: '/runs', label: '执行记录' }} />;

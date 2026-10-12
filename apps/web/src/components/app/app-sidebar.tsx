@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Spinner } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
+import { PRODUCT_NAME } from '@/lib/config';
 import { queryKeys } from '@/lib/query-keys';
 import { navigation, navigationEntryFor } from './navigation';
 import { useSession } from './session-provider';
@@ -73,7 +74,7 @@ export function AppSidebar() {
                   </div>
                   <div className='grid flex-1 text-left text-sm leading-tight'>
                     <span className='truncate font-medium'>{switching.isPending ? '正在切换…' : (session?.tenant.name ?? '工作空间')}</span>
-                    <span className='text-muted-foreground truncate text-xs'>AI 原生工作台</span>
+                    <span className='text-muted-foreground truncate text-xs'>{PRODUCT_NAME}</span>
                   </div>
                   <Icons.chevronsUpDown className='ml-auto size-4' />
                 </SidebarMenuButton>

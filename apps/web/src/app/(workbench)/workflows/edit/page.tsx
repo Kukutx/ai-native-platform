@@ -8,12 +8,15 @@ import { DetailState } from '@/components/app/query-state';
 import { Icons } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WorkflowEditor } from '@/features/workflows/workflow-editor';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 
 function EditWorkflow() {
   const id = useSearchParams().get('id');
   const workflow = useQuery({ queryKey: queryKeys.workflow(id ?? ''), queryFn: ({ signal }) => api.workflows.get(id!, signal), enabled: !!id });
+  const heading = id ? (workflow.data ? `编辑「${workflow.data.name}」` : '编辑工作流') : '新建工作流';
+  useDocumentTitle(heading);
 
   return (
     <div className='mx-auto max-w-4xl space-y-6 p-6'>
@@ -21,7 +24,7 @@ function EditWorkflow() {
         <Icons.chevronLeft className='size-4' />
         {id ? '返回工作流' : '自动化'}
       </Link>
-      <h1 className='text-2xl font-semibold tracking-tight'>{id ? (workflow.data ? `编辑「${workflow.data.name}」` : '编辑工作流') : '新建工作流'}</h1>
+      <h1 className='text-2xl font-semibold tracking-tight'>{heading}</h1>
       {id && !workflow.data ? (
         workflow.isError ? (
           <DetailState id={id} query={workflow} subject='工作流' back={{ href: '/workflows', label: '自动化' }} />

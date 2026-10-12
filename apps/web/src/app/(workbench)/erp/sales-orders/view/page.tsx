@@ -16,6 +16,7 @@ import { DeliveryDialog, type DeliveryMode } from '@/features/erp/delivery-dialo
 import { OrderLinesTable } from '@/features/erp/order-lines-table';
 import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
 import { StockDocumentList } from '@/features/erp/stock-document-list';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { erpSalesOrderStatus, formatAmount, formatDate, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -42,6 +43,8 @@ function SalesOrderDetail() {
       router.replace('/erp/sales-orders');
     },
   });
+
+  useDocumentTitle(detail.data ? `销售订单 ${detail.data.number}` : '销售订单');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='销售订单' back={{ href: '/erp/sales-orders', label: '销售订单' }} />;

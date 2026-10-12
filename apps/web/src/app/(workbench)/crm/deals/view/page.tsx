@@ -20,6 +20,7 @@ import { CloseDealDialog, useMoveDeal, type MoveRequest } from '@/features/crm/m
 import { isOverdue } from '@/features/crm/utils';
 import { DealOrders } from '@/features/erp/deal-orders';
 import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { catalogQueries } from '@/lib/catalogs';
 import { crmDealStatus, crmStageKind, formatAmount, formatDate, formatTime } from '@/lib/labels';
@@ -45,6 +46,8 @@ function DealDetail() {
       router.replace('/crm');
     },
   });
+
+  useDocumentTitle(detail.data?.deal.title ?? '商机');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='商机' back={{ href: '/crm', label: '商机' }} />;

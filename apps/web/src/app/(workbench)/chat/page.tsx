@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { ChatAgentSelect, useChatAgents } from '@/features/chat/chat-agents';
 import { ConversationList } from '@/features/chat/conversation-list';
 import { ConversationView } from '@/features/chat/conversation-view';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 
@@ -29,6 +30,8 @@ function ChatWorkbench() {
     router.push(id ? `/chat?c=${id}` : '/chat');
   };
   const who = selected ? (current ? agents.label(current.agentId) : '') : (newAgent?.name ?? agents.label(undefined));
+  const title = selected ? (current?.title ?? '对话') : '新对话';
+  useDocumentTitle(title);
 
   return (
     <div className='flex min-h-0 flex-1'>
@@ -53,7 +56,7 @@ function ChatWorkbench() {
             </SheetContent>
           </Sheet>
           <div className='min-w-0 flex-1'>
-            <h1 className='truncate text-sm font-medium'>{selected ? (current?.title ?? '对话') : '新对话'}</h1>
+            <h1 className='truncate text-sm font-medium'>{title}</h1>
             <p className='text-muted-foreground flex items-center gap-1 truncate text-xs'>
               {(selected ? current?.agentId : newAgent) ? <Icons.agent className='size-3 shrink-0' /> : <Icons.sparkles className='size-3 shrink-0' />}
               {who ? `与${who}对话` : ' '}

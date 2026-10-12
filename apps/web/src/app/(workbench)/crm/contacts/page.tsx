@@ -52,6 +52,7 @@ function CrmContacts() {
     <div className='space-y-6 p-6'>
       <PageHeader
         title='客户'
+        documentTitle='联系人'
         description='联系人：客户那边和你打交道的人，最近有往来的排在前面。'
         actions={
           <>

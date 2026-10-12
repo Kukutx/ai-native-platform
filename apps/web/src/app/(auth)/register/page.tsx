@@ -5,11 +5,13 @@ import { AuthForm } from '@/components/app/auth-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthOptions } from '@/features/auth/use-auth-options';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { localTimeZone } from '@/lib/dates';
 
 export default function RegisterPage() {
   const options = useAuthOptions();
+  useDocumentTitle('注册');
   if (options.data?.allowRegistration === false) {
     return (
       <Card>

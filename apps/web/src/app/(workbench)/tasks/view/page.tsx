@@ -22,6 +22,7 @@ import { TaskCreateDialog } from '@/features/tasks/task-create-dialog';
 import { TaskPicker } from '@/features/tasks/task-picker';
 import { TaskTextEditor } from '@/features/tasks/task-text-editor';
 import { isClosed, updateRequest } from '@/features/tasks/task-update';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { formatDate, formatTime, priority, workItemStatus } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -58,6 +59,8 @@ function TaskDetail() {
       await refresh();
     },
   });
+
+  useDocumentTitle(detail.data?.item.title ?? '任务');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='任务' back={{ href: '/tasks', label: '任务' }} />;

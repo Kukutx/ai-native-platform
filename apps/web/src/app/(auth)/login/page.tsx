@@ -2,10 +2,12 @@
 
 import { AuthForm } from '@/components/app/auth-form';
 import { useAuthOptions } from '@/features/auth/use-auth-options';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 
 export default function LoginPage() {
   const options = useAuthOptions();
+  useDocumentTitle('登录');
   return (
     <AuthForm
       title='欢迎回来'

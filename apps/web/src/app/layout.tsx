@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import { Providers } from '@/components/app/providers';
+import { PRODUCT_NAME } from '@/lib/config';
 import '@/styles/globals.css';
 
 export const metadata: Metadata = {
-  title: { default: 'AI 原生工作台', template: '%s · AI 原生工作台' },
+  // 页面都是客户端组件，各页的标签页标题由 useDocumentTitle 在客户端设置；这里是默认值和服务端页面（例如 404）用的模板。
+  title: { default: PRODUCT_NAME, template: `%s · ${PRODUCT_NAME}` },
   description: '与 AI 智能体团队一起工作：对话、任务、审批与自动执行。',
 };
 

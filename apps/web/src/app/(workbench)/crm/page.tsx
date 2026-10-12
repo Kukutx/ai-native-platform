@@ -83,6 +83,7 @@ function CrmDeals() {
     <div className='flex min-h-0 flex-1 flex-col gap-6 p-6'>
       <PageHeader
         title='客户'
+        documentTitle='商机'
         description={
           view === 'board'
             ? '销售看板：拖动商机卡片推进阶段，阶段变化会自动记入跟进记录，也可以触发自动化。'
