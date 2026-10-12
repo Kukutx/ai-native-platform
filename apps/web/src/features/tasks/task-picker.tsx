@@ -31,7 +31,7 @@ export function TaskPicker({
   const results = useQuery({
     queryKey: queryKeys.workItems({ search: term, projectId, picker: true }),
     queryFn: async ({ signal }) =>
-      (await api.workItems.list(undefined, undefined, undefined, term || undefined, false, 1, 10, projectId, undefined, signal)).items,
+      (await api.workItems.list(undefined, undefined, undefined, term || undefined, false, 1, 10, projectId, undefined, undefined, undefined, signal)).items,
     enabled: open,
     placeholderData: keepPreviousData,
   });

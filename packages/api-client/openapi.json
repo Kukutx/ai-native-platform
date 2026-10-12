@@ -6368,6 +6368,33 @@
               "nullable": true
             },
             "x-position": 9
+          },
+          {
+            "name": "priority",
+            "in": "query",
+            "schema": {
+              "oneOf": [
+                {
+                  "nullable": true,
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/WorkItemPriority"
+                    }
+                  ]
+                }
+              ]
+            },
+            "x-position": 10
+          },
+          {
+            "name": "assigneeUserId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "guid",
+              "nullable": true
+            },
+            "x-position": 11
           }
         ],
         "responses": {

@@ -21,7 +21,7 @@ export type TaskFilterState = { [K in keyof typeof taskFilterDefaults]: (typeof 
 
 /**
  * 负责人筛选：me（我负责的）、none（未指派）、user:&lt;id&gt;、agent:&lt;id&gt;。
- * 后端只支持按智能体筛选，其余在已加载的任务里筛选。
+ * 智能体和成员交给后端筛选；“未指派”在已加载的任务里筛选。
  */
 export interface AssigneeFilter {
   agentId?: string;
@@ -46,17 +46,13 @@ export function parseAssignee(value: string, me: string | undefined): AssigneeFi
   return kind === 'agent' ? { agentId: id } : kind === 'user' ? { userId: id } : undefined;
 }
 
-/** 后端不支持、需要在浏览器里筛选的条件：优先级、指派给成员、未指派。 */
-export function clientFilter(filters: { assignee?: AssigneeFilter; priority?: WorkItemPriority }) {
-  const { assignee, priority } = filters;
-  if (!priority && !assignee?.userId && !assignee?.none) {
+/** 后端不支持、需要在浏览器里筛选的条件：未指派。 */
+export function clientFilter(filters: { assignee?: AssigneeFilter }) {
+  if (!filters.assignee?.none) {
     return undefined;
   }
 
-  return (task: WorkItemDto) =>
-    (!priority || task.priority === priority) &&
-    (!assignee?.userId || task.assigneeUserId === assignee.userId) &&
-    (!assignee?.none || (!task.assigneeUserId && !task.assigneeAgentId));
+  return (task: WorkItemDto) => !task.assigneeUserId && !task.assigneeAgentId;
 }
 
 export function priorityFilter(value: string): WorkItemPriority | undefined {

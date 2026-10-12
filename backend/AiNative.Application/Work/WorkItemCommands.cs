@@ -40,7 +40,9 @@ public sealed record ListWorkItemsQuery(
     int Page = 1,
     int PageSize = 50,
     Guid? ProjectId = null,
-    Guid? MilestoneId = null) : IQuery<PagedResult<WorkItemDto>>;
+    Guid? MilestoneId = null,
+    WorkItemPriority? Priority = null,
+    Guid? AssigneeUserId = null) : IQuery<PagedResult<WorkItemDto>>;
 
 [RequireFeature(Features.Tasks.View)]
 public sealed record GetWorkItemQuery(Guid Id) : IQuery<WorkItemDetailDto>;
@@ -338,6 +340,16 @@ internal sealed partial class WorkItemQueryHandlers(IAppDbContext db, ITextMatch
         if (request.AssigneeAgentId is { } agentId)
         {
             query = query.Where(w => w.AssigneeAgentId == agentId);
+        }
+
+        if (request.AssigneeUserId is { } userId)
+        {
+            query = query.Where(w => w.AssigneeUserId == userId);
+        }
+
+        if (request.Priority is { } priority)
+        {
+            query = query.Where(w => w.Priority == priority);
         }
 
         if (request.ParentId is { } parentId)

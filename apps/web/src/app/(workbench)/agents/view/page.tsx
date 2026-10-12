@@ -37,7 +37,7 @@ function AgentDetail() {
   const runs = useQuery({ queryKey: queryKeys.runs(id), queryFn: ({ signal }) => api.runs.list(id, 1, 20, signal), enabled: !!id });
   const tasks = useQuery({
     queryKey: queryKeys.workItems({ assigneeAgentId: id, openOnly: true }),
-    queryFn: ({ signal }) => api.workItems.list(undefined, id, undefined, undefined, true, 1, 50, undefined, undefined, signal),
+    queryFn: ({ signal }) => api.workItems.list(undefined, id, undefined, undefined, true, 1, 50, undefined, undefined, undefined, undefined, signal),
     enabled: !!id,
   });
 

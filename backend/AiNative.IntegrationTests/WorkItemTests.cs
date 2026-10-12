@@ -16,6 +16,34 @@ namespace AiNative.IntegrationTests;
 public sealed class WorkItemTests(PostgresFixture postgres) : IntegrationTest(postgres)
 {
     [Fact]
+    public async Task List_filters_by_priority_and_assigned_member()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var me = auth.Session.User.Id;
+        var mineUrgent = await PostAsync<WorkItemDto>(client, "/api/work-items", new CreateWorkItemRequest { Title = "我的紧急任务", Priority = WorkItemPriority.Urgent, AssigneeUserId = me });
+        await PostAsync<WorkItemDto>(client, "/api/work-items", new CreateWorkItemRequest { Title = "我的普通任务", AssigneeUserId = me });
+        await PostAsync<WorkItemDto>(client, "/api/work-items", new CreateWorkItemRequest { Title = "没人负责的紧急任务", Priority = WorkItemPriority.Urgent });
+
+        var mine = await GetAsync<PagedResult<WorkItemDto>>(client, $"/api/work-items?assigneeUserId={me}");
+        var urgent = await GetAsync<PagedResult<WorkItemDto>>(client, "/api/work-items?priority=urgent");
+        var both = await GetAsync<PagedResult<WorkItemDto>>(client, $"/api/work-items?assigneeUserId={me}&priority=urgent");
+
+        mine.Items.Select(w => w.Title).Should().BeEquivalentTo("我的紧急任务", "我的普通任务");
+        urgent.Items.Select(w => w.Title).Should().BeEquivalentTo("我的紧急任务", "没人负责的紧急任务");
+        both.Items.Should().ContainSingle().Which.Id.Should().Be(mineUrgent.Id);
+    }
+
+    [Fact]
+    public async Task Starter_agent_permissions_have_no_duplicates()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+
+        (await StarterAgentAsync(client)).Permissions.Should().OnlyHaveUniqueItems();
+    }
+
+    [Fact]
     public async Task Edit_based_on_stale_data_is_rejected_instead_of_overwriting()
     {
         var auth = await RegisterAsync();

@@ -16,7 +16,7 @@ export default function ProjectDetailScreen() {
   const detail = useQuery({ queryKey: ['project', id], queryFn: ({ signal }) => getApi().projects.get(id, signal) });
   const tasks = useQuery({
     queryKey: ['work-items', { projectId: id }],
-    queryFn: ({ signal }) => getApi().workItems.list(undefined, undefined, undefined, undefined, false, 1, 200, id, undefined, signal),
+    queryFn: ({ signal }) => getApi().workItems.list(undefined, undefined, undefined, undefined, false, 1, 200, id, undefined, undefined, undefined, signal),
     enabled: sessionCan(session.data, 'tasks.view'),
   });
   const schedule = useQuery({

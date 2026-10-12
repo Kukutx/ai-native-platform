@@ -50,7 +50,7 @@ function ProjectDetail() {
   const detail = useQuery({ queryKey: queryKeys.project(id), queryFn: ({ signal }) => api.projects.get(id, signal), enabled: !!id });
   const tasks = useQuery({
     queryKey: queryKeys.workItems({ projectId: id }),
-    queryFn: ({ signal }) => api.workItems.list(undefined, undefined, undefined, undefined, false, 1, TASK_LIMIT, id, undefined, signal),
+    queryFn: ({ signal }) => api.workItems.list(undefined, undefined, undefined, undefined, false, 1, TASK_LIMIT, id, undefined, undefined, undefined, signal),
     enabled: !!id && can('tasks.view'),
   });
   const schedule = useQuery({

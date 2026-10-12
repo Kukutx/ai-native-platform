@@ -140,7 +140,7 @@ internal sealed class AuthHandlers(
                 .. AgentDefaults.Permissions, Features.Agents.Manage, Features.Knowledge.Manage,
                 Features.Workflows.View, Features.Workflows.Manage, Features.Workflows.Run,
                 CrmFeatures.View, CrmFeatures.Manage, ErpFeatures.View, ErpFeatures.Sales, ErpFeatures.Purchase,
-                ProjectFeatures.View, ProjectFeatures.Manage, AnalyticsFeatures.Manage,
+                ProjectFeatures.Manage, AnalyticsFeatures.Manage,
             ],
             MonthlyBudgetUsd = 20,
         };

@@ -43,16 +43,30 @@ function Tasks() {
   const projectId = filters.project || undefined;
   const search = filters.q || undefined;
   const agentId = assignee?.agentId;
-  const local = clientFilter({ assignee, priority });
+  const userId = assignee?.userId;
+  const local = clientFilter({ assignee });
   // 列表视图在条件都能交给后端时按页读取；否则和看板一样载入前 200 个，在浏览器里筛选、分页。
   const paged = view === 'list' && !local;
   const page = Math.max(1, filters.page);
-  const server = { search, projectId, agentId, ...(paged ? { page, pageSize: PAGE_SIZE } : { pageSize: BOARD_LIMIT }) };
+  const server = { search, projectId, agentId, userId, priority, ...(paged ? { page, pageSize: PAGE_SIZE } : { pageSize: BOARD_LIMIT }) };
   const listKey = queryKeys.workItems(server);
   const tasks = useQuery({
     queryKey: listKey,
     queryFn: ({ signal }) =>
-      api.workItems.list(undefined, agentId, undefined, search, false, paged ? page : 1, paged ? PAGE_SIZE : BOARD_LIMIT, projectId, undefined, signal),
+      api.workItems.list(
+        undefined,
+        agentId,
+        undefined,
+        search,
+        false,
+        paged ? page : 1,
+        paged ? PAGE_SIZE : BOARD_LIMIT,
+        projectId,
+        undefined,
+        priority,
+        userId,
+        signal,
+      ),
     placeholderData: keepPreviousData,
   });
   const names = useAssigneeNames();
@@ -66,7 +80,7 @@ function Tasks() {
   const matched = (local ? tasks.data?.items.filter(local) : tasks.data?.items) ?? [];
   const total = paged ? (tasks.data?.total ?? 0) : matched.length;
   const shown = view === 'list' && !paged ? matched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : matched;
-  // 只载入了一部分时提示：看板和本地筛选都只覆盖前 200 个（按优先级、编号倒序）。
+  // 只载入了一部分时提示：看板和“未指派”筛选都只覆盖前 200 个（按优先级、编号倒序）。
   const truncated = !paged && tasks.data ? tasks.data.total > tasks.data.items.length : false;
   const filtered = !!(filters.q || filters.assignee || filters.project || filters.priority);
   const projectName = (id: string) => projectNames.get(id);
@@ -102,7 +116,7 @@ function Tasks() {
       <TaskFilterBar filters={filters} onChange={setFilters} members={names.members} agents={names.agents} />
       {truncated ? (
         <p className='text-muted-foreground text-xs'>
-          只载入了优先级最高的 {tasks.data?.items.length} 个任务（共 {tasks.data?.total} 个），可以用关键词、项目或智能体缩小范围。
+          只载入了优先级最高的 {tasks.data?.items.length} 个任务（共 {tasks.data?.total} 个），可以用关键词、项目、负责人或优先级缩小范围。
         </p>
       ) : null}
       {tasks.isPending ? (
