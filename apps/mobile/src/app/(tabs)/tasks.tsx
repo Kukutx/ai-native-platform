@@ -3,19 +3,31 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'rea
 import { router, Stack } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { TabGuard } from '@/components/tab-guard';
 import { Chip, Empty, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { priority, workItemStatus } from '@/lib/labels';
+import { useCan } from '@/lib/session';
 import { usePalette } from '@/lib/theme';
 
-export default function TasksScreen() {
+export default function TasksTab() {
+  return (
+    <TabGuard tab='tasks'>
+      <TasksScreen />
+    </TabGuard>
+  );
+}
+
+function TasksScreen() {
   const p = usePalette();
+  const can = useCan();
+  const manage = can('tasks.manage');
   const [openOnly, setOpenOnly] = useState(true);
   const tasks = useQuery({
     queryKey: ['work-items', { openOnly }],
     queryFn: ({ signal }) => getApi().workItems.list(undefined, undefined, undefined, undefined, openOnly, 1, 100, undefined, undefined, signal),
   });
-  const agents = useQuery({ queryKey: ['agents'], queryFn: ({ signal }) => getApi().agents.list(signal) });
+  const agents = useQuery({ queryKey: ['agents'], queryFn: ({ signal }) => getApi().agents.list(signal), enabled: can('agents.view') });
   const agentNames = new Map(agents.data?.map((a) => [a.id, a.name]));
 
   return (
@@ -23,11 +35,13 @@ export default function TasksScreen() {
       <Stack.Screen
         options={{
           title: '任务',
-          headerRight: () => (
-            <Pressable onPress={() => router.push('/tasks/new')} accessibilityLabel='新建任务' style={styles.headerButton}>
-              <Ionicons name='add' size={26} color={p.text} />
-            </Pressable>
-          ),
+          headerRight: manage
+            ? () => (
+                <Pressable onPress={() => router.push('/tasks/new')} accessibilityLabel='新建任务' style={styles.headerButton}>
+                  <Ionicons name='add' size={26} color={p.text} />
+                </Pressable>
+              )
+            : undefined,
         }}
       />
       <FlatList
@@ -41,7 +55,9 @@ export default function TasksScreen() {
             <Chip label='全部' active={!openOnly} onPress={() => setOpenOnly(false)} />
           </View>
         }
-        ListEmptyComponent={tasks.isPending ? null : <Empty title='没有任务' hint='点右上角新建任务，指派给智能体后它会自动开始处理。' />}
+        ListEmptyComponent={
+          tasks.isPending ? null : <Empty title='没有任务' hint={manage ? '点右上角新建任务，指派给智能体后它会自动开始处理。' : undefined} />
+        }
         renderItem={({ item }) => (
           <Pressable
             onPress={() => router.push({ pathname: '/tasks/[id]', params: { id: item.id } })}

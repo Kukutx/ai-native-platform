@@ -4,6 +4,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, Stack } from 'expo-router';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { sessionCan, type CrmDealStatus } from '@ainative/api-client';
+import { TabGuard } from '@/components/tab-guard';
 import { Card, Chip, Empty, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { crmDealStatus, formatAmount, formatDate, formatTime, formatTotals } from '@/lib/labels';
@@ -25,7 +26,15 @@ const segments: { key: Segment; label: string }[] = [
   { key: 'contacts', label: '联系人' },
 ];
 
-export default function CrmScreen() {
+export default function CrmTab() {
+  return (
+    <TabGuard tab='crm'>
+      <CrmScreen />
+    </TabGuard>
+  );
+}
+
+function CrmScreen() {
   const p = usePalette();
   const [segment, setSegment] = useState<Segment>('deals');
   const [status, setStatus] = useState<CrmDealStatus>('open');

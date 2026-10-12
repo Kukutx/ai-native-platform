@@ -1,12 +1,21 @@
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { router, Stack } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { TabGuard } from '@/components/tab-guard';
 import { Button, Empty, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
-export default function ConversationsScreen() {
+export default function ConversationsTab() {
+  return (
+    <TabGuard tab='index'>
+      <ConversationsScreen />
+    </TabGuard>
+  );
+}
+
+function ConversationsScreen() {
   const p = usePalette();
   const queryClient = useQueryClient();
   const conversations = useQuery({ queryKey: ['conversations'], queryFn: ({ signal }) => getApi().conversations.list(signal) });
