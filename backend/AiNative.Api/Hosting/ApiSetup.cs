@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Storage;
 using NSwag;
 using NSwag.Generation.Processors.Security;
 using Serilog;
@@ -146,7 +147,14 @@ internal static class ApiSetup
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // 先建好迁移历史表：空数据库上 EF 会先查询这张表，失败后才去创建，留下一条看着像故障的错误日志。
+        // 数据库本身不存在时先建库（例如连接的是一台全新的 PostgreSQL 实例）。
+        var creator = db.GetService<IRelationalDatabaseCreator>();
+        if (!await creator.ExistsAsync().ConfigureAwait(false))
+        {
+            await creator.CreateAsync().ConfigureAwait(false);
+        }
+
+        // 再建好迁移历史表：空数据库上 EF 会先查询这张表，失败后才去创建，留下一条看着像故障的错误日志。
         await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync().ConfigureAwait(false);
         await db.Database.MigrateAsync().ConfigureAwait(false);
     }
