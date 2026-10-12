@@ -75,6 +75,11 @@ public sealed class ErpStockLevel : TenantEntity
 
     public decimal Reserved { get; set; }
 
+    /// <summary>
+    /// 移动加权平均成本（产品货币）：每次带成本入库时按 (原数量 × 原成本 + 入库数量 × 入库成本) ÷ 新数量重算，出库不改变。
+    /// </summary>
+    public decimal AverageCost { get; set; }
+
     public decimal Available => OnHand - Reserved;
 }
 
@@ -98,6 +103,16 @@ public enum ErpStockMovementKind
     TransferIn = 3,
 
     TransferOut = 4,
+
+    /// <summary>
+    /// 客户退货入库。
+    /// </summary>
+    SalesReturn = 5,
+
+    /// <summary>
+    /// 退货给供应商出库。
+    /// </summary>
+    PurchaseReturn = 6,
 }
 
 /// <summary>
@@ -121,11 +136,26 @@ public sealed class ErpStockMovement : TenantEntity
     /// </summary>
     public decimal BalanceAfter { get; set; }
 
+    /// <summary>
+    /// 单位成本（产品货币）：入库为入库成本，出库为当时的平均成本。
+    /// </summary>
+    public decimal UnitCost { get; set; }
+
+    /// <summary>
+    /// 成本金额 = 变化量 × 单位成本：入库为正，出库为负。
+    /// </summary>
+    public decimal CostAmount { get; set; }
+
     public string Note { get; set; } = string.Empty;
 
     public Guid? SalesOrderId { get; set; }
 
     public Guid? PurchaseOrderId { get; set; }
+
+    /// <summary>
+    /// 产生这条流水的发货单、收货单或退货单。
+    /// </summary>
+    public Guid? DocumentId { get; set; }
 
     public Actor Actor { get; set; }
 

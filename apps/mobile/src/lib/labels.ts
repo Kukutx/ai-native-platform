@@ -123,6 +123,7 @@ export const crmActivityKind: Record<CrmActivityKind, string> = {
 export const erpSalesOrderStatus: Record<ErpSalesOrderStatus, string> = {
   draft: '草稿',
   confirmed: '待发货',
+  partially_shipped: '部分发货',
   shipped: '已发货',
   cancelled: '已取消',
 };
@@ -130,6 +131,7 @@ export const erpSalesOrderStatus: Record<ErpSalesOrderStatus, string> = {
 export const erpPurchaseOrderStatus: Record<ErpPurchaseOrderStatus, string> = {
   draft: '草稿',
   ordered: '待收货',
+  partially_received: '部分到货',
   received: '已入库',
   cancelled: '已取消',
 };
@@ -140,6 +142,8 @@ export const erpMovementKind: Record<ErpStockMovementKind, string> = {
   adjustment: '库存调整',
   transfer_in: '调拨入库',
   transfer_out: '调拨出库',
+  sales_return: '客户退货',
+  purchase_return: '退给供应商',
 };
 
 /** 数量最多 4 位小数，整数不显示小数部分。 */

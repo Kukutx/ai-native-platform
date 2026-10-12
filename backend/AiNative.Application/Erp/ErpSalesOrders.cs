@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AiNative.Application.Erp;
 
+/// <param name="Pending">只看还没发完的订单（已确认和部分发货）。</param>
 [RequireFeature(ErpFeatures.View)]
 public sealed record ListErpSalesOrdersQuery(
     string? Search = null,
@@ -20,7 +21,8 @@ public sealed record ListErpSalesOrdersQuery(
     Guid? DealId = null,
     Guid? OwnerUserId = null,
     int Page = 1,
-    int PageSize = 50) : IQuery<PagedResult<ErpSalesOrderDto>>;
+    int PageSize = 50,
+    bool Pending = false) : IQuery<PagedResult<ErpSalesOrderDto>>;
 
 [RequireFeature(ErpFeatures.View)]
 public sealed record GetErpSalesOrderQuery(Guid Id) : IQuery<ErpSalesOrderDto>;
@@ -36,7 +38,14 @@ public sealed record UpdateErpSalesOrderCommand(Guid Id, SaveErpSalesOrderReques
 public sealed record ConfirmErpSalesOrderCommand(Guid Id) : ICommand<ErpSalesOrderDto>;
 
 [RequireFeature(ErpFeatures.Sales)]
-public sealed record ShipErpSalesOrderCommand(Guid Id, Guid? RunId = null) : ICommand<ErpSalesOrderDto>;
+/// <param name="Request">本次发货的产品和数量；为空时发出全部未发的数量。</param>
+public sealed record ShipErpSalesOrderCommand(Guid Id, ErpDeliveryRequest? Request = null, Guid? RunId = null) : ICommand<ErpSalesOrderDto>;
+
+[RequireFeature(ErpFeatures.Sales)]
+public sealed record CloseErpSalesOrderCommand(Guid Id) : ICommand<ErpSalesOrderDto>;
+
+[RequireFeature(ErpFeatures.Sales)]
+public sealed record ReturnErpSalesOrderCommand(Guid Id, ErpReturnRequest Request, Guid? RunId = null) : ICommand<ErpSalesOrderDto>;
 
 [RequireFeature(ErpFeatures.Sales)]
 public sealed record CancelErpSalesOrderCommand(Guid Id) : ICommand<ErpSalesOrderDto>;
@@ -64,12 +73,23 @@ public sealed class UpdateErpSalesOrderCommandValidator : AbstractValidator<Upda
     public UpdateErpSalesOrderCommandValidator() => RuleFor(x => x.Request).SetValidator(new SaveErpSalesOrderRequestValidator());
 }
 
+public sealed class ShipErpSalesOrderCommandValidator : AbstractValidator<ShipErpSalesOrderCommand>
+{
+    public ShipErpSalesOrderCommandValidator() => RuleFor(x => x.Request!).SetValidator(new ErpDeliveryRequestValidator()).When(x => x.Request is not null);
+}
+
+public sealed class ReturnErpSalesOrderCommandValidator : AbstractValidator<ReturnErpSalesOrderCommand>
+{
+    public ReturnErpSalesOrderCommandValidator() => RuleFor(x => x.Request).SetValidator(new ErpReturnRequestValidator());
+}
+
 public static class ErpLabels
 {
     public static string Of(ErpSalesOrderStatus status) => status switch
     {
         ErpSalesOrderStatus.Draft => "草稿",
         ErpSalesOrderStatus.Confirmed => "已确认",
+        ErpSalesOrderStatus.PartiallyShipped => "部分发货",
         ErpSalesOrderStatus.Shipped => "已发货",
         _ => "已取消",
     };
@@ -78,6 +98,7 @@ public static class ErpLabels
     {
         ErpPurchaseOrderStatus.Draft => "草稿",
         ErpPurchaseOrderStatus.Ordered => "已下单",
+        ErpPurchaseOrderStatus.PartiallyReceived => "部分到货",
         ErpPurchaseOrderStatus.Received => "已到货",
         _ => "已取消",
     };
@@ -87,6 +108,7 @@ internal sealed class ErpSalesOrderHandlers(
     IAppDbContext db,
     ITenantContext tenant,
     ErpRecords records,
+    ErpDocuments documents,
     IStockLedger ledger,
     ITextMatcher text,
     IChangeFeed changes,
@@ -97,6 +119,8 @@ internal sealed class ErpSalesOrderHandlers(
     IRequestHandler<UpdateErpSalesOrderCommand, ErpSalesOrderDto>,
     IRequestHandler<ConfirmErpSalesOrderCommand, ErpSalesOrderDto>,
     IRequestHandler<ShipErpSalesOrderCommand, ErpSalesOrderDto>,
+    IRequestHandler<CloseErpSalesOrderCommand, ErpSalesOrderDto>,
+    IRequestHandler<ReturnErpSalesOrderCommand, ErpSalesOrderDto>,
     IRequestHandler<CancelErpSalesOrderCommand, ErpSalesOrderDto>,
     IRequestHandler<DeleteErpSalesOrderCommand, Unit>
 {
@@ -115,6 +139,11 @@ internal sealed class ErpSalesOrderHandlers(
         if (request.Status is { } status)
         {
             query = query.Where(o => o.Status == status);
+        }
+
+        if (request.Pending)
+        {
+            query = query.Where(o => o.Status == ErpSalesOrderStatus.Confirmed || o.Status == ErpSalesOrderStatus.PartiallyShipped);
         }
 
         if (request.CompanyId is { } companyId)
@@ -236,24 +265,39 @@ internal sealed class ErpSalesOrderHandlers(
     }
 
     /// <summary>
-    /// 发货：扣减在库数量并释放对应的预留，每行记一条出库流水。
+    /// 发货（可以只发一部分）：管库存的产品扣减在库数量并释放对应的预留，按出库时的平均成本记出库流水，
+    /// 生成一张发货单；全部发完时订单变为已发货，否则为部分发货。
     /// </summary>
     public async Task<ErpSalesOrderDto> HandleAsync(ShipErpSalesOrderCommand request, CancellationToken cancellationToken)
     {
         var now = clock.GetUtcNow();
-        var order = await LockAsync(request.Id, [ErpSalesOrderStatus.Confirmed], "发货", cancellationToken).ConfigureAwait(false);
-        var products = await TrackedProductsAsync(order, cancellationToken).ConfigureAwait(false);
+        var order = await LockAsync(request.Id, [ErpSalesOrderStatus.Confirmed, ErpSalesOrderStatus.PartiallyShipped], "发货", cancellationToken).ConfigureAwait(false);
+        var products = await records.LockedProductsAsync(order.Lines.Select(l => l.ProductId), cancellationToken).ConfigureAwait(false);
+        var quantities = ErpDocuments.Quantities(order.Lines, request.Request?.Lines, l => l.Remaining, products, "发货");
+        var document = await documents.CreateAsync(
+            ErpStockDocumentKind.Shipment, order, null, order.WarehouseId, request.Request?.Note ?? string.Empty, request.RunId, cancellationToken).ConfigureAwait(false);
         var shortages = new List<string>();
-        foreach (var line in TrackedLines(order, products))
+        foreach (var (line, quantity) in ErpDocuments.Ordered(order.Lines, quantities))
         {
-            var moved = await records.MoveStockAsync(
-                line.ProductId, order.WarehouseId, ErpStockMovementKind.Sale, -line.Quantity, -line.Quantity, false, $"销售订单 {order.Number} 发货", order.Id, null, request.RunId, cancellationToken)
-                .ConfigureAwait(false);
-            if (moved is null)
+            var product = products[line.ProductId];
+            var unitCost = product.Cost ?? 0;
+            if (product.TrackInventory)
             {
-                var current = await ledger.LockAsync(line.ProductId, order.WarehouseId, cancellationToken).ConfigureAwait(false);
-                shortages.Add(ErpRecords.Shortage(products[line.ProductId], line.Quantity, current.OnHand));
+                var moved = await records.MoveStockAsync(
+                        line.ProductId, order.WarehouseId, ErpStockMovementKind.Sale, -quantity, -quantity, false, $"销售订单 {order.Number} 发货（{document.Number}）",
+                        order.Id, null, request.RunId, cancellationToken, documentId: document.Id)
+                    .ConfigureAwait(false);
+                if (moved is null)
+                {
+                    var current = await ledger.LockAsync(line.ProductId, order.WarehouseId, cancellationToken).ConfigureAwait(false);
+                    shortages.Add(ErpRecords.Shortage(product, quantity, current.OnHand));
+                    continue;
+                }
+
+                unitCost = moved.UnitCost;
             }
+
+            ErpDocuments.AddLine(document, line, quantity, line.Delivered, unitCost, product);
         }
 
         if (shortages.Count > 0)
@@ -261,13 +305,69 @@ internal sealed class ErpSalesOrderHandlers(
             throw new ConflictException("erp.insufficient_stock", $"在库数量不足，无法发货（可能盘点时少了货）：{string.Join("；", shortages)}。请先核实库存。");
         }
 
-        order.Ship(now);
+        order.Ship(quantities, now);
         order.UpdatedAt = now;
-        return await PublishAsync(order, ErpEventKeys.SalesOrderShipped, cancellationToken).ConfigureAwait(false);
+        return await PublishAsync(order, ErpEventKeys.SalesOrderShipped, document, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
-    /// 取消：草稿直接取消；已确认的订单释放预留的库存。已发货的订单不能取消。
+    /// 结束发货：部分发货的订单不再发剩下的数量，释放剩下的预留，订单变为已发货。
+    /// </summary>
+    public async Task<ErpSalesOrderDto> HandleAsync(CloseErpSalesOrderCommand request, CancellationToken cancellationToken)
+    {
+        var now = clock.GetUtcNow();
+        var order = await LockAsync(request.Id, [ErpSalesOrderStatus.PartiallyShipped], "结束发货", cancellationToken).ConfigureAwait(false);
+        await ReleaseAsync(order, cancellationToken).ConfigureAwait(false);
+        order.CloseShipping(now);
+        order.UpdatedAt = now;
+        changes.Publish(ErpRealtime.SalesOrder, order.Id, RealtimeChangeKind.Updated);
+        return (await ErpMapping.SalesOrdersAsync(db, [order], cancellationToken).ConfigureAwait(false))[0];
+    }
+
+    /// <summary>
+    /// 客户退货：退回的货入库（默认回到订单的仓库），成本按这张订单发货时的平均成本冲回，生成一张退货单。
+    /// 订单状态不变，退货数量记在订单行上。
+    /// </summary>
+    public async Task<ErpSalesOrderDto> HandleAsync(ReturnErpSalesOrderCommand request, CancellationToken cancellationToken)
+    {
+        var r = request.Request;
+        var order = await LockAsync(request.Id, [ErpSalesOrderStatus.PartiallyShipped, ErpSalesOrderStatus.Shipped], "退货", cancellationToken).ConfigureAwait(false);
+        var warehouseId = r.WarehouseId is { } id ? (await records.WarehouseAsync(id, cancellationToken).ConfigureAwait(false)).Id : order.WarehouseId;
+        var products = await records.LockedProductsAsync(order.Lines.Select(l => l.ProductId), cancellationToken).ConfigureAwait(false);
+        var quantities = ErpDocuments.Quantities(order.Lines, r.Lines, l => l.Returnable, products, "退");
+
+        // 这张订单每个产品发出去（减去已退回）的数量和成本，退回时按它们的平均值冲回，毛利与发货时的成本一致。
+        var settled = await db.ErpStockDocuments.AsNoTracking()
+            .Where(d => d.SalesOrderId == order.Id)
+            .SelectMany(d => d.Lines, (d, l) => new { d.Kind, l.ProductId, l.Quantity, l.CostAmount })
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var document = await documents.CreateAsync(ErpStockDocumentKind.SalesReturn, order, null, warehouseId, r.Note, request.RunId, cancellationToken).ConfigureAwait(false);
+        foreach (var (line, quantity) in ErpDocuments.Ordered(order.Lines, quantities))
+        {
+            var product = products[line.ProductId];
+            var shipped = settled.Where(x => x.ProductId == line.ProductId).ToList();
+            var netQuantity = shipped.Sum(x => ErpStockDocument.Sign(x.Kind) * x.Quantity);
+            var netCost = shipped.Sum(x => ErpStockDocument.Sign(x.Kind) * x.CostAmount);
+            var unitCost = netQuantity > 0 ? ErpCosting.Unit(netCost / netQuantity) : product.Cost ?? 0;
+            if (product.TrackInventory)
+            {
+                _ = await records.MoveStockAsync(
+                        line.ProductId, warehouseId, ErpStockMovementKind.SalesReturn, quantity, 0, false, $"销售订单 {order.Number} 退货（{document.Number}）",
+                        order.Id, null, request.RunId, cancellationToken, unitCost, document.Id)
+                    .ConfigureAwait(false)
+                    ?? throw new InvalidOperationException($"销售订单 {order.Number} 退货入库失败。");
+            }
+
+            ErpDocuments.AddLine(document, line, quantity, line.Returned, unitCost, product);
+        }
+
+        order.Return(quantities);
+        order.UpdatedAt = clock.GetUtcNow();
+        return await PublishAsync(order, ErpEventKeys.SalesOrderReturned, document, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 取消：草稿直接取消；已确认的订单释放预留的库存。已经发货的订单不能取消（部分发货的可以结束发货）。
     /// </summary>
     public async Task<ErpSalesOrderDto> HandleAsync(CancelErpSalesOrderCommand request, CancellationToken cancellationToken)
     {
@@ -275,13 +375,7 @@ internal sealed class ErpSalesOrderHandlers(
         var order = await LockAsync(request.Id, [ErpSalesOrderStatus.Draft, ErpSalesOrderStatus.Confirmed], "取消", cancellationToken).ConfigureAwait(false);
         if (order.Status == ErpSalesOrderStatus.Confirmed)
         {
-            var products = await TrackedProductsAsync(order, cancellationToken).ConfigureAwait(false);
-            foreach (var line in TrackedLines(order, products))
-            {
-                _ = await ledger.TryChangeAsync(line.ProductId, order.WarehouseId, 0, -line.Quantity, false, cancellationToken).ConfigureAwait(false)
-                    ?? throw new InvalidOperationException($"销售订单 {order.Number} 的预留数量与库存不一致。");
-                changes.Publish(ErpRealtime.Stock, line.ProductId, RealtimeChangeKind.Updated);
-            }
+            await ReleaseAsync(order, cancellationToken).ConfigureAwait(false);
         }
 
         order.Cancel(now);
@@ -312,6 +406,20 @@ internal sealed class ErpSalesOrderHandlers(
         return locked == 0 ? throw StatusChanged(order.Status, action) : order;
     }
 
+    /// <summary>
+    /// 释放订单还没发出的那部分预留。
+    /// </summary>
+    private async Task ReleaseAsync(ErpSalesOrder order, CancellationToken cancellationToken)
+    {
+        var products = await TrackedProductsAsync(order, cancellationToken).ConfigureAwait(false);
+        foreach (var line in TrackedLines(order, products).Where(l => l.Remaining > 0))
+        {
+            _ = await ledger.TryChangeAsync(line.ProductId, order.WarehouseId, 0, -line.Remaining, false, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException($"销售订单 {order.Number} 的预留数量与库存不一致。");
+            changes.Publish(ErpRealtime.Stock, line.ProductId, RealtimeChangeKind.Updated);
+        }
+    }
+
     private static ConflictException StatusChanged(ErpSalesOrderStatus status, string action)
         => new("erp_sales_order.status_changed", $"订单当前是「{ErpLabels.Of(status)}」，不能{action}。已刷新为最新状态。");
 
@@ -324,13 +432,35 @@ internal sealed class ErpSalesOrderHandlers(
     private static IEnumerable<ErpOrderLine> TrackedLines(ErpSalesOrder order, Dictionary<Guid, ErpProduct> products)
         => order.Lines.Where(l => products.ContainsKey(l.ProductId)).OrderBy(l => l.ProductId);
 
-    private async Task<ErpSalesOrderDto> PublishAsync(ErpSalesOrder order, string eventType, CancellationToken cancellationToken)
+    /// <summary>
+    /// 推送订单变化并发布事件；有单据时载荷带上 document（本次的发货单或退货单）。
+    /// </summary>
+    private async Task<ErpSalesOrderDto> PublishAsync(ErpSalesOrder order, string eventType, CancellationToken cancellationToken, ErpStockDocument? document = null)
     {
         changes.Publish(ErpRealtime.SalesOrder, order.Id, RealtimeChangeKind.Updated);
+        if (document is not null)
+        {
+            changes.Publish(ErpRealtime.Document, document.Id, RealtimeChangeKind.Created);
+        }
+
+        // 订单 DTO 里的已发货金额、毛利由单据汇总，先保存本次的单据再映射。
+        await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         var dto = (await ErpMapping.SalesOrdersAsync(db, [order], cancellationToken).ConfigureAwait(false))[0];
-        await records.PublishAsync(eventType, order.Id, () => Task.FromResult(new Dictionary<string, object?> { ["order"] = dto }), cancellationToken).ConfigureAwait(false);
+        await records.PublishAsync(eventType, order.Id, async () =>
+        {
+            var payload = new Dictionary<string, object?> { ["order"] = dto };
+            if (document is not null)
+            {
+                payload["document"] = (await ErpMapping.DocumentsAsync(db, [document], cancellationToken).ConfigureAwait(false))[0];
+            }
+
+            return payload;
+        }, cancellationToken).ConfigureAwait(false);
         return dto;
     }
+
+    private Task<ErpSalesOrderDto> PublishAsync(ErpSalesOrder order, string eventType, ErpStockDocument document, CancellationToken cancellationToken)
+        => PublishAsync(order, eventType, cancellationToken, document);
 
     /// <summary>
     /// 写入客户、仓库与订单行。来自商机时带出客户、联系人和货币；只选了联系人时带上其所属客户；联系人与客户对不上时拒绝。

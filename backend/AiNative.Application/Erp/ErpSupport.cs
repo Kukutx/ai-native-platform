@@ -14,9 +14,9 @@ using Microsoft.EntityFrameworkCore;
 namespace AiNative.Application.Erp;
 
 /// <summary>
-/// 某个产品在某个仓库的在库与预留数量。
+/// 某个产品在某个仓库的在库与预留数量，以及移动加权平均成本。
 /// </summary>
-public readonly record struct StockBalance(decimal OnHand, decimal Reserved)
+public readonly record struct StockBalance(decimal OnHand, decimal Reserved, decimal AverageCost = 0)
 {
     public decimal Available => OnHand - Reserved;
 }
@@ -35,13 +35,15 @@ public interface IStockLedger
     /// 原子地改变在库与预留数量。改完后在库或预留小于 0、或 <paramref name="requireAvailable"/> 时可用数量小于 0，
     /// 则什么都不改并返回 null。
     /// </summary>
+    /// <param name="unitCost">入库（在库增加）时的单位成本，在同一条语句里重算移动加权平均成本；为空时平均成本不变。</param>
     Task<StockBalance?> TryChangeAsync(
         Guid productId,
         Guid warehouseId,
         decimal onHandDelta,
         decimal reservedDelta,
         bool requireAvailable,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        decimal? unitCost = null);
 
     /// <summary>
     /// 以共享方式锁住这些产品行直到事务结束，之后读到的"是否管库存"在本事务内不会再变。
@@ -62,17 +64,27 @@ internal static class ErpMapping
             return [];
         }
 
-        var ids = products.Select(p => p.Id).ToList();
-        var totals = await db.ErpStockLevels.AsNoTracking()
-            .Where(l => ids.Contains(l.ProductId))
-            .GroupBy(l => l.ProductId)
-            .Select(g => new { g.Key, OnHand = g.Sum(l => l.OnHand), Reserved = g.Sum(l => l.Reserved) })
-            .ToDictionaryAsync(x => x.Key, x => new StockBalance(x.OnHand, x.Reserved), cancellationToken)
-            .ConfigureAwait(false);
+        var totals = await StockTotalsAsync(db, products.Select(p => p.Id), cancellationToken).ConfigureAwait(false);
         return [.. products.Select(p => p.ToDto(totals.GetValueOrDefault(p.Id)))];
     }
 
-    public static ErpProductDto ToDto(this ErpProduct p, StockBalance stock)
+    /// <summary>
+    /// 产品在全部仓库的在库、预留合计与库存金额（各仓库在库 × 平均成本之和）。
+    /// </summary>
+    public static async Task<Dictionary<Guid, StockTotals>> StockTotalsAsync(IAppDbContext db, IEnumerable<Guid> productIds, CancellationToken cancellationToken)
+    {
+        var ids = productIds.Distinct().ToList();
+        return ids.Count == 0
+            ? []
+            : await db.ErpStockLevels.AsNoTracking()
+                .Where(l => ids.Contains(l.ProductId))
+                .GroupBy(l => l.ProductId)
+                .Select(g => new { g.Key, OnHand = g.Sum(l => l.OnHand), Reserved = g.Sum(l => l.Reserved), Value = g.Sum(l => l.OnHand * l.AverageCost) })
+                .ToDictionaryAsync(x => x.Key, x => new StockTotals(x.OnHand, x.Reserved, x.Value), cancellationToken)
+                .ConfigureAwait(false);
+    }
+
+    public static ErpProductDto ToDto(this ErpProduct p, StockTotals stock)
     {
         var balance = p.TrackInventory ? stock : default;
         return new ErpProductDto(
@@ -92,6 +104,8 @@ internal static class ErpMapping
             balance.Reserved,
             balance.Available,
             ErpStockRules.IsLow(p, balance.Available),
+            balance.OnHand > 0 ? ErpCosting.Unit(balance.Value / balance.OnHand) : null,
+            Math.Round(balance.Value, 2, MidpointRounding.AwayFromZero),
             p.CreatedAt,
             p.UpdatedAt);
     }
@@ -122,6 +136,9 @@ internal static class ErpMapping
                     l.OnHand,
                     l.Reserved,
                     l.OnHand - l.Reserved,
+                    l.AverageCost,
+                    ErpCosting.Amount(l.OnHand, l.AverageCost),
+                    product?.Currency ?? string.Empty,
                     l.UpdatedAt);
             }),
         ];
@@ -146,6 +163,11 @@ internal static class ErpMapping
             ? []
             : await db.ErpPurchaseOrders.AsNoTracking().Where(o => purchaseIds.Contains(o.Id))
                 .ToDictionaryAsync(o => o.Id, o => o.Number, cancellationToken).ConfigureAwait(false);
+        var documentIds = movements.Where(m => m.DocumentId.HasValue).Select(m => m.DocumentId!.Value).Distinct().ToList();
+        var documents = documentIds.Count == 0
+            ? []
+            : await db.ErpStockDocuments.AsNoTracking().Where(d => documentIds.Contains(d.Id))
+                .ToDictionaryAsync(d => d.Id, d => d.Number, cancellationToken).ConfigureAwait(false);
         var actors = await ActorNames.ResolveAsync(db, movements.Select(m => m.Actor), cancellationToken).ConfigureAwait(false);
         return
         [
@@ -163,11 +185,16 @@ internal static class ErpMapping
                     m.Kind,
                     m.Quantity,
                     m.BalanceAfter,
+                    m.UnitCost,
+                    m.CostAmount,
+                    product?.Currency ?? string.Empty,
                     m.Note,
                     m.SalesOrderId,
                     NameOf(sales, m.SalesOrderId),
                     m.PurchaseOrderId,
                     NameOf(purchases, m.PurchaseOrderId),
+                    m.DocumentId,
+                    NameOf(documents, m.DocumentId),
                     actors(m.Actor),
                     m.CreatedAt);
             }),
@@ -198,6 +225,18 @@ internal static class ErpMapping
             db,
             orders.Select(o => o.CreatedBy).Concat(orders.Where(o => o.OwnerUserId.HasValue).Select(o => Actor.ForUser(o.OwnerUserId!.Value))),
             cancellationToken).ConfigureAwait(false);
+        var orderIds = orders.Select(o => (Guid?)o.Id).ToList();
+        var settled = (await db.ErpStockDocuments.AsNoTracking()
+                .Where(d => orderIds.Contains(d.SalesOrderId))
+                .SelectMany(d => d.Lines, (d, l) => new { d.SalesOrderId, d.Kind, l.Amount, l.CostAmount, Matched = l.CostCurrency == d.Currency })
+                .ToListAsync(cancellationToken).ConfigureAwait(false))
+            .GroupBy(x => x.SalesOrderId!.Value)
+            .ToDictionary(g => g.Key, g =>
+            {
+                var amount = g.Sum(x => ErpStockDocument.Sign(x.Kind) * x.Amount);
+                decimal? cost = g.All(x => x.Matched) ? g.Sum(x => ErpStockDocument.Sign(x.Kind) * x.CostAmount) : null;
+                return (Amount: amount, Cost: cost);
+            });
         return
         [
             .. orders.Select(o => new ErpSalesOrderDto(
@@ -217,6 +256,9 @@ internal static class ErpMapping
                 o.Note,
                 o.Total,
                 Lines(o.Lines, products),
+                settled.TryGetValue(o.Id, out var shipped) ? shipped.Amount : 0,
+                settled.TryGetValue(o.Id, out shipped) ? shipped.Cost : 0,
+                settled.TryGetValue(o.Id, out shipped) ? shipped.Amount - shipped.Cost : 0,
                 o.OwnerUserId is { } owner ? actors(Actor.ForUser(owner)) : null,
                 actors(o.CreatedBy),
                 o.CreatedAt,
@@ -238,6 +280,12 @@ internal static class ErpMapping
         var warehouses = await WarehouseNamesAsync(db, orders.Select(o => o.WarehouseId), cancellationToken).ConfigureAwait(false);
         var suppliers = await CompanyNamesAsync(db, orders.Select(o => o.SupplierId), cancellationToken).ConfigureAwait(false);
         var actors = await ActorNames.ResolveAsync(db, orders.Select(o => o.CreatedBy), cancellationToken).ConfigureAwait(false);
+        var orderIds = orders.Select(o => (Guid?)o.Id).ToList();
+        var received = await db.ErpStockDocuments.AsNoTracking()
+            .Where(d => orderIds.Contains(d.PurchaseOrderId))
+            .GroupBy(d => d.PurchaseOrderId!.Value)
+            .Select(g => new { g.Key, Amount = g.Sum(d => d.Kind == ErpStockDocumentKind.Receipt ? d.Amount : -d.Amount) })
+            .ToDictionaryAsync(x => x.Key, x => x.Amount, cancellationToken).ConfigureAwait(false);
         return
         [
             .. orders.Select(o => new ErpPurchaseOrderDto(
@@ -254,6 +302,7 @@ internal static class ErpMapping
                 o.Note,
                 o.Total,
                 Lines(o.Lines, products),
+                received.GetValueOrDefault(o.Id),
                 actors(o.CreatedBy),
                 o.CreatedAt,
                 o.UpdatedAt,
@@ -263,19 +312,77 @@ internal static class ErpMapping
         ];
     }
 
+    public static async Task<IReadOnlyList<ErpStockDocumentDto>> DocumentsAsync(IAppDbContext db, IReadOnlyList<ErpStockDocument> documents, CancellationToken cancellationToken)
+    {
+        if (documents.Count == 0)
+        {
+            return [];
+        }
+
+        var products = await ProductInfoAsync(db, documents.SelectMany(d => d.Lines).Select(l => l.ProductId), cancellationToken).ConfigureAwait(false);
+        var warehouses = await WarehouseNamesAsync(db, documents.Select(d => d.WarehouseId), cancellationToken).ConfigureAwait(false);
+        var salesIds = documents.Where(d => d.SalesOrderId.HasValue).Select(d => d.SalesOrderId!.Value).Distinct().ToList();
+        var sales = salesIds.Count == 0
+            ? []
+            : await db.ErpSalesOrders.AsNoTracking().Where(o => salesIds.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => (o.Number, CompanyId: o.CompanyId), cancellationToken).ConfigureAwait(false);
+        var purchaseIds = documents.Where(d => d.PurchaseOrderId.HasValue).Select(d => d.PurchaseOrderId!.Value).Distinct().ToList();
+        var purchases = purchaseIds.Count == 0
+            ? []
+            : await db.ErpPurchaseOrders.AsNoTracking().Where(o => purchaseIds.Contains(o.Id))
+                .ToDictionaryAsync(o => o.Id, o => (o.Number, CompanyId: o.SupplierId), cancellationToken).ConfigureAwait(false);
+        var companies = await CompanyNamesAsync(db, sales.Values.Concat(purchases.Values).Select(o => o.CompanyId), cancellationToken).ConfigureAwait(false);
+        var actors = await ActorNames.ResolveAsync(db, documents.Select(d => d.CreatedBy), cancellationToken).ConfigureAwait(false);
+        return
+        [
+            .. documents.Select(d =>
+            {
+                (string Number, Guid? CompanyId)? order = d.SalesOrderId is { } salesId && sales.TryGetValue(salesId, out var s) ? s
+                    : d.PurchaseOrderId is { } purchaseId && purchases.TryGetValue(purchaseId, out var p) ? p
+                    : null;
+                return new ErpStockDocumentDto(
+                    d.Id,
+                    d.Number,
+                    d.Kind,
+                    d.SalesOrderId,
+                    d.PurchaseOrderId,
+                    order?.Number,
+                    order?.CompanyId,
+                    NameOf(companies, order?.CompanyId),
+                    d.WarehouseId,
+                    warehouses.GetValueOrDefault(d.WarehouseId) ?? string.Empty,
+                    d.Currency,
+                    d.Amount,
+                    d.Note,
+                    [
+                        .. d.Lines.Select(l =>
+                        {
+                            var product = products.GetValueOrDefault(l.ProductId);
+                            return new ErpStockDocumentLineDto(
+                                l.ProductId, product?.Sku ?? string.Empty, product?.Name ?? string.Empty, product?.Unit ?? string.Empty,
+                                l.Quantity, l.UnitPrice, l.Amount, l.UnitCost, l.CostAmount, l.CostCurrency);
+                        }),
+                    ],
+                    actors(d.CreatedBy),
+                    d.CreatedAt);
+            }),
+        ];
+    }
+
     private static List<ErpOrderLineDto> Lines(IEnumerable<ErpOrderLine> lines, Dictionary<Guid, ProductInfo> products)
         =>
         [
             .. lines.Select(l =>
             {
                 var product = products.GetValueOrDefault(l.ProductId);
-                return new ErpOrderLineDto(l.ProductId, product?.Sku ?? string.Empty, product?.Name ?? string.Empty, product?.Unit ?? string.Empty, l.Quantity, l.UnitPrice, l.Amount);
+                return new ErpOrderLineDto(
+                    l.ProductId, product?.Sku ?? string.Empty, product?.Name ?? string.Empty, product?.Unit ?? string.Empty, l.Quantity, l.UnitPrice, l.Amount, l.Delivered, l.Returned);
             }),
         ];
 
     private static string? NameOf(Dictionary<Guid, string> names, Guid? id) => id is { } key ? names.GetValueOrDefault(key) : null;
 
-    private sealed record ProductInfo(string Sku, string Name, string Unit);
+    private sealed record ProductInfo(string Sku, string Name, string Unit, string Currency);
 
     private static async Task<Dictionary<Guid, ProductInfo>> ProductInfoAsync(IAppDbContext db, IEnumerable<Guid> ids, CancellationToken cancellationToken)
     {
@@ -283,7 +390,7 @@ internal static class ErpMapping
         return list.Count == 0
             ? []
             : await db.ErpProducts.AsNoTracking().Where(p => list.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id, p => new ProductInfo(p.Sku, p.Name, p.Unit), cancellationToken).ConfigureAwait(false);
+                .ToDictionaryAsync(p => p.Id, p => new ProductInfo(p.Sku, p.Name, p.Unit, p.Currency), cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task<Dictionary<Guid, string>> WarehouseNamesAsync(IAppDbContext db, IEnumerable<Guid> ids, CancellationToken cancellationToken)
@@ -301,6 +408,35 @@ internal static class ErpMapping
             ? []
             : await db.CrmCompanies.AsNoTracking().Where(c => list.Contains(c.Id)).ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken).ConfigureAwait(false);
     }
+}
+
+/// <summary>
+/// 一次成功的库存变化：变化后的数量与平均成本，以及记下的流水。
+/// </summary>
+internal sealed record StockMove(StockBalance Balance, ErpStockMovement Movement)
+{
+    public decimal UnitCost => Movement.UnitCost;
+}
+
+internal static class ErpCosting
+{
+    /// <summary>
+    /// 成本金额，四舍五入到分；数量带符号时金额也带符号。
+    /// </summary>
+    public static decimal Amount(decimal quantity, decimal unitCost) => Math.Round(quantity * unitCost, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>
+    /// 平均成本统一保留 6 位小数，与数据库精度一致。
+    /// </summary>
+    public static decimal Unit(decimal value) => Math.Round(value, 6, MidpointRounding.AwayFromZero);
+}
+
+/// <summary>
+/// 产品在全部仓库的合计：在库、预留、库存金额。
+/// </summary>
+public readonly record struct StockTotals(decimal OnHand, decimal Reserved, decimal Value)
+{
+    public decimal Available => OnHand - Reserved;
 }
 
 internal static class ErpStockRules
@@ -331,11 +467,16 @@ internal sealed class ErpRecords(
     /// 先以共享锁锁住这些产品，再返回其中管库存的产品：到事务结束前它们是否管库存不会被修改产品的操作改掉。
     /// </summary>
     public async Task<Dictionary<Guid, ErpProduct>> TrackedProductsAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken)
+        => (await LockedProductsAsync(productIds, cancellationToken).ConfigureAwait(false)).Where(p => p.Value.TrackInventory).ToDictionary();
+
+    /// <summary>
+    /// 以共享锁锁住这些产品后全部读出（含不管库存的）：发货、收货、退货既要按是否管库存决定动不动库存，也要用名称和参考成本。
+    /// </summary>
+    public async Task<Dictionary<Guid, ErpProduct>> LockedProductsAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken)
     {
         var ids = productIds.Distinct().ToList();
         await ledger.LockProductsAsync(ids, cancellationToken).ConfigureAwait(false);
-        return await db.ErpProducts.AsNoTracking().Where(p => ids.Contains(p.Id) && p.TrackInventory)
-            .ToDictionaryAsync(p => p.Id, cancellationToken).ConfigureAwait(false);
+        return await db.ErpProducts.AsNoTracking().Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<ErpWarehouse> WarehouseAsync(Guid id, CancellationToken cancellationToken)
@@ -451,10 +592,11 @@ internal sealed class ErpRecords(
     }
 
     /// <summary>
-    /// 改变在库数量并记一条流水。数量不够时返回 null（什么都没改）。
+    /// 改变在库数量并记一条带成本的流水。数量不够时返回 null（什么都没改）。
     /// </summary>
     /// <param name="requireAvailable">只能动用可用数量（不碰已预留给订单的部分）。</param>
-    public async Task<StockBalance?> MoveStockAsync(
+    /// <param name="unitCost">入库成本（产品货币），按移动加权平均计入；为空时按该仓库当前的平均成本入库。出库总是按平均成本。</param>
+    public async Task<StockMove?> MoveStockAsync(
         Guid productId,
         Guid warehouseId,
         ErpStockMovementKind kind,
@@ -465,28 +607,37 @@ internal sealed class ErpRecords(
         Guid? salesOrderId,
         Guid? purchaseOrderId,
         Guid? runId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        decimal? unitCost = null,
+        Guid? documentId = null)
     {
-        var balance = await ledger.TryChangeAsync(productId, warehouseId, quantity, reservedDelta, requireAvailable, cancellationToken).ConfigureAwait(false);
-        if (balance is { } after)
+        var balance = await ledger.TryChangeAsync(productId, warehouseId, quantity, reservedDelta, requireAvailable, cancellationToken, quantity > 0 ? unitCost : null)
+            .ConfigureAwait(false);
+        if (balance is not { } after)
         {
-            db.ErpStockMovements.Add(new ErpStockMovement
-            {
-                ProductId = productId,
-                WarehouseId = warehouseId,
-                Kind = kind,
-                Quantity = quantity,
-                BalanceAfter = after.OnHand,
-                Note = note,
-                SalesOrderId = salesOrderId,
-                PurchaseOrderId = purchaseOrderId,
-                Actor = tenant.Actor,
-                RunId = runId,
-            });
-            changes.Publish(ErpRealtime.Stock, productId, RealtimeChangeKind.Updated);
+            return null;
         }
 
-        return balance;
+        var cost = quantity > 0 && unitCost is { } incoming ? incoming : after.AverageCost;
+        var movement = new ErpStockMovement
+        {
+            ProductId = productId,
+            WarehouseId = warehouseId,
+            Kind = kind,
+            Quantity = quantity,
+            BalanceAfter = after.OnHand,
+            UnitCost = cost,
+            CostAmount = ErpCosting.Amount(quantity, cost),
+            Note = note,
+            SalesOrderId = salesOrderId,
+            PurchaseOrderId = purchaseOrderId,
+            DocumentId = documentId,
+            Actor = tenant.Actor,
+            RunId = runId,
+        };
+        db.ErpStockMovements.Add(movement);
+        changes.Publish(ErpRealtime.Stock, productId, RealtimeChangeKind.Updated);
+        return new StockMove(after, movement);
     }
 
     /// <summary>
@@ -509,11 +660,7 @@ internal sealed class ErpRecords(
             return;
         }
 
-        var productIds = products.Select(p => p.Id).ToList();
-        var totals = await db.ErpStockLevels.AsNoTracking().Where(l => productIds.Contains(l.ProductId))
-            .GroupBy(l => l.ProductId)
-            .Select(g => new { g.Key, OnHand = g.Sum(l => l.OnHand), Reserved = g.Sum(l => l.Reserved) })
-            .ToDictionaryAsync(x => x.Key, x => new StockBalance(x.OnHand, x.Reserved), cancellationToken).ConfigureAwait(false);
+        var totals = await ErpMapping.StockTotalsAsync(db, products.Select(p => p.Id), cancellationToken).ConfigureAwait(false);
         foreach (var product in products)
         {
             var stock = totals.GetValueOrDefault(product.Id);

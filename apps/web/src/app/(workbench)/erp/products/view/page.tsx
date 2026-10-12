@@ -105,6 +105,8 @@ function ProductDetail() {
                         <TableHead className='text-right'>现有</TableHead>
                         <TableHead className='text-right'>已预留</TableHead>
                         <TableHead className='text-right'>可用</TableHead>
+                        <TableHead className='text-right'>平均成本</TableHead>
+                        <TableHead className='text-right'>库存金额</TableHead>
                         {manage ? <TableHead className='w-24' /> : null}
                       </TableRow>
                     </TableHeader>
@@ -115,6 +117,8 @@ function ProductDetail() {
                           <TableCell className='text-right tabular-nums'>{formatQuantity(l.onHand)}</TableCell>
                           <TableCell className='text-muted-foreground text-right tabular-nums'>{formatQuantity(l.reserved)}</TableCell>
                           <TableCell className='text-right font-medium tabular-nums'>{formatQuantity(l.available, l.unit)}</TableCell>
+                          <TableCell className='text-muted-foreground text-right tabular-nums'>{formatAmount(l.averageCost, l.currency)}</TableCell>
+                          <TableCell className='text-right tabular-nums'>{formatAmount(l.stockValue, l.currency)}</TableCell>
                           {manage ? (
                             <TableCell className='text-right'>
                               <Button size='sm' variant='ghost' onClick={() => setAdjusting({ warehouseId: l.warehouseId })}>
@@ -167,6 +171,16 @@ function ProductDetail() {
             <InfoRow icon={Icons.billing} label='采购价'>
               <span className='tabular-nums'>{formatAmount(product.cost, product.currency)}</span>
             </InfoRow>
+            {product.trackInventory ? (
+              <>
+                <InfoRow icon={Icons.chartLine} label='平均成本'>
+                  {product.averageCost !== undefined ? <span className='tabular-nums'>{formatAmount(product.averageCost, product.currency)}</span> : null}
+                </InfoRow>
+                <InfoRow icon={Icons.receipt} label='库存金额'>
+                  <span className='tabular-nums'>{formatAmount(product.stockValue, product.currency)}</span>
+                </InfoRow>
+              </>
+            ) : null}
             <InfoRow icon={Icons.warning} label='提醒线'>
               {product.trackInventory ? (product.reorderPoint !== undefined ? formatQuantity(product.reorderPoint, product.unit) : '不提醒') : '不管理库存'}
             </InfoRow>

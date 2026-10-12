@@ -1525,12 +1525,121 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.ToTable("erp_sales_orders", (string)null);
                 });
 
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpStockDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("note");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("number");
+
+                    b.Property<Guid?>("PurchaseOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("purchase_order_id");
+
+                    b.Property<Guid?>("RunId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("run_id");
+
+                    b.Property<Guid?>("SalesOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sales_order_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("warehouse_id");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Erp.ErpStockDocument.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_erp_stock_documents");
+
+                    b.HasIndex("PurchaseOrderId")
+                        .HasDatabaseName("ix_erp_stock_documents_purchase_order_id");
+
+                    b.HasIndex("SalesOrderId")
+                        .HasDatabaseName("ix_erp_stock_documents_sales_order_id");
+
+                    b.HasIndex("WarehouseId")
+                        .HasDatabaseName("ix_erp_stock_documents_warehouse_id");
+
+                    b.HasIndex("TenantId", "Number")
+                        .IsUnique()
+                        .HasDatabaseName("ix_erp_stock_documents_tenant_id_number");
+
+                    b.HasIndex("TenantId", "Kind", "CreatedAt")
+                        .HasDatabaseName("ix_erp_stock_documents_tenant_id_kind_created_at");
+
+                    b.ToTable("erp_stock_documents", (string)null);
+                });
+
             modelBuilder.Entity("AiNative.Domain.Erp.ErpStockLevel", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<decimal>("AverageCost")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("average_cost");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1590,9 +1699,18 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("balance_after");
 
+                    b.Property<decimal>("CostAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("cost_amount");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("document_id");
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -1631,6 +1749,11 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("tenant_id");
 
+                    b.Property<decimal>("UnitCost")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("numeric(18,6)")
+                        .HasColumnName("unit_cost");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -1656,6 +1779,9 @@ namespace AiNative.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_erp_stock_movements");
+
+                    b.HasIndex("DocumentId")
+                        .HasDatabaseName("ix_erp_stock_movements_document_id");
 
                     b.HasIndex("PurchaseOrderId")
                         .HasDatabaseName("ix_erp_stock_movements_purchase_order_id");
@@ -3757,6 +3883,13 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                                 .HasColumnType("numeric(18,2)")
                                 .HasColumnName("amount");
 
+                            b1.Property<decimal>("Delivered")
+                                .ValueGeneratedOnAdd()
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasDefaultValue(0m)
+                                .HasColumnName("delivered");
+
                             b1.Property<Guid>("ProductId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("product_id");
@@ -3765,6 +3898,13 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                                 .HasPrecision(18, 4)
                                 .HasColumnType("numeric(18,4)")
                                 .HasColumnName("quantity");
+
+                            b1.Property<decimal>("Returned")
+                                .ValueGeneratedOnAdd()
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasDefaultValue(0m)
+                                .HasColumnName("returned");
 
                             b1.Property<decimal>("UnitPrice")
                                 .HasPrecision(18, 4)
@@ -3852,6 +3992,13 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                                 .HasColumnType("numeric(18,2)")
                                 .HasColumnName("amount");
 
+                            b1.Property<decimal>("Delivered")
+                                .ValueGeneratedOnAdd()
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasDefaultValue(0m)
+                                .HasColumnName("delivered");
+
                             b1.Property<Guid>("ProductId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("product_id");
@@ -3860,6 +4007,13 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                                 .HasPrecision(18, 4)
                                 .HasColumnType("numeric(18,4)")
                                 .HasColumnName("quantity");
+
+                            b1.Property<decimal>("Returned")
+                                .ValueGeneratedOnAdd()
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasDefaultValue(0m)
+                                .HasColumnName("returned");
 
                             b1.Property<decimal>("UnitPrice")
                                 .HasPrecision(18, 4)
@@ -3883,6 +4037,106 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                                 .OnDelete(DeleteBehavior.Restrict)
                                 .IsRequired()
                                 .HasConstraintName("fk_erp_sales_order_lines_erp_products_product_id");
+                        });
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Erp.ErpStockDocument", b =>
+                {
+                    b.HasOne("AiNative.Domain.Erp.ErpPurchaseOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_erp_stock_documents_erp_purchase_orders_purchase_order_id");
+
+                    b.HasOne("AiNative.Domain.Erp.ErpSalesOrder", null)
+                        .WithMany()
+                        .HasForeignKey("SalesOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_erp_stock_documents_erp_sales_orders_sales_order_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_stock_documents_tenants_tenant_id");
+
+                    b.HasOne("AiNative.Domain.Erp.ErpWarehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_erp_stock_documents_erp_warehouses_warehouse_id");
+
+                    b.OwnsMany("AiNative.Domain.Erp.ErpStockDocumentLine", "Lines", b1 =>
+                        {
+                            b1.Property<Guid>("DocumentId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("document_id");
+
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer")
+                                .HasColumnName("id");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b1.Property<int>("Id"));
+
+                            b1.Property<decimal>("Amount")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)")
+                                .HasColumnName("amount");
+
+                            b1.Property<decimal>("CostAmount")
+                                .HasPrecision(18, 2)
+                                .HasColumnType("numeric(18,2)")
+                                .HasColumnName("cost_amount");
+
+                            b1.Property<string>("CostCurrency")
+                                .IsRequired()
+                                .HasMaxLength(3)
+                                .HasColumnType("character(3)")
+                                .HasColumnName("cost_currency")
+                                .IsFixedLength();
+
+                            b1.Property<Guid>("ProductId")
+                                .HasColumnType("uuid")
+                                .HasColumnName("product_id");
+
+                            b1.Property<decimal>("Quantity")
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasColumnName("quantity");
+
+                            b1.Property<decimal>("UnitCost")
+                                .HasPrecision(18, 6)
+                                .HasColumnType("numeric(18,6)")
+                                .HasColumnName("unit_cost");
+
+                            b1.Property<decimal>("UnitPrice")
+                                .HasPrecision(18, 4)
+                                .HasColumnType("numeric(18,4)")
+                                .HasColumnName("unit_price");
+
+                            b1.HasKey("DocumentId", "Id")
+                                .HasName("pk_erp_stock_document_lines");
+
+                            b1.HasIndex("ProductId")
+                                .HasDatabaseName("ix_erp_stock_document_lines_product_id");
+
+                            b1.ToTable("erp_stock_document_lines", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("DocumentId")
+                                .HasConstraintName("fk_erp_stock_document_lines_erp_stock_documents_document_id");
+
+                            b1.HasOne("AiNative.Domain.Erp.ErpProduct", null)
+                                .WithMany()
+                                .HasForeignKey("ProductId")
+                                .OnDelete(DeleteBehavior.Restrict)
+                                .IsRequired()
+                                .HasConstraintName("fk_erp_stock_document_lines_erp_products_product_id");
                         });
 
                     b.Navigation("Lines");
@@ -3914,6 +4168,12 @@ namespace AiNative.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("AiNative.Domain.Erp.ErpStockMovement", b =>
                 {
+                    b.HasOne("AiNative.Domain.Erp.ErpStockDocument", null)
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_erp_stock_movements_erp_stock_documents_document_id");
+
                     b.HasOne("AiNative.Domain.Erp.ErpProduct", null)
                         .WithMany()
                         .HasForeignKey("ProductId")

@@ -9,6 +9,7 @@ import type {
   CrmStageKind,
   ErpPurchaseOrderStatus,
   ErpSalesOrderStatus,
+  ErpStockDocumentKind,
   ErpStockMovementKind,
   McpApprovalMode,
   MemoryScope,
@@ -172,6 +173,7 @@ export const crmImportDuplicateMode: Record<CrmImportDuplicateMode, { label: str
 export const erpSalesOrderStatus: Record<ErpSalesOrderStatus, { label: string; tone: Tone }> = {
   draft: { label: '草稿', tone: 'outline' },
   confirmed: { label: '待发货', tone: 'default' },
+  partially_shipped: { label: '部分发货', tone: 'default' },
   shipped: { label: '已发货', tone: 'secondary' },
   cancelled: { label: '已取消', tone: 'outline' },
 };
@@ -179,6 +181,7 @@ export const erpSalesOrderStatus: Record<ErpSalesOrderStatus, { label: string; t
 export const erpPurchaseOrderStatus: Record<ErpPurchaseOrderStatus, { label: string; tone: Tone }> = {
   draft: { label: '草稿', tone: 'outline' },
   ordered: { label: '待收货', tone: 'default' },
+  partially_received: { label: '部分到货', tone: 'default' },
   received: { label: '已入库', tone: 'secondary' },
   cancelled: { label: '已取消', tone: 'outline' },
 };
@@ -189,15 +192,24 @@ export const erpMovementKind: Record<ErpStockMovementKind, string> = {
   adjustment: '库存调整',
   transfer_in: '调拨入库',
   transfer_out: '调拨出库',
+  sales_return: '客户退货',
+  purchase_return: '退给供应商',
 };
 
-/** 数量最多 4 位小数，整数不显示小数部分。 */
+export const erpStockDocumentKind: Record<ErpStockDocumentKind, string> = {
+  shipment: '发货单',
+  receipt: '收货单',
+  sales_return: '客户退货单',
+  purchase_return: '采购退货单',
+};
+
 export const mcpApprovalMode: Record<McpApprovalMode, { label: string; hint: string }> = {
   writes_only: { label: '只读工具免审批', hint: '管理员确认为只读的工具直接执行，其余工具智能体调用前先提交审批。服务自己标注的只读只作参考。' },
   always: { label: '全部需审批', hint: '智能体调用这个服务的任何工具前都先提交审批。' },
   never: { label: '不需审批', hint: '智能体可以直接调用全部工具。只在完全信任这个服务时选择。' },
 };
 
+/** 数量最多 4 位小数，整数不显示小数部分。 */
 export function formatQuantity(value: number | null | undefined, unit?: string) {
   if (value === null || value === undefined) {
     return '—';

@@ -109,6 +109,8 @@ public sealed class AppDbContext : DbContext, IAppDbContext
 
     public DbSet<ErpPurchaseOrder> ErpPurchaseOrders => Set<ErpPurchaseOrder>();
 
+    public DbSet<ErpStockDocument> ErpStockDocuments => Set<ErpStockDocument>();
+
     public DbSet<Project> Projects => Set<Project>();
 
     public DbSet<ProjectMilestone> ProjectMilestones => Set<ProjectMilestone>();
@@ -650,6 +652,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
         {
             b.Property(x => x.OnHand).HasPrecision(18, 4);
             b.Property(x => x.Reserved).HasPrecision(18, 4);
+            b.Property(x => x.AverageCost).HasPrecision(18, 6).HasDefaultValue(0m);
 
             // 出入库时 INSERT ... ON CONFLICT (product_id, warehouse_id) 依赖这个唯一索引。
             b.HasIndex(x => new { x.ProductId, x.WarehouseId }).IsUnique();
@@ -664,6 +667,8 @@ public sealed class AppDbContext : DbContext, IAppDbContext
         {
             b.Property(x => x.Quantity).HasPrecision(18, 4);
             b.Property(x => x.BalanceAfter).HasPrecision(18, 4);
+            b.Property(x => x.UnitCost).HasPrecision(18, 6);
+            b.Property(x => x.CostAmount).HasPrecision(18, 2);
             b.Property(x => x.Note).HasMaxLength(500);
             b.ComplexProperty(x => x.Actor);
             b.HasIndex(x => new { x.ProductId, x.CreatedAt });
@@ -671,11 +676,48 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => new { x.TenantId, x.CreatedAt });
             b.HasIndex(x => x.SalesOrderId);
             b.HasIndex(x => x.PurchaseOrderId);
+            b.HasIndex(x => x.DocumentId);
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<ErpProduct>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<ErpWarehouse>().WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<ErpSalesOrder>().WithMany().HasForeignKey(x => x.SalesOrderId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<ErpPurchaseOrder>().WithMany().HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne<ErpStockDocument>().WithMany().HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ErpStockDocument>(b =>
+        {
+            b.Property(x => x.Number).HasMaxLength(20);
+            b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+            b.Property(x => x.Amount).HasPrecision(18, 2);
+            b.Property(x => x.Note).HasMaxLength(500);
+            b.ComplexProperty(x => x.CreatedBy);
+            b.OwnsMany(x => x.Lines, l =>
+            {
+                l.ToTable("erp_stock_document_lines");
+                l.WithOwner().HasForeignKey("DocumentId");
+                l.Property<int>("Id").UseIdentityAlwaysColumn();
+                l.HasKey("DocumentId", "Id");
+                l.Property(x => x.Quantity).HasPrecision(18, 4);
+                l.Property(x => x.UnitPrice).HasPrecision(18, 4);
+                l.Property(x => x.Amount).HasPrecision(18, 2);
+                l.Property(x => x.UnitCost).HasPrecision(18, 6);
+                l.Property(x => x.CostAmount).HasPrecision(18, 2);
+                l.Property(x => x.CostCurrency).HasMaxLength(3).IsFixedLength();
+                l.HasIndex(x => x.ProductId);
+                l.HasOne<ErpProduct>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+            });
+            b.HasIndex(x => new { x.TenantId, x.Number }).IsUnique();
+            b.HasIndex(x => new { x.TenantId, x.Kind, x.CreatedAt });
+            b.HasIndex(x => x.SalesOrderId);
+            b.HasIndex(x => x.PurchaseOrderId);
+            b.HasIndex(x => x.WarehouseId);
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+
+            // 出入库单是已发生的事实：有单据的订单只能取消、不能删除（删除只针对草稿和已取消的订单），这里用 Restrict 兜底。
+            b.HasOne<ErpSalesOrder>().WithMany().HasForeignKey(x => x.SalesOrderId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<ErpPurchaseOrder>().WithMany().HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne<ErpWarehouse>().WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<ErpSalesOrder>(b =>
@@ -742,6 +784,8 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             l.Property(x => x.Quantity).HasPrecision(18, 4);
             l.Property(x => x.UnitPrice).HasPrecision(18, 4);
             l.Property(x => x.Amount).HasPrecision(18, 2);
+            l.Property(x => x.Delivered).HasPrecision(18, 4).HasDefaultValue(0m);
+            l.Property(x => x.Returned).HasPrecision(18, 4).HasDefaultValue(0m);
             l.HasIndex(x => x.ProductId);
             l.HasOne<ErpProduct>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
         };

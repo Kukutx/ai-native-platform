@@ -16,12 +16,12 @@ internal sealed class StockLedger(AppDbContext db, ITenantContext tenant, TimePr
     {
         await EnsureRowAsync(productId, warehouseId, cancellationToken).ConfigureAwait(false);
         var rows = await db.Database.SqlQuery<StockRow>($"""
-            SELECT on_hand, reserved
+            SELECT on_hand, reserved, average_cost
             FROM erp_stock_levels
             WHERE tenant_id = {tenant.TenantId} AND product_id = {productId} AND warehouse_id = {warehouseId}
             FOR UPDATE
             """).ToListAsync(cancellationToken).ConfigureAwait(false);
-        return new StockBalance(rows[0].OnHand, rows[0].Reserved);
+        return rows[0].ToBalance();
     }
 
     public async Task<StockBalance?> TryChangeAsync(
@@ -30,19 +30,29 @@ internal sealed class StockLedger(AppDbContext db, ITenantContext tenant, TimePr
         decimal onHandDelta,
         decimal reservedDelta,
         bool requireAvailable,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        decimal? unitCost = null)
     {
         await EnsureRowAsync(productId, warehouseId, cancellationToken).ConfigureAwait(false);
+
+        // 移动加权平均：SET 里的 on_hand、average_cost 都是改之前的值。只有带成本的入库才重算，出库不改变平均成本。
+        var reprice = unitCost.HasValue && onHandDelta > 0;
+        var cost = unitCost ?? 0;
         var rows = await db.Database.SqlQuery<StockRow>($"""
             UPDATE erp_stock_levels
-            SET on_hand = on_hand + {onHandDelta}, reserved = reserved + {reservedDelta}, updated_at = {clock.GetUtcNow()}
+            SET on_hand = on_hand + {onHandDelta},
+                reserved = reserved + {reservedDelta},
+                average_cost = CASE WHEN {reprice}
+                    THEN round((on_hand * average_cost + {onHandDelta} * {cost}) / (on_hand + {onHandDelta}), 6)
+                    ELSE average_cost END,
+                updated_at = {clock.GetUtcNow()}
             WHERE tenant_id = {tenant.TenantId} AND product_id = {productId} AND warehouse_id = {warehouseId}
               AND on_hand + {onHandDelta} >= 0
               AND reserved + {reservedDelta} >= 0
               AND (NOT {requireAvailable} OR on_hand + {onHandDelta} - reserved - {reservedDelta} >= 0)
-            RETURNING on_hand, reserved
+            RETURNING on_hand, reserved, average_cost
             """).ToListAsync(cancellationToken).ConfigureAwait(false);
-        return rows.Count == 1 ? new StockBalance(rows[0].OnHand, rows[0].Reserved) : null;
+        return rows.Count == 1 ? rows[0].ToBalance() : null;
     }
 
     public Task LockProductsAsync(IEnumerable<Guid> productIds, CancellationToken cancellationToken)
@@ -73,9 +83,12 @@ internal sealed class StockLedger(AppDbContext db, ITenantContext tenant, TimePr
     }
 
     /// <summary>
-    /// 原始 SQL 的结果类型同样遵循 snake_case 命名约定：列名 on_hand、reserved。
+    /// 原始 SQL 的结果类型同样遵循 snake_case 命名约定：列名 on_hand、reserved、average_cost。
     /// </summary>
-    private sealed record StockRow(decimal OnHand, decimal Reserved);
+    private sealed record StockRow(decimal OnHand, decimal Reserved, decimal AverageCost)
+    {
+        public StockBalance ToBalance() => new(OnHand, Reserved, AverageCost);
+    }
 }
 
 /// <summary>

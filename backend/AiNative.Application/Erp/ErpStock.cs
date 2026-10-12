@@ -47,6 +47,10 @@ public sealed class AdjustErpStockCommandValidator : AbstractValidator<AdjustErp
             .LessThan(ErpValidation.MaxQuantity).WithMessage("数量太大。")
             .Must(ErpValidation.HasQuantityScale).WithMessage("数量最多 4 位小数。")
             .When(x => x.Request.CountedQuantity.HasValue).OverridePropertyName("countedQuantity");
+        RuleFor(x => x.Request.UnitCost!.Value).GreaterThanOrEqualTo(0).WithMessage("单位成本不能为负数。")
+            .LessThan(ErpValidation.MaxPrice).WithMessage("单位成本太大。")
+            .Must(c => decimal.Round(c, 6) == c).WithMessage("单位成本最多 6 位小数。")
+            .When(x => x.Request.UnitCost.HasValue).OverridePropertyName("unitCost");
         RuleFor(x => x.Request.Note).Text(500, "原因").OverridePropertyName("note");
     }
 }
@@ -123,6 +127,9 @@ internal sealed class ErpStockHandlers(IAppDbContext db, ErpRecords records, ISt
                 r.Level == null ? 0 : r.Level.OnHand,
                 r.Level == null ? 0 : r.Level.Reserved,
                 r.Level == null ? 0 : r.Level.OnHand - r.Level.Reserved,
+                r.Level == null ? 0 : r.Level.AverageCost,
+                r.Level == null ? 0 : Math.Round(r.Level.OnHand * r.Level.AverageCost, 2),
+                r.Product.Currency,
                 r.Level == null ? r.Product.CreatedAt : r.Level.UpdatedAt))
             .ToListAsync(cancellationToken).ConfigureAwait(false);
         return new PagedResult<ErpStockLevelDto>(items, total, page, pageSize);
@@ -156,6 +163,7 @@ internal sealed class ErpStockHandlers(IAppDbContext db, ErpRecords records, ISt
 
     /// <summary>
     /// 手工调整：按变化量增减，或按盘点数改成实际数量。出库可以动用已预留的数量（实物短少时如实记录），但在库不能变成负数。
+    /// 增加的库存按填写的单位成本计入平均成本；没填时按当前平均成本，仓库里从没有过成本时用产品的参考采购价。
     /// </summary>
     public async Task<ErpStockLevelDto> HandleAsync(AdjustErpStockCommand request, CancellationToken cancellationToken)
     {
@@ -163,10 +171,10 @@ internal sealed class ErpStockHandlers(IAppDbContext db, ErpRecords records, ISt
         var product = await TrackedProductAsync(r.ProductId, cancellationToken).ConfigureAwait(false);
         var warehouse = await records.ResolveWarehouseAsync(r.WarehouseId, cancellationToken).ConfigureAwait(false);
         var note = r.Note.Trim();
+        var current = await ledger.LockAsync(product.Id, warehouse.Id, cancellationToken).ConfigureAwait(false);
         decimal delta;
         if (r.CountedQuantity is { } counted)
         {
-            var current = await ledger.LockAsync(product.Id, warehouse.Id, cancellationToken).ConfigureAwait(false);
             delta = counted - current.OnHand;
             if (note.Length == 0)
             {
@@ -180,11 +188,12 @@ internal sealed class ErpStockHandlers(IAppDbContext db, ErpRecords records, ISt
 
         if (delta != 0)
         {
-            var balance = await records.MoveStockAsync(product.Id, warehouse.Id, ErpStockMovementKind.Adjustment, delta, 0, false, note, null, null, request.RunId, cancellationToken)
+            var unitCost = r.UnitCost ?? (current is { OnHand: 0, AverageCost: 0 } ? product.Cost : null);
+            var balance = await records.MoveStockAsync(
+                    product.Id, warehouse.Id, ErpStockMovementKind.Adjustment, delta, 0, false, note, null, null, request.RunId, cancellationToken, unitCost)
                 .ConfigureAwait(false);
             if (balance is null)
             {
-                var current = await ledger.LockAsync(product.Id, warehouse.Id, cancellationToken).ConfigureAwait(false);
                 throw new ConflictException(
                     "erp.insufficient_stock",
                     $"「{warehouse.Name}」里 {product.Name} 只有 {ErpRecords.Quantity(current.OnHand)} {product.Unit}，不能减少 {ErpRecords.Quantity(-delta)} {product.Unit}。");
@@ -200,7 +209,7 @@ internal sealed class ErpStockHandlers(IAppDbContext db, ErpRecords records, ISt
     }
 
     /// <summary>
-    /// 仓库之间调拨：只能调出可用数量（已预留给订单的不动），两边各记一条流水。
+    /// 仓库之间调拨：只能调出可用数量（已预留给订单的不动），两边各记一条流水。调入方按调出仓库的平均成本入库，库存金额随货走。
     /// </summary>
     public async Task<IReadOnlyList<ErpStockLevelDto>> HandleAsync(TransferErpStockCommand request, CancellationToken cancellationToken)
     {
@@ -228,7 +237,8 @@ internal sealed class ErpStockHandlers(IAppDbContext db, ErpRecords records, ISt
         }
 
         await records.MoveStockAsync(
-            product.Id, to.Id, ErpStockMovementKind.TransferIn, r.Quantity, 0, false, note.Length > 0 ? note : $"从「{from.Name}」调入", null, null, request.RunId, cancellationToken)
+                product.Id, to.Id, ErpStockMovementKind.TransferIn, r.Quantity, 0, false, note.Length > 0 ? note : $"从「{from.Name}」调入", null, null, request.RunId, cancellationToken,
+                moved.UnitCost)
             .ConfigureAwait(false);
         return await LevelsAsync(product.Id, [from.Id, to.Id], cancellationToken).ConfigureAwait(false);
     }

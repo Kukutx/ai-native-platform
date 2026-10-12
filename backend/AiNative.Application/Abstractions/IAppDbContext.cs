@@ -94,6 +94,8 @@ public interface IAppDbContext
 
     DbSet<ErpPurchaseOrder> ErpPurchaseOrders { get; }
 
+    DbSet<ErpStockDocument> ErpStockDocuments { get; }
+
     DbSet<Project> Projects { get; }
 
     DbSet<ProjectMilestone> ProjectMilestones { get; }

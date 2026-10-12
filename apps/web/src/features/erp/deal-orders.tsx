@@ -12,7 +12,7 @@ import { queryKeys } from '@/lib/query-keys';
 export function DealOrders({ dealId }: { dealId: string }) {
   const orders = useQuery({
     queryKey: queryKeys.erpSalesOrders({ dealId }),
-    queryFn: ({ signal }) => api.erp.salesOrders.list(undefined, undefined, undefined, dealId, undefined, 1, 20, signal),
+    queryFn: ({ signal }) => api.erp.salesOrders.list(undefined, undefined, undefined, dealId, undefined, 1, 20, undefined, signal),
   });
 
   if (!orders.data?.items.length) {

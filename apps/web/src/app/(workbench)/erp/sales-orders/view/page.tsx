@@ -11,13 +11,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InfoRow } from '@/features/crm/info-row';
+import { DeliveryDialog, type DeliveryMode } from '@/features/erp/delivery-dialog';
 import { OrderLinesTable } from '@/features/erp/order-lines-table';
 import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
+import { StockDocumentList } from '@/features/erp/stock-document-list';
 import { api } from '@/lib/api';
-import { erpSalesOrderStatus, formatDate, formatTime } from '@/lib/labels';
+import { erpSalesOrderStatus, formatAmount, formatDate, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
-type Transition = 'confirm' | 'ship' | 'cancel';
+type Transition = 'confirm' | 'close' | 'cancel';
 
 function SalesOrderDetail() {
   const id = useSearchParams().get('id') ?? '';
@@ -25,6 +27,7 @@ function SalesOrderDetail() {
   const { can } = useSession();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [delivery, setDelivery] = useState<DeliveryMode | null>(null);
   const detail = useQuery({ queryKey: queryKeys.erpSalesOrder(id), queryFn: ({ signal }) => api.erp.salesOrders.get(id, signal), enabled: !!id });
   const transition = useMutation({
     mutationFn: (action: Transition) => api.erp.salesOrders[action](id),
@@ -45,6 +48,8 @@ function SalesOrderDetail() {
   const order = detail.data;
   const manage = can('erp.sales');
   const busy = transition.isPending || remove.isPending;
+  const started = order.status === 'partially_shipped' || order.status === 'shipped';
+  const margin = order.grossProfit !== undefined && order.shippedAmount > 0 ? order.grossProfit / order.shippedAmount : undefined;
 
   return (
     <div className='space-y-6 p-6'>
@@ -95,13 +100,26 @@ function SalesOrderDetail() {
                 </Button>
               </>
             ) : null}
-            {order.status === 'confirmed' ? (
+            {order.status === 'confirmed' || order.status === 'partially_shipped' ? (
+              <Button onClick={() => setDelivery('ship')} disabled={busy} title='可以分批发货'>
+                <Icons.truck />
+                发货
+              </Button>
+            ) : null}
+            {order.status === 'partially_shipped' ? (
               <Button
-                onClick={() => confirm(`从「${order.warehouseName}」发货并扣减库存？发货后不能撤销。`) && transition.mutate('ship')}
+                variant='outline'
+                onClick={() => confirm('剩下没发的不再发货，释放预留的库存，订单记为已发货？') && transition.mutate('close')}
                 disabled={busy}
               >
-                <Icons.send />
-                发货
+                <Icons.circleCheck />
+                结束发货
+              </Button>
+            ) : null}
+            {started ? (
+              <Button variant='outline' onClick={() => setDelivery('sales_return')} disabled={busy}>
+                <Icons.undo />
+                退货
               </Button>
             ) : null}
             {order.status === 'draft' || order.status === 'confirmed' ? (
@@ -130,9 +148,10 @@ function SalesOrderDetail() {
               <CardTitle>明细</CardTitle>
             </CardHeader>
             <CardContent>
-              <OrderLinesTable lines={order.lines} currency={order.currency} total={order.total} />
+              <OrderLinesTable lines={order.lines} currency={order.currency} total={order.total} deliveredLabel={started ? '已发' : undefined} />
             </CardContent>
           </Card>
+          {started ? <StockDocumentList salesOrderId={order.id} /> : null}
           {order.note ? (
             <Card>
               <CardContent className='text-sm whitespace-pre-wrap'>{order.note}</CardContent>
@@ -153,6 +172,26 @@ function SalesOrderDetail() {
             <InfoRow icon={Icons.user} label='负责人'>
               {order.owner?.name ?? null}
             </InfoRow>
+            {started ? (
+              <div className='space-y-3 border-t pt-3'>
+                <InfoRow icon={Icons.truck} label='已发货'>
+                  <span className='tabular-nums'>{formatAmount(order.shippedAmount, order.currency)}</span>
+                </InfoRow>
+                <InfoRow icon={Icons.product} label='成本'>
+                  {order.costOfGoods !== undefined ? <span className='tabular-nums'>{formatAmount(order.costOfGoods, order.currency)}</span> : null}
+                </InfoRow>
+                <InfoRow icon={Icons.trendingUp} label='毛利'>
+                  {order.grossProfit !== undefined ? (
+                    <span className='tabular-nums'>
+                      {formatAmount(order.grossProfit, order.currency)}
+                      {margin !== undefined ? <span className='text-muted-foreground'> · {(margin * 100).toFixed(1)}%</span> : null}
+                    </span>
+                  ) : (
+                    <span className='text-muted-foreground text-xs'>有产品的货币与订单不同，暂不计算</span>
+                  )}
+                </InfoRow>
+              </div>
+            ) : null}
             <div className='text-muted-foreground space-y-1 border-t pt-3 text-xs'>
               <p>
                 {order.createdBy.name ?? '系统'} 创建于 {formatTime(order.createdAt)}
@@ -165,6 +204,7 @@ function SalesOrderDetail() {
         </Card>
       </div>
       <SalesOrderFormDialog open={editing} order={order} onOpenChange={setEditing} />
+      <DeliveryDialog open={!!delivery} mode={delivery ?? 'ship'} order={order} onOpenChange={(open) => !open && setDelivery(null)} />
     </div>
   );
 }

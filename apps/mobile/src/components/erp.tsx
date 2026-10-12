@@ -7,8 +7,8 @@ import { getApi } from '@/lib/api';
 import { erpSalesOrderStatus, formatAmount, formatDate, formatQuantity } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
-/** 订单明细（只读）：每行产品、数量 × 单价、金额，最后是合计。 */
-export function OrderLines({ lines, currency, total }: { lines: ErpOrderLineDto[]; currency: string; total: number }) {
+/** 订单明细（只读）：每行产品、数量 × 单价、金额，最后是合计。deliveredLabel 有值时（“已发”“已收”）每行再显示交付进度。 */
+export function OrderLines({ lines, currency, total, deliveredLabel }: { lines: ErpOrderLineDto[]; currency: string; total: number; deliveredLabel?: string }) {
   const p = usePalette();
   return (
     <Card>
@@ -25,6 +25,12 @@ export function OrderLines({ lines, currency, total }: { lines: ErpOrderLineDto[
             <Muted>
               {formatQuantity(line.quantity, line.unit)} × {formatAmount(line.unitPrice, currency)}
             </Muted>
+            {deliveredLabel ? (
+              <Muted>
+                {deliveredLabel} {formatQuantity(line.delivered)}
+                {line.returned ? ` · 已退 ${formatQuantity(line.returned)}` : ''}
+              </Muted>
+            ) : null}
           </View>
           <Text style={{ color: p.text, fontSize: 15 }}>{formatAmount(line.amount, currency)}</Text>
         </Pressable>
@@ -42,7 +48,7 @@ export function DealOrders({ dealId }: { dealId: string }) {
   const p = usePalette();
   const orders = useQuery({
     queryKey: ['erp', 'sales-orders', { dealId }],
-    queryFn: ({ signal }) => getApi().erp.salesOrders.list(undefined, undefined, undefined, dealId, undefined, 1, 20, signal),
+    queryFn: ({ signal }) => getApi().erp.salesOrders.list(undefined, undefined, undefined, dealId, undefined, 1, 20, undefined, signal),
   });
   if (!orders.data?.items.length) {
     return null;

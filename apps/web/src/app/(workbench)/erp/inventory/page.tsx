@@ -23,7 +23,7 @@ import { AdjustStockDialog, TransferStockDialog } from '@/features/erp/stock-dia
 import { WarehouseSelect } from '@/features/erp/warehouse-select';
 import { WarehousesDialog } from '@/features/erp/warehouses-dialog';
 import { api } from '@/lib/api';
-import { erpMovementKind, formatQuantity } from '@/lib/labels';
+import { erpMovementKind, formatAmount, formatQuantity } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
 const PAGE_SIZE = 50;
@@ -42,7 +42,7 @@ function Inventory() {
     <div className='space-y-6 p-6'>
       <PageHeader
         title='库存'
-        description='各仓库的现有、已预留和可用数量，以及每一笔出入库流水。'
+        description='各仓库的现有、已预留和可用数量与库存金额（移动加权平均成本），以及每一笔出入库流水。'
         actions={
           <>
             <Button variant='outline' onClick={() => setDialog('warehouses')}>
@@ -146,6 +146,7 @@ function Levels({ warehouseId, lowOnly: initialLow }: { warehouseId?: string; lo
                   <TableHead className='text-right'>现有</TableHead>
                   <TableHead className='text-right'>已预留</TableHead>
                   <TableHead className='text-right'>可用</TableHead>
+                  <TableHead className='text-right'>库存金额</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -161,6 +162,9 @@ function Levels({ warehouseId, lowOnly: initialLow }: { warehouseId?: string; lo
                     <TableCell className='text-right tabular-nums'>{formatQuantity(l.onHand)}</TableCell>
                     <TableCell className='text-muted-foreground text-right tabular-nums'>{formatQuantity(l.reserved)}</TableCell>
                     <TableCell className='text-right font-medium tabular-nums'>{formatQuantity(l.available, l.unit)}</TableCell>
+                    <TableCell className='text-muted-foreground text-right tabular-nums' title={`平均成本 ${formatAmount(l.averageCost, l.currency)}`}>
+                      {formatAmount(l.stockValue, l.currency)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

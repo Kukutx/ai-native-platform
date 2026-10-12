@@ -25,20 +25,22 @@ import { queryKeys } from '@/lib/query-keys';
 
 const PAGE_SIZE = 50;
 const ALL = '__all__';
+const PENDING = 'pending';
 
 export default function SalesOrdersPage() {
   const { can, session } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<ErpSalesOrderStatus | undefined>();
+  const [status, setStatus] = useState<ErpSalesOrderStatus | typeof PENDING | undefined>();
   const [mine, setMine] = useState(false);
   const [page, setPage] = useState(1);
   const term = useDeferredValue(search.trim());
   const owner = mine ? session?.user.id : undefined;
   const orders = useQuery({
     queryKey: queryKeys.erpSalesOrders({ search: term, status, owner, page }),
-    queryFn: ({ signal }) => api.erp.salesOrders.list(term || undefined, status, undefined, undefined, owner, page, PAGE_SIZE, signal),
+    queryFn: ({ signal }) =>
+      api.erp.salesOrders.list(term || undefined, status === PENDING ? undefined : status, undefined, undefined, owner, page, PAGE_SIZE, status === PENDING, signal),
     placeholderData: keepPreviousData,
   });
   const filtered = !!term || !!status || mine;
@@ -47,7 +49,7 @@ export default function SalesOrdersPage() {
     <div className='space-y-6 p-6'>
       <PageHeader
         title='销售订单'
-        description='确认时预留库存，发货时出库；可以从商机直接生成。'
+        description='确认时预留库存，可以分批发货、登记客户退货；可以从商机直接生成。'
         actions={
           <>
             <Input
@@ -62,7 +64,7 @@ export default function SalesOrdersPage() {
             <Select
               value={status ?? ALL}
               onValueChange={(v) => {
-                setStatus(v === ALL ? undefined : (v as ErpSalesOrderStatus));
+                setStatus(v === ALL ? undefined : (v as ErpSalesOrderStatus | typeof PENDING));
                 setPage(1);
               }}
             >
@@ -71,6 +73,7 @@ export default function SalesOrdersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>全部状态</SelectItem>
+                <SelectItem value={PENDING}>未发完</SelectItem>
                 {Object.entries(erpSalesOrderStatus).map(([key, meta]) => (
                   <SelectItem key={key} value={key}>
                     {meta.label}

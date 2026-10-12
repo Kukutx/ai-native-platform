@@ -55,6 +55,7 @@ export const queryKeys = {
   erpSalesOrder: (id: string) => ['erp', 'sales-order', id] as const,
   erpPurchaseOrders: (filters?: object) => ['erp', 'purchase-orders', filters ?? {}] as const,
   erpPurchaseOrder: (id: string) => ['erp', 'purchase-order', id] as const,
+  erpStockDocuments: (filters?: object) => ['erp', 'stock-documents', filters ?? {}] as const,
   // 经营分析：指标数据随业务变化失效（实时通道里限流），报表列表随报表变化失效。
   analyticsMetrics: ['analytics', 'metrics'] as const,
   analyticsOverview: (range: string) => ['analytics', 'data', 'overview', range] as const,
@@ -97,6 +98,7 @@ export const invalidationMap: Record<string, (id: string) => readonly (readonly 
   erp_stock: () => [['erp'], analyticsData],
   erp_sales_order: () => [['erp'], analyticsData],
   erp_purchase_order: () => [['erp'], analyticsData],
+  erp_stock_document: () => [['erp'], analyticsData],
   analytics_report: (id) => [['analytics', 'reports'], ['analytics', 'report', id]],
   // 外部服务的工具就是动作：服务变化时动作目录和工作流里的动作列表一并刷新。
   mcp_server: (id) => [['integrations', 'mcp-servers'], ['integrations', 'mcp-server', id], ['actions'], ['workflows', 'catalog']],
