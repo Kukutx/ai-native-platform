@@ -15,14 +15,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ActorSelect } from '@/features/projects/actor-select';
 import { ProjectPlacementFields } from '@/features/tasks/project-placement-fields';
 import { TaskCreateDialog } from '@/features/tasks/task-create-dialog';
 import { TaskPicker } from '@/features/tasks/task-picker';
+import { TaskTextEditor } from '@/features/tasks/task-text-editor';
+import { isClosed, updateRequest } from '@/features/tasks/task-update';
 import { api } from '@/lib/api';
 import { formatDate, formatTime, priority, workItemStatus } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
-
-const UNASSIGNED = '__none__';
 
 function TaskDetail() {
   const id = useSearchParams().get('id') ?? '';
@@ -30,32 +31,16 @@ function TaskDetail() {
   const queryClient = useQueryClient();
   const [comment, setComment] = useState('');
   const [creatingSubtask, setCreatingSubtask] = useState(false);
+  const [editing, setEditing] = useState(false);
   const detail = useQuery({ queryKey: queryKeys.workItem(id), queryFn: ({ signal }) => api.workItems.get(id, signal), enabled: !!id });
-  const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.workItem(id) });
     await queryClient.invalidateQueries({ queryKey: ['work-items'] });
   };
   const update = useMutation({
-    mutationFn: (patch: Partial<UpdateWorkItemRequest>) => {
-      const item = detail.data!.item;
-      return api.workItems.update(id, {
-        title: item.title,
-        description: item.description,
-        status: item.status,
-        priority: item.priority,
-        assigneeAgentId: item.assigneeAgentId,
-        assigneeUserId: item.assigneeUserId,
-        projectId: item.projectId,
-        milestoneId: item.milestoneId,
-        startDate: item.startDate,
-        dueDate: item.dueDate,
-        // 基于这份数据修改：期间被别人或智能体改过时后端返回 409，而不是用旧值覆盖。
-        expectedUpdatedAt: item.updatedAt,
-        ...patch,
-      });
-    },
+    // 基于当前显示的数据修改：期间被别人或智能体改过时后端返回 409，而不是用旧值覆盖。
+    mutationFn: (patch: Partial<UpdateWorkItemRequest>) => api.workItems.update(id, updateRequest(detail.data!.item, patch)),
     // 失败（包括冲突）也刷新，界面回到最新内容。
     onSettled: refresh,
   });
@@ -79,7 +64,7 @@ function TaskDetail() {
 
   const { item, comments, subtasks, dependencies, dependents } = detail.data;
   const editable = can('tasks.manage');
-  const waiting = dependencies.filter((d) => d.status !== 'done' && d.status !== 'cancelled');
+  const waiting = dependencies.filter((d) => !isClosed(d.status));
 
   return (
     <div className='space-y-6 p-6'>
@@ -89,19 +74,36 @@ function TaskDetail() {
       </Link>
       <div className='grid gap-6 lg:grid-cols-3'>
         <div className='space-y-6 lg:col-span-2'>
-          <div>
-            <p className='text-muted-foreground font-mono text-sm'>{item.key}</p>
-            <h1 className='text-2xl font-semibold tracking-tight'>{item.title}</h1>
-          </div>
-          {waiting.length > 0 && item.status !== 'done' && item.status !== 'cancelled' ? (
+          {editing ? null : (
+            <div className='flex items-start justify-between gap-4'>
+              <div className='min-w-0'>
+                <p className='text-muted-foreground font-mono text-sm'>{item.key}</p>
+                <h1 className='text-2xl font-semibold tracking-tight break-words'>{item.title}</h1>
+              </div>
+              {editable ? (
+                <Button variant='outline' size='sm' className='shrink-0' onClick={() => setEditing(true)}>
+                  <Icons.edit />
+                  编辑
+                </Button>
+              ) : null}
+            </div>
+          )}
+          {waiting.length > 0 && !isClosed(item.status) ? (
             <p className='flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm'>
               <Icons.hourglass className='size-4 shrink-0 text-warning' />
               等待 {waiting.map((d) => d.key).join('、')} 关闭后才能开始，负责的智能体在此之前不会领取这个任务。
             </p>
           ) : null}
-          <Card>
-            <CardContent className='text-sm whitespace-pre-wrap'>{item.description || '（没有描述）'}</CardContent>
-          </Card>
+          {editing ? (
+            <>
+              <p className='text-muted-foreground font-mono text-sm'>{item.key}</p>
+              <TaskTextEditor item={item} onDone={() => setEditing(false)} />
+            </>
+          ) : (
+            <Card>
+              <CardContent className='text-sm whitespace-pre-wrap'>{item.description || <span className='text-muted-foreground'>（没有描述）</span>}</CardContent>
+            </Card>
+          )}
           <Card>
             <CardHeader className='flex flex-row items-center justify-between'>
               <CardTitle>子任务</CardTitle>
@@ -220,26 +222,15 @@ function TaskDetail() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field id='task-assignee' label='负责的智能体'>
-              <Select
-                value={item.assigneeAgentId ?? UNASSIGNED}
-                disabled={!editable}
-                onValueChange={(v) => update.mutate({ assigneeAgentId: v === UNASSIGNED ? undefined : v })}
-              >
-                <SelectTrigger id='task-assignee' className='w-full'>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>未指派</SelectItem>
-                  {agents.data
-                    ?.filter((a) => a.status !== 'terminated')
-                    .map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+            <Field id='task-assignee' label='负责人'>
+              <ActorSelect
+                id='task-assignee'
+                value={{ userId: item.assigneeUserId, agentId: item.assigneeAgentId }}
+                noneLabel='未指派'
+                disabled={!editable || update.isPending}
+                onChange={(next) => update.mutate({ assigneeAgentId: next.agentId, assigneeUserId: next.userId })}
+              />
+              {editable ? <p className='text-muted-foreground text-xs'>指派给智能体后它会立即被唤醒并开始处理。</p> : null}
             </Field>
             <ProjectPlacementFields
               value={{ projectId: item.projectId, milestoneId: item.milestoneId }}
