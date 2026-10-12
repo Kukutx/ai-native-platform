@@ -9,9 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { formatDate } from '@/lib/labels';
-import { queryKeys } from '@/lib/query-keys';
 
 /** 表单里的自定义字段值：文本、数字、日期、单选为字符串，多选为数组，是否为布尔。 */
 export type CustomValues = Record<string, string | string[] | boolean>;
@@ -19,7 +18,7 @@ export type CustomValues = Record<string, string | string[] | boolean>;
 const NONE = '__none__';
 
 export function useCrmFields(recordType: CrmRecordType) {
-  return useQuery({ queryKey: queryKeys.crmFields(recordType), queryFn: ({ signal }) => api.crm.fields.list(recordType, signal) });
+  return useQuery(catalogQueries.crmFields(recordType));
 }
 
 /** 新建、编辑表单里的自定义字段状态。 */

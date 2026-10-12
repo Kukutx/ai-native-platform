@@ -7,6 +7,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ErpSalesOrderStatus } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -16,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pager } from '@/features/crm/pager';
+import { Pager } from '@/components/app/pager';
 import { ErpNav } from '@/features/erp/erp-nav';
 import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
 import { api } from '@/lib/api';
@@ -108,6 +109,8 @@ export default function SalesOrdersPage() {
       <ErpNav />
       {orders.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : orders.isError && !orders.data ? (
+        <ErrorState query={orders} />
       ) : orders.data?.items.length ? (
         <Card>
           <CardContent>

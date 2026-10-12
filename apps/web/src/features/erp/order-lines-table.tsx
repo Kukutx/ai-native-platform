@@ -43,7 +43,7 @@ export function OrderLinesTable({
             </TableCell>
             <TableCell className='text-right tabular-nums'>{formatQuantity(line.quantity, line.unit)}</TableCell>
             {deliveredLabel ? (
-              <TableCell className={line.delivered < line.quantity ? 'text-right text-amber-600 tabular-nums dark:text-amber-500' : 'text-right tabular-nums'}>
+              <TableCell className={line.delivered < line.quantity ? 'text-right text-warning tabular-nums' : 'text-right tabular-nums'}>
                 {formatQuantity(line.delivered)}
               </TableCell>
             ) : null}

@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import type { CrmImportDuplicateMode, CrmImportPreviewDto, CrmImportResultDto } from '@ainative/api-client';
 import { Icons } from '@/components/icons';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -71,7 +72,7 @@ function Importer({ recordType, onClose }: { recordType: ImportType; onClose: ()
     if (picked.size > MAX_BYTES) {
       read.reset();
       setPreview(null);
-      alert('文件超过 10 MB，请拆分后再导入。');
+      toast.error('文件超过 10 MB，请拆分后再导入。');
       return;
     }
 

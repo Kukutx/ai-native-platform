@@ -3,7 +3,9 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApiKeyDto, CreatedApiKeyDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
+import { ErrorState } from '@/components/app/query-state';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { api } from '@/lib/api';
 import { absoluteApiUrl } from '@/lib/config';
@@ -19,7 +22,7 @@ import { queryKeys } from '@/lib/query-keys';
 
 const NEVER = 'never';
 
-function keyState(key: ApiKeyDto): { label: string; tone: 'secondary' | 'outline' | 'destructive' } {
+function keyState(key: ApiKeyDto): { label: string; tone: 'success' | 'outline' | 'destructive' } {
   if (key.revokedAt) {
     return { label: '已吊销', tone: 'destructive' };
   }
@@ -28,7 +31,7 @@ function keyState(key: ApiKeyDto): { label: string; tone: 'secondary' | 'outline
     return { label: '已过期', tone: 'outline' };
   }
 
-  return { label: '有效', tone: 'secondary' };
+  return { label: '有效', tone: 'success' };
 }
 
 /**
@@ -36,6 +39,7 @@ function keyState(key: ApiKeyDto): { label: string; tone: 'secondary' | 'outline
  */
 export function ApiKeysTab() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const keys = useQuery({ queryKey: queryKeys.apiKeys, queryFn: ({ signal }) => api.apiKeys.list(signal) });
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<CreatedApiKeyDto | null>(null);
@@ -83,7 +87,11 @@ export function ApiKeysTab() {
                   <TableCell className='text-muted-foreground text-sm'>{key.expiresAt ? formatTime(key.expiresAt) : '永不'}</TableCell>
                   <TableCell className='text-right'>
                     {key.revokedAt ? null : (
-                      <Button size='sm' variant='ghost' onClick={() => confirm(`吊销「${key.name}」？使用它的客户端会立即失去访问权限。`) && revoke.mutate(key.id)}>
+                      <Button size='sm' variant='ghost' onClick={() =>
+                          void confirm({ title: `吊销「${key.name}」？`, description: '使用它的客户端会立即失去访问权限。', confirmLabel: '吊销' }).then(
+                            (ok) => ok && revoke.mutate(key.id),
+                          )
+                        }>
                         吊销
                       </Button>
                     )}
@@ -93,7 +101,11 @@ export function ApiKeysTab() {
             })}
           </TableBody>
         </Table>
-      ) : keys.isPending ? null : (
+      ) : keys.isPending ? (
+        <Skeleton className='h-40 w-full' />
+      ) : keys.isError ? (
+        <ErrorState query={keys} />
+      ) : (
         <EmptyState title='还没有 API 密钥' description='创建一个密钥，就能在 Claude Code 里直接查任务、建任务、检索知识库。' />
       )}
       <CreateKeyDialog
@@ -160,7 +172,6 @@ function CreateKeyDialog({ open, onOpenChange, onCreated }: { open: boolean; onO
               <span className='text-muted-foreground block text-xs'>只能查询，不能创建或修改任何数据。适合分享给只需要查资料的工具。</span>
             </span>
           </label>
-          {create.error ? <p className='text-destructive text-sm'>{create.error.message}</p> : null}
           <DialogFooter>
             <Button type='submit' disabled={create.isPending}>
               创建

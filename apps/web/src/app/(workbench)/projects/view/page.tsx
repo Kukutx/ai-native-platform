@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ProjectMilestoneDto, WorkItemDto } from '@ainative/api-client';
+import { DetailState } from '@/components/app/query-state';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatCard } from '@/components/app/stat-card';
 import { StatusBadge } from '@/components/app/status-badge';
@@ -15,7 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { InfoRow } from '@/features/crm/info-row';
+import { InfoRow } from '@/components/app/info-row';
 import { encodeActor } from '@/features/projects/actor-select';
 import { GanttChart } from '@/features/projects/gantt-chart';
 import { MemberDialog } from '@/features/projects/member-dialog';
@@ -39,6 +41,7 @@ function ProjectDetail() {
   const canSchedule = can('tasks.view');
   const view = canSchedule && params.get('view') === 'gantt' ? 'gantt' : 'overview';
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [milestoneDialog, setMilestoneDialog] = useState<{ milestone: ProjectMilestoneDto | null } | null>(null);
   const [addingMember, setAddingMember] = useState(false);
@@ -89,7 +92,7 @@ function ProjectDetail() {
   }, [tasks.data]);
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='项目' back={{ href: '/projects', label: '项目' }} />;
   }
 
   const { project, milestones, members } = detail.data;
@@ -133,7 +136,11 @@ function ProjectDetail() {
               <Button
                 variant='ghost'
                 disabled={remove.isPending}
-                onClick={() => confirm(`删除项目「${project.name}」？里程碑和成员会一并删除，项目里的任务保留下来。`) && remove.mutate()}
+                onClick={() =>
+                  void confirm({ title: `删除项目「${project.name}」？`, description: '里程碑和成员会一并删除，项目里的任务保留下来。', confirmLabel: '删除' }).then(
+                    (ok) => ok && remove.mutate(),
+                  )
+                }
               >
                 <Icons.trash />
                 删除
@@ -177,7 +184,7 @@ function ProjectDetail() {
                         <CardTitle className='flex items-center gap-2'>
                           <Icons.milestone className='text-muted-foreground size-4' />
                           {m.name}
-                          {m.completedAt ? <Badge variant='secondary'>已完成</Badge> : m.isOverdue ? <Badge variant='destructive'>已逾期</Badge> : null}
+                          {m.completedAt ? <Badge variant='success'>已完成</Badge> : m.isOverdue ? <Badge variant='destructive'>已逾期</Badge> : null}
                         </CardTitle>
                         <p className='text-muted-foreground text-xs'>
                           {m.dueDate ? `${formatDate(m.dueDate)} 截止` : '没有截止日期'}
@@ -212,7 +219,9 @@ function ProjectDetail() {
                                 <DropdownMenuItem onSelect={() => setMilestoneDialog({ milestone: m })}>编辑</DropdownMenuItem>
                                 <DropdownMenuItem
                                   onSelect={() =>
-                                    confirm(`删除里程碑「${m.name}」？里面的任务会留在项目里。`) && milestoneAction.mutate({ milestone: m, action: 'delete' })
+                                    void confirm({ title: `删除里程碑「${m.name}」？`, description: '里面的任务会留在项目里。', confirmLabel: '删除' }).then(
+                                      (ok) => ok && milestoneAction.mutate({ milestone: m, action: 'delete' }),
+                                    )
                                   }
                                 >
                                   删除
@@ -306,7 +315,9 @@ function ProjectDetail() {
                                 variant='ghost'
                                 aria-label='移出项目'
                                 disabled={removeMember.isPending}
-                                onClick={() => confirm(`把 ${m.member.name ?? 'TA'} 移出项目？`) && removeMember.mutate(m.id)}
+                                onClick={() =>
+                                  void confirm({ title: `把 ${m.member.name ?? 'TA'} 移出项目？`, confirmLabel: '移出' }).then((ok) => ok && removeMember.mutate(m.id))
+                                }
                               >
                                 <Icons.close />
                               </Button>
@@ -363,7 +374,7 @@ function TaskList({ items, empty }: { items: WorkItemDto[]; empty: string }) {
               {task.title}
             </Link>
             {task.dueDate ? (
-              <span className={cn('text-xs tabular-nums', overdue ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground')}>
+              <span className={cn('text-xs tabular-nums', overdue ? 'text-warning' : 'text-muted-foreground')}>
                 {formatDate(task.dueDate)}
               </span>
             ) : null}

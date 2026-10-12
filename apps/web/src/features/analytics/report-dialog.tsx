@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { AnalyticsReportDto, SaveAnalyticsReportRequest } from '@ainative/api-client';
+import { EditConflictAlert, isEditConflict, useEditVersion } from '@/components/app/edit-conflict';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -12,22 +13,28 @@ import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 
 /**
- * 保存报表：report 不为空时更新它（带上版本号防止覆盖别人的修改），否则新建。
+ * 保存报表：report 不为空时更新它，否则新建。
+ * baseVersion 是页面开始编辑时报表的版本，提交它防止悄悄覆盖别人在这期间的修改；冲突时可以载入最新或仍然覆盖。
  */
 export function ReportDialog({
   open,
   report,
+  baseVersion,
   config,
   defaultName,
   onOpenChange,
   onSaved,
+  onLoadLatest,
 }: {
   open: boolean;
   report: AnalyticsReportDto | null;
+  baseVersion?: string;
   config: Omit<SaveAnalyticsReportRequest, 'name' | 'description' | 'expectedUpdatedAt'>;
   defaultName: string;
   onOpenChange: (open: boolean) => void;
   onSaved: (report: AnalyticsReportDto) => void;
+  /** 冲突时选择「载入最新」：最新内容已写入查询缓存，由页面用它重新开始编辑。 */
+  onLoadLatest: () => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -36,10 +43,12 @@ export function ReportDialog({
           <ReportForm
             key={report?.id ?? 'new'}
             report={report}
+            baseVersion={baseVersion}
             config={config}
             defaultName={defaultName}
             onClose={() => onOpenChange(false)}
             onSaved={onSaved}
+            onLoadLatest={onLoadLatest}
           />
         ) : null}
       </DialogContent>
@@ -49,37 +58,46 @@ export function ReportDialog({
 
 function ReportForm({
   report,
+  baseVersion,
   config,
   defaultName,
   onClose,
   onSaved,
+  onLoadLatest,
 }: {
   report: AnalyticsReportDto | null;
+  baseVersion?: string;
   config: Omit<SaveAnalyticsReportRequest, 'name' | 'description' | 'expectedUpdatedAt'>;
   defaultName: string;
   onClose: () => void;
   onSaved: (report: AnalyticsReportDto) => void;
+  onLoadLatest: () => void;
 }) {
   const queryClient = useQueryClient();
+  const edit = useEditVersion(
+    report,
+    () => {
+      const id = report!.id;
+      return queryClient.fetchQuery({ queryKey: queryKeys.analyticsReport(id), queryFn: ({ signal }) => api.analytics.getReport(id, signal), staleTime: 0 });
+    },
+    baseVersion,
+  );
   const [name, setName] = useState(report?.name ?? defaultName);
   const [description, setDescription] = useState(report?.description ?? '');
   const save = useMutation({
     mutationFn: () => {
       const request: SaveAnalyticsReportRequest = { ...config, name, description };
-      return report ? api.analytics.updateReport(report.id, { ...request, expectedUpdatedAt: report.updatedAt }) : api.analytics.createReport(request);
+      return report ? api.analytics.updateReport(report.id, { ...request, expectedUpdatedAt: edit.expected() }) : api.analytics.createReport(request);
     },
-    onSuccess: async (saved) => {
-      queryClient.setQueryData(queryKeys.analyticsReport(saved.id), saved);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.analyticsReports });
+    meta: { handledError: isEditConflict },
+    onSuccess: (saved) => {
+      // 先让页面记下新版本，再更新缓存，避免页面短暂把自己的保存当成别人的修改。
       onSaved(saved);
+      queryClient.setQueryData(queryKeys.analyticsReport(saved.id), saved);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.analyticsReports });
       onClose();
     },
-    onError: () => {
-      if (report) {
-        // 多半是别人刚改过：刷新为最新内容，确认后再保存。
-        void queryClient.invalidateQueries({ queryKey: queryKeys.analyticsReport(report.id) });
-      }
-    },
+    onError: edit.onError,
   });
 
   return (
@@ -109,6 +127,7 @@ function ReportForm({
           placeholder='这张报表回答什么问题（选填）'
         />
       </div>
+      <EditConflictAlert edit={edit} subject='报表' onLoadLatest={onLoadLatest} onOverwrite={() => save.mutate()} disabled={save.isPending} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

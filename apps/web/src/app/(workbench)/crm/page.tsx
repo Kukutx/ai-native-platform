@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import type { CrmDealDto, CrmPipelineStageDto, CrmStageDto } from '@ainative/api-client';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatCard } from '@/components/app/stat-card';
 import { Icons } from '@/components/icons';
@@ -101,6 +102,8 @@ export default function CrmBoardPage() {
       <CrmNav />
       {pipeline.isPending ? (
         <Skeleton className='h-64 w-full' />
+      ) : pipeline.isError && !pipeline.data ? (
+        <ErrorState query={pipeline} />
       ) : pipeline.data ? (
         <>
           <div className='grid gap-4 sm:grid-cols-3'>
@@ -179,7 +182,7 @@ function ColumnHeader({ column, closedWindowDays }: { column: CrmPipelineStageDt
     <div className='space-y-0.5 px-2 py-1.5'>
       <div className='flex items-center justify-between text-sm font-medium'>
         <span className='flex items-center gap-1.5'>
-          {column.stage.kind === 'won' ? <Icons.circleCheck className='size-4 text-emerald-600' /> : null}
+          {column.stage.kind === 'won' ? <Icons.circleCheck className='text-success size-4' /> : null}
           {column.stage.kind === 'lost' ? <Icons.circleX className='text-muted-foreground size-4' /> : null}
           {column.stage.name}
         </span>

@@ -3,7 +3,9 @@
 import { useDeferredValue, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { MemoryDto, MemoryScope } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +24,7 @@ const PAGE_SIZE = 50;
 export function MemoriesTab() {
   const { can, session } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const manage = can('memory.manage');
   const [scope, setScope] = useState<MemoryScope | typeof ALL>(ALL);
   const [filter, setFilter] = useState('');
@@ -78,10 +81,9 @@ export function MemoriesTab() {
             记住
           </Button>
         </div>
-        {create.error ? <p className='text-destructive text-sm'>{create.error.message}</p> : null}
       </form>
       <div className='flex flex-wrap items-center gap-2'>
-        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder='搜索记忆' className='w-56' />
+        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder='搜索记忆' className='w-56' aria-label='搜索记忆' />
         <Select value={scope} onValueChange={(v) => setScope(v as MemoryScope | typeof ALL)}>
           <SelectTrigger className='w-36'>
             <SelectValue />
@@ -97,6 +99,8 @@ export function MemoriesTab() {
       </div>
       {memories.isPending ? (
         <Skeleton className='h-40 w-full' />
+      ) : memories.isError && !memories.data ? (
+        <ErrorState query={memories} />
       ) : items.length ? (
         <ul className='divide-y rounded-xl border'>
           {items.map((m) => (
@@ -114,7 +118,13 @@ export function MemoriesTab() {
                 </p>
               </div>
               {canDelete(m) ? (
-                <Button size='sm' variant='ghost' onClick={() => confirm('忘记这条记忆？') && remove.mutate(m.id)}>
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  disabled={remove.isPending}
+                  aria-label='忘记这条记忆'
+                  onClick={() => void confirm({ title: '忘记这条记忆？', confirmLabel: '忘记' }).then((ok) => ok && remove.mutate(m.id))}
+                >
                   <Icons.trash />
                 </Button>
               ) : null}

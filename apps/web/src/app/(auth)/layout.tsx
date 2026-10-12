@@ -9,9 +9,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   const { token, loading } = useSession();
   const router = useRouter();
 
+  // 已登录时交给首页，按权限进入第一个可用的入口。
   useEffect(() => {
     if (!loading && token) {
-      router.replace('/chat');
+      router.replace('/');
     }
   }, [loading, token, router]);
 

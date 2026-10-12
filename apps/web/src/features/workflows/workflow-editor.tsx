@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { toProblem, type SaveWorkflowRequest, type WorkflowDto, type WorkflowTriggerDto, type WorkflowTriggerKind } from '@ainative/api-client';
+import { EditConflictAlert, isEditConflict, useEditVersion } from '@/components/app/edit-conflict';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -15,6 +16,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
+import { localTimeZone } from '@/lib/dates';
 import { workflowTriggerKind } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 import { cronPresets } from './describe';
@@ -27,14 +30,6 @@ interface Draft {
   isEnabled: boolean;
   trigger: WorkflowTriggerDto;
   steps: DraftStep[];
-}
-
-function localTimeZone() {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
-  }
 }
 
 function toDraft(workflow?: WorkflowDto): Draft {
@@ -60,8 +55,13 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
   const { session } = useSession();
   const [draft, setDraft] = useState<Draft>(() => toDraft(workflow));
   const [errors, setErrors] = useState<FieldErrors>({});
+  // 打开编辑器时的版本：后台刷新拿到别人保存的新版本后，不能用它悄悄覆盖对方的修改。
+  const edit = useEditVersion(workflow, () => {
+    const id = workflow!.id;
+    return queryClient.fetchQuery({ queryKey: queryKeys.workflow(id), queryFn: ({ signal }) => api.workflows.get(id, signal), staleTime: 0 });
+  });
   const catalog = useQuery({ queryKey: queryKeys.workflowCatalog, queryFn: ({ signal }) => api.workflows.catalog(signal) });
-  const actions = useQuery({ queryKey: queryKeys.actions, queryFn: ({ signal }) => api.actions.list(signal) });
+  const actions = useQuery(catalogQueries.actions());
   const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
 
   const events = catalog.data?.events;
@@ -74,14 +74,11 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
       toast.success(workflow ? '已保存' : '工作流已创建');
       router.push(`/workflows/view?id=${saved.id}`);
     },
-    onError: async (error) => {
-      const problem = toProblem(error);
-      setErrors(problem.errors ?? {});
-      if (problem.status === 409 && workflow) {
-        // 期间被别人修改过：按提示载入最新内容，再由用户确认修改。
-        const latest = await queryClient.fetchQuery({ queryKey: queryKeys.workflow(workflow.id), queryFn: () => api.workflows.get(workflow.id), staleTime: 0 });
-        setDraft(toDraft(latest));
-      }
+    meta: { handledError: isEditConflict },
+    onError: (error) => {
+      setErrors(toProblem(error).errors ?? {});
+      // 期间被别人修改过：保留用户的草稿，由用户选择载入最新或仍然覆盖。
+      edit.onError(error);
     },
   });
 
@@ -107,7 +104,7 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
       isEnabled: draft.isEnabled,
       trigger,
       steps: payload,
-      expectedUpdatedAt: workflow?.updatedAt,
+      expectedUpdatedAt: edit.expected(),
     });
   };
 
@@ -163,7 +160,7 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
                 type='button'
                 size='sm'
                 variant={(draft.trigger.kind ?? 'manual') === kind ? 'default' : 'outline'}
-                onClick={() => setTrigger(kind === 'schedule' && !draft.trigger.timeZone ? { kind, timeZone: localTimeZone(), cron: draft.trigger.cron ?? '0 9 * * *' } : { kind })}
+                onClick={() => setTrigger(kind === 'schedule' && !draft.trigger.timeZone ? { kind, timeZone: localTimeZone() ?? 'UTC', cron: draft.trigger.cron ?? '0 9 * * *' } : { kind })}
               >
                 {workflowTriggerKind[kind]}
               </Button>
@@ -283,6 +280,17 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
           </AlertDescription>
         </Alert>
       ) : null}
+
+      <EditConflictAlert
+        edit={edit}
+        subject='工作流'
+        onLoadLatest={(latest) => {
+          setDraft(toDraft(latest));
+          setErrors({});
+        }}
+        onOverwrite={submit}
+        disabled={save.isPending}
+      />
 
       <div className='flex justify-end gap-2'>
         <Button type='button' variant='outline' onClick={() => router.back()}>

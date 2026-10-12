@@ -5,8 +5,13 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
+import { useFeatureCatalog } from '@/components/app/feature-checklist';
+import { ValueRow } from '@/components/app/info-row';
 import { PageHeader } from '@/components/app/page-header';
+import { DetailState } from '@/components/app/query-state';
+import { RawKeyTooltip } from '@/components/app/raw-key';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -14,7 +19,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import { AgentFormDialog } from '@/features/agents/agent-form-dialog';
 import { RunTable } from '@/features/runs/run-table';
 import { api } from '@/lib/api';
@@ -25,8 +29,10 @@ function AgentDetail() {
   const id = useSearchParams().get('id') ?? '';
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [reason, setReason] = useState('');
+  const { label } = useFeatureCatalog();
   const agent = useQuery({ queryKey: queryKeys.agent(id), queryFn: ({ signal }) => api.agents.get(id, signal), enabled: !!id });
   const runs = useQuery({ queryKey: queryKeys.runs(id), queryFn: ({ signal }) => api.runs.list(id, 1, 20, signal), enabled: !!id });
   const tasks = useQuery({
@@ -44,11 +50,17 @@ function AgentDetail() {
       void refresh();
     },
   });
-  const pause = useMutation({ mutationFn: (paused: boolean) => (paused ? api.agents.pause(id) : api.agents.resume(id)), onSuccess: refresh });
-  const terminate = useMutation({ mutationFn: () => api.agents.terminate(id), onSuccess: refresh });
+  const pause = useMutation({
+    mutationFn: (paused: boolean) => (paused ? api.agents.pause(id) : api.agents.resume(id)),
+    onSuccess: (_, paused) => {
+      toast.success(paused ? '已暂停' : '已恢复');
+      void refresh();
+    },
+  });
+  const terminate = useMutation({ mutationFn: () => api.agents.terminate(id), meta: { successMessage: '已终止' }, onSuccess: refresh });
 
   if (!agent.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={agent} subject='智能体' back={{ href: '/agents', label: '智能体' }} />;
   }
 
   const a = agent.data;
@@ -70,16 +82,18 @@ function AgentDetail() {
                 <Icons.edit />
                 编辑
               </Button>
-              <Button variant='outline' onClick={() => pause.mutate(a.status !== 'paused')}>
+              <Button variant='outline' disabled={pause.isPending} onClick={() => pause.mutate(a.status !== 'paused')}>
+                {pause.isPending ? <Icons.spinner className='animate-spin' /> : null}
                 {a.status === 'paused' ? '恢复' : '暂停'}
               </Button>
               <Button
                 variant='destructive'
-                onClick={() => {
-                  if (window.confirm(`确定终止 ${a.name}？终止后不能恢复，下属会改为向其上级汇报。`)) {
-                    terminate.mutate();
-                  }
-                }}
+                disabled={terminate.isPending}
+                onClick={() =>
+                  void confirm({ title: `终止 ${a.name}？`, description: '终止后不能恢复，下属会改为向其上级汇报。', confirmLabel: '终止' }).then(
+                    (ok) => ok && terminate.mutate(),
+                  )
+                }
               >
                 终止
               </Button>
@@ -98,12 +112,19 @@ function AgentDetail() {
             <p className='whitespace-pre-wrap'>{a.instructions || '（未填写）'}</p>
             {a.pauseReason ? <p className='text-muted-foreground'>暂停原因：{a.pauseReason}</p> : null}
             {a.lastError ? <p className='text-destructive'>最近错误：{a.lastError}</p> : null}
-            <div className='flex flex-wrap gap-1'>
-              {a.permissions.map((p) => (
-                <Badge key={p} variant='outline' className='font-mono'>
-                  {p}
-                </Badge>
-              ))}
+            <div className='space-y-2'>
+              <p className='text-muted-foreground text-xs'>权限</p>
+              <div className='flex flex-wrap gap-1'>
+                {a.permissions.length ? (
+                  a.permissions.map((p) => (
+                    <RawKeyTooltip key={p} value={p}>
+                      <Badge variant='outline'>{label(p)}</Badge>
+                    </RawKeyTooltip>
+                  ))
+                ) : (
+                  <span className='text-muted-foreground'>没有授予任何权限</span>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -112,10 +133,10 @@ function AgentDetail() {
             <CardTitle>运行情况</CardTitle>
           </CardHeader>
           <CardContent className='space-y-2 text-sm'>
-            <Row label='模型' value={`${a.model}（${a.modelProvider}）`} />
-            <Row label='本月花费' value={`${formatUsd(a.spentThisMonthUsd)}${a.monthlyBudgetUsd > 0 ? ` / ${formatUsd(a.monthlyBudgetUsd)}` : ''}`} />
-            <Row label='定时心跳' value={a.heartbeatIntervalSeconds ? `每 ${a.heartbeatIntervalSeconds} 秒` : '关闭'} />
-            <Row label='上次心跳' value={formatTime(a.lastHeartbeatAt)} />
+            <ValueRow label='模型' value={`${a.model}（${a.modelProvider}）`} />
+            <ValueRow label='本月花费' value={`${formatUsd(a.spentThisMonthUsd)}${a.monthlyBudgetUsd > 0 ? ` / ${formatUsd(a.monthlyBudgetUsd)}` : ''}`} />
+            <ValueRow label='定时心跳' value={a.heartbeatIntervalSeconds ? `每 ${a.heartbeatIntervalSeconds} 秒` : '关闭'} />
+            <ValueRow label='上次心跳' value={formatTime(a.lastHeartbeatAt)} />
             {can('agents.wake') && a.status !== 'terminated' ? (
               <form
                 className='flex gap-2 pt-2'
@@ -124,7 +145,7 @@ function AgentDetail() {
                   wake.mutate();
                 }}
               >
-                <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder='唤醒原因（可选）' />
+                <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder='唤醒原因（可选）' aria-label='唤醒原因' />
                 <Button type='submit' disabled={wake.isPending}>
                   唤醒
                 </Button>
@@ -169,14 +190,6 @@ function AgentDetail() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className='flex justify-between gap-4'>
-      <span className='text-muted-foreground'>{label}</span>
-      <span className='text-right'>{value}</span>
-    </div>
-  );
-}
 
 export default function AgentDetailPage() {
   return (

@@ -37,8 +37,8 @@ const BAR_COLOR: Record<WorkItemStatus, string> = {
   todo: 'bg-sky-500',
   in_progress: 'bg-blue-600',
   in_review: 'bg-violet-500',
-  blocked: 'bg-amber-500',
-  done: 'bg-emerald-500/70',
+  blocked: 'bg-warning',
+  done: 'bg-success/70',
   cancelled: 'bg-muted-foreground/40',
 };
 
@@ -457,7 +457,7 @@ export function GanttChart({ data, editable }: { data: ProjectScheduleDto; edita
                       key={m.id}
                       className={cn(
                         'absolute z-[3] size-3 rotate-45 rounded-[2px]',
-                        m.completedAt ? 'bg-emerald-500' : m.isOverdue ? 'bg-red-500' : 'bg-primary',
+                        m.completedAt ? 'bg-success' : m.isOverdue ? 'bg-destructive' : 'bg-primary',
                       )}
                       style={{ left: x(toDay(m.dueDate)) + dw / 2 - 6, top: index * ROW_HEIGHT + ROW_HEIGHT / 2 - 6 }}
                       title={`${m.name} · ${formatDate(m.dueDate)} 截止${m.completedAt ? '（已完成）' : m.isOverdue ? '（已逾期）' : ''}`}
@@ -633,7 +633,7 @@ function RowLabel({ row }: { row: Row }) {
       </Link>
       {task.waitingOn && !closed ? (
         <span title={`等待 ${task.waitingOn} 个前置任务关闭`} className='shrink-0'>
-          <Icons.hourglass className='size-3.5 text-amber-600 dark:text-amber-500' aria-label={`等待 ${task.waitingOn} 个前置任务关闭`} />
+          <Icons.hourglass className='size-3.5 text-warning' aria-label={`等待 ${task.waitingOn} 个前置任务关闭`} />
         </span>
       ) : null}
       {!task.startDate && !task.dueDate ? <span className='text-muted-foreground shrink-0 text-xs'>未排期</span> : null}

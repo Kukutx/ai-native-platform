@@ -2,8 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { api } from '@/lib/api';
-import { queryKeys } from '@/lib/query-keys';
+import { catalogQueries } from '@/lib/catalogs';
 import { cn } from '@/lib/utils';
 
 const DEFAULT = '__default__';
@@ -23,7 +22,7 @@ export function WarehouseSelect({
   allLabel?: string;
   className?: string;
 }) {
-  const warehouses = useQuery({ queryKey: queryKeys.erpWarehouses, queryFn: ({ signal }) => api.erp.warehouses.list(signal) });
+  const warehouses = useQuery(catalogQueries.erpWarehouses());
   const empty = allowDefault || allLabel;
   return (
     <Select value={value ?? (empty ? DEFAULT : '')} onValueChange={(v) => onChange(v === DEFAULT ? undefined : v)}>

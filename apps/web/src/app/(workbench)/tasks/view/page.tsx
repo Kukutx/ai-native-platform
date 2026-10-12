@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UpdateWorkItemRequest, WorkItemDto, WorkItemLinkDto } from '@ainative/api-client';
+import { DetailState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -13,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { ProjectPlacementFields } from '@/features/tasks/project-placement-fields';
 import { TaskCreateDialog } from '@/features/tasks/task-create-dialog';
@@ -74,7 +74,7 @@ function TaskDetail() {
   });
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='任务' back={{ href: '/tasks', label: '任务' }} />;
   }
 
   const { item, comments, subtasks, dependencies, dependents } = detail.data;
@@ -94,8 +94,8 @@ function TaskDetail() {
             <h1 className='text-2xl font-semibold tracking-tight'>{item.title}</h1>
           </div>
           {waiting.length > 0 && item.status !== 'done' && item.status !== 'cancelled' ? (
-            <p className='flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm'>
-              <Icons.hourglass className='size-4 shrink-0 text-amber-600 dark:text-amber-500' />
+            <p className='flex items-center gap-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm'>
+              <Icons.hourglass className='size-4 shrink-0 text-warning' />
               等待 {waiting.map((d) => d.key).join('、')} 关闭后才能开始，负责的智能体在此之前不会领取这个任务。
             </p>
           ) : null}
@@ -178,7 +178,7 @@ function TaskDetail() {
                     }
                   }}
                 >
-                  <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder='留言会唤醒负责的智能体' rows={3} />
+                  <Textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder='留言会唤醒负责的智能体' rows={3} aria-label='留言' />
                   <Button type='submit' size='sm' disabled={addComment.isPending || !comment.trim()}>
                     发送
                   </Button>
@@ -192,9 +192,9 @@ function TaskDetail() {
             <CardTitle>属性</CardTitle>
           </CardHeader>
           <CardContent className='space-y-4 text-sm'>
-            <Field label='状态'>
+            <Field id='task-status' label='状态'>
               <Select value={item.status} disabled={!editable} onValueChange={(v) => update.mutate({ status: v as WorkItemDto['status'] })}>
-                <SelectTrigger className='w-full'>
+                <SelectTrigger id='task-status' className='w-full'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -206,9 +206,9 @@ function TaskDetail() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label='优先级'>
+            <Field id='task-priority' label='优先级'>
               <Select value={item.priority} disabled={!editable} onValueChange={(v) => update.mutate({ priority: v as WorkItemDto['priority'] })}>
-                <SelectTrigger className='w-full'>
+                <SelectTrigger id='task-priority' className='w-full'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -220,13 +220,13 @@ function TaskDetail() {
                 </SelectContent>
               </Select>
             </Field>
-            <Field label='负责的智能体'>
+            <Field id='task-assignee' label='负责的智能体'>
               <Select
                 value={item.assigneeAgentId ?? UNASSIGNED}
                 disabled={!editable}
                 onValueChange={(v) => update.mutate({ assigneeAgentId: v === UNASSIGNED ? undefined : v })}
               >
-                <SelectTrigger className='w-full'>
+                <SelectTrigger id='task-assignee' className='w-full'>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -253,25 +253,25 @@ function TaskDetail() {
               </Link>
             ) : null}
             <div className='grid grid-cols-2 gap-3'>
-              <Field label='开始日期'>
+              <Field id='task-start' label='开始日期'>
                 <Input
+                  id='task-start'
                   type='date'
                   key={item.startDate ?? 'none'}
                   defaultValue={item.startDate ?? ''}
                   max={item.dueDate}
                   disabled={!editable}
-                  aria-label='开始日期'
                   onBlur={(e) => (e.target.value || undefined) !== (item.startDate ?? undefined) && update.mutate({ startDate: e.target.value || undefined })}
                 />
               </Field>
-              <Field label='截止日期'>
+              <Field id='task-due' label='截止日期'>
                 <Input
+                  id='task-due'
                   type='date'
                   key={item.dueDate ?? 'none'}
                   defaultValue={item.dueDate ?? ''}
                   min={item.startDate}
                   disabled={!editable}
-                  aria-label='截止日期'
                   onBlur={(e) => (e.target.value || undefined) !== (item.dueDate ?? undefined) && update.mutate({ dueDate: e.target.value || undefined })}
                 />
               </Field>
@@ -335,10 +335,11 @@ function LinkList({ items, onRemove, disabled }: { items: WorkItemLinkDto[]; onR
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/** 属性栏的一项：htmlFor 指向控件的 id，读屏软件和点击标签都能定位到控件。 */
+function Field({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
     <div className='grid gap-2'>
-      <Label>{label}</Label>
+      <Label htmlFor={id}>{label}</Label>
       {children}
     </div>
   );

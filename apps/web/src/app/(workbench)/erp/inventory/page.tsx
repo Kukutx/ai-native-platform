@@ -7,6 +7,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ErpStockMovementKind } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Pager } from '@/features/crm/pager';
+import { Pager } from '@/components/app/pager';
 import { ErpNav } from '@/features/erp/erp-nav';
 import { MovementTable } from '@/features/erp/movement-table';
 import { AdjustStockDialog, TransferStockDialog } from '@/features/erp/stock-dialogs';
@@ -136,6 +137,8 @@ function Levels({ warehouseId, lowOnly: initialLow }: { warehouseId?: string; lo
         </div>
         {levels.isPending ? (
           <Skeleton className='h-40 w-full' />
+        ) : levels.isError && !levels.data ? (
+          <ErrorState query={levels} />
         ) : levels.data?.items.length ? (
           <>
             <Table>
@@ -224,6 +227,8 @@ function Movements({ warehouseId, productId }: { warehouseId?: string; productId
         </div>
         {movements.isPending ? (
           <Skeleton className='h-40 w-full' />
+        ) : movements.isError && !movements.data ? (
+          <ErrorState query={movements} />
         ) : movements.data?.items.length ? (
           <>
             <MovementTable movements={movements.data.items} showProduct={!productId} />

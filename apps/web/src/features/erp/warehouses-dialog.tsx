@@ -3,13 +3,14 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ErpWarehouseDto, SaveErpWarehouseRequest } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
-import { queryKeys } from '@/lib/query-keys';
+import { catalogQueries } from '@/lib/catalogs';
 
 /** 仓库管理：新增、改名、设为默认、删除（有库存或被订单使用的仓库不能删除）。 */
 export function WarehousesDialog({ open, onOpenChange, canManage }: { open: boolean; onOpenChange: (open: boolean) => void; canManage: boolean }) {
@@ -28,7 +29,8 @@ export function WarehousesDialog({ open, onOpenChange, canManage }: { open: bool
 
 function WarehouseList({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
-  const warehouses = useQuery({ queryKey: queryKeys.erpWarehouses, queryFn: ({ signal }) => api.erp.warehouses.list(signal) });
+  const confirm = useConfirm();
+  const warehouses = useQuery(catalogQueries.erpWarehouses());
   const [editing, setEditing] = useState<string | null>(null);
   const done = () => queryClient.invalidateQueries({ queryKey: ['erp'] });
   const save = useMutation({
@@ -84,7 +86,7 @@ function WarehouseList({ canManage }: { canManage: boolean }) {
                       variant='ghost'
                       className='size-8'
                       disabled={remove.isPending}
-                      onClick={() => confirm(`删除仓库「${w.name}」？`) && remove.mutate(w.id)}
+                      onClick={() => void confirm({ title: `删除仓库「${w.name}」？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate(w.id))}
                       aria-label='删除'
                     >
                       <Icons.trash className='size-4' />

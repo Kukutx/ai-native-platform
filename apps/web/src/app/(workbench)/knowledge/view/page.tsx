@@ -4,12 +4,13 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useConfirm } from '@/components/app/confirm-provider';
+import { DetailState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DocumentFormDialog, type DocumentDraft } from '@/features/knowledge/document-form-dialog';
 import { api } from '@/lib/api';
@@ -21,6 +22,7 @@ function DocumentDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [draft, setDraft] = useState<DocumentDraft | null>(null);
   const detail = useQuery({ queryKey: queryKeys.knowledgeDocument(id), queryFn: ({ signal }) => api.knowledge.getDocument(id, signal), enabled: !!id });
   const remove = useMutation({
@@ -31,12 +33,8 @@ function DocumentDetail() {
     },
   });
 
-  if (detail.isPending) {
-    return <Skeleton className='m-6 h-96' />;
-  }
-
   if (!detail.data) {
-    return <p className='text-muted-foreground p-6'>文档不存在或已被删除。</p>;
+    return <DetailState id={id} query={detail} subject='文档' back={{ href: '/knowledge', label: '知识库' }} />;
   }
 
   const { document, content, chunks } = detail.data;
@@ -69,7 +67,12 @@ function DocumentDetail() {
               <Icons.edit />
               编辑
             </Button>
-            <Button variant='ghost' onClick={() => confirm(`删除《${document.title}》？`) && remove.mutate()}>
+            <Button
+              variant='ghost'
+              aria-label='删除文档'
+              disabled={remove.isPending}
+              onClick={() => void confirm({ title: `删除《${document.title}》？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate())}
+            >
               <Icons.trash />
             </Button>
           </div>
@@ -93,7 +96,7 @@ function DocumentDetail() {
             <div key={chunk.id} className='bg-card rounded-xl border p-3'>
               <div className='text-muted-foreground mb-1 flex items-center justify-between text-xs'>
                 片段 {chunk.seq + 1}
-                <Badge variant={chunk.embedded ? 'secondary' : 'outline'}>{chunk.embedded ? '已向量化' : '向量化中'}</Badge>
+                <Badge variant={chunk.embedded ? 'success' : 'outline'}>{chunk.embedded ? '已向量化' : '向量化中'}</Badge>
               </div>
               <p className='text-sm whitespace-pre-wrap'>{chunk.content}</p>
             </div>

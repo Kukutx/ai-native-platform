@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RunEventDto } from '@ainative/api-client';
+import type { RealtimeClient } from '@ainative/api-client/realtime';
+import { DetailState } from '@/components/app/query-state';
 import { StatusBadge } from '@/components/app/status-badge';
+import { ValueRow } from '@/components/app/info-row';
 import { Icons } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { RunTimeline } from '@/features/runs/run-timeline';
-import { api, getRealtime } from '@/lib/api';
+import { api, loadRealtime } from '@/lib/api';
 import { formatTime, formatUsd, runStatus, wakeupSource } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
@@ -28,35 +30,53 @@ function RunDetail() {
       return;
     }
 
-    const realtime = getRealtime();
-    const off = realtime.onRunEvent((event) => {
-      if (event.runId !== id) {
-        return;
-      }
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    const subscribe = (realtime: RealtimeClient) => {
+      const off = realtime.onRunEvent((event) => {
+        if (event.runId !== id) {
+          return;
+        }
 
-      if (event.seq === 0) {
-        // 序号 0 是逐字增量，不落库；收到下一条持久化事件时清空。
-        const delta = (event.data as { delta?: string } | undefined)?.delta ?? '';
-        setLive((s) => ({ ...s, text: s.text + delta }));
-        return;
-      }
+        if (event.seq === 0) {
+          // 序号 0 是逐字增量，不落库；收到下一条持久化事件时清空。
+          const delta = (event.data as { delta?: string } | undefined)?.delta ?? '';
+          setLive((s) => ({ ...s, text: s.text + delta }));
+          return;
+        }
 
-      setLive((s) => ({ events: [...s.events.filter((e) => e.seq !== event.seq), event], text: '' }));
-      const status = (event.data as { status?: string } | undefined)?.status;
-      if (event.type === 'error' || (event.type === 'status' && status && finished.has(status))) {
-        void queryClient.invalidateQueries({ queryKey: queryKeys.run(id) });
-      }
-    });
-    void realtime
-      .start()
-      .then(() => realtime.subscribeRun(id))
+        setLive((s) => ({ events: [...s.events.filter((e) => e.seq !== event.seq), event], text: '' }));
+        const status = (event.data as { status?: string } | undefined)?.status;
+        if (event.type === 'error' || (event.type === 'status' && status && finished.has(status))) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.run(id) });
+        }
+      });
+      void realtime
+        .start()
+        .then(() => realtime.subscribeRun(id))
+        .catch(() => {
+          // 实时通道不可用时依赖变化通知刷新详情。
+        });
+      cleanup = () => {
+        off();
+        void realtime.unsubscribeRun(id).catch(() => {});
+      };
+    };
+
+    // 实时通道客户端按需加载，加载完成前离开页面时不再订阅。
+    loadRealtime()
+      .then((realtime) => {
+        if (!disposed) {
+          subscribe(realtime);
+        }
+      })
       .catch(() => {
-        // 实时通道不可用时依赖变化通知刷新详情。
+        // 脚本加载失败时依赖变化通知或手动刷新查看最新过程。
       });
 
     return () => {
-      off();
-      void realtime.unsubscribeRun(id).catch(() => {});
+      disposed = true;
+      cleanup?.();
     };
   }, [id, active, queryClient]);
 
@@ -70,7 +90,7 @@ function RunDetail() {
   }, [detail.data, live.events]);
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='执行记录' back={{ href: '/runs', label: '执行记录' }} />;
   }
 
   const { run, wakeup } = detail.data;
@@ -109,15 +129,15 @@ function RunDetail() {
               <CardTitle>概览</CardTitle>
             </CardHeader>
             <CardContent className='space-y-2 text-sm'>
-              <Row label='模型' value={`${run.provider} / ${run.model}`} />
-              <Row label='步数' value={run.steps} />
-              <Row label='输入 tokens' value={run.inputTokens.toLocaleString()} />
-              <Row label='输出 tokens' value={run.outputTokens.toLocaleString()} />
-              <Row label='花费' value={formatUsd(run.costUsd)} />
-              <Row label='开始' value={formatTime(run.startedAt)} />
-              <Row label='结束' value={formatTime(run.finishedAt)} />
+              <ValueRow label='模型' value={`${run.provider} / ${run.model}`} />
+              <ValueRow label='步数' value={run.steps} />
+              <ValueRow label='输入 tokens' value={run.inputTokens.toLocaleString()} />
+              <ValueRow label='输出 tokens' value={run.outputTokens.toLocaleString()} />
+              <ValueRow label='花费' value={formatUsd(run.costUsd)} />
+              <ValueRow label='开始' value={formatTime(run.startedAt)} />
+              <ValueRow label='结束' value={formatTime(run.finishedAt)} />
               {run.workItemId ? (
-                <Row
+                <ValueRow
                   label='关联任务'
                   value={
                     <Link href={`/tasks/view?id=${run.workItemId}`} className='underline'>
@@ -155,14 +175,6 @@ function RunDetail() {
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className='flex justify-between gap-4'>
-      <span className='text-muted-foreground'>{label}</span>
-      <span className='text-right'>{value}</span>
-    </div>
-  );
-}
 
 export default function RunDetailPage() {
   return (

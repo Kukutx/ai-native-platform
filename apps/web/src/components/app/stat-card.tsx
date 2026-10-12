@@ -9,7 +9,7 @@ export function StatCard({ label, value, hint, detail, tone }: { label: string; 
         <p className='text-muted-foreground text-xs' title={hint}>
           {label}
         </p>
-        <p className={cn('truncate text-xl font-semibold tabular-nums', tone === 'warning' && 'text-amber-600 dark:text-amber-500')} title={value}>
+        <p className={cn('truncate text-xl font-semibold tabular-nums', tone === 'warning' && 'text-warning')} title={value}>
           {value}
         </p>
         {detail ? <p className='text-muted-foreground truncate text-xs'>{detail}</p> : null}

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CrmCompanyDto } from '@ainative/api-client';
+import { EditConflictAlert, isEditConflict, ReloadableForm, useEditVersion } from '@/components/app/edit-conflict';
 import { useSession } from '@/components/app/session-provider';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { queryKeys } from '@/lib/query-keys';
 import { CustomFieldInputs, useCustomFieldForm } from './custom-fields';
 import { OwnerSelect } from './owner-select';
 import { ownerUserId, parseTags } from './utils';
@@ -29,14 +31,33 @@ export function CompanyFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-xl'>
-        {open ? <CompanyForm key={company?.id ?? 'new'} company={company ?? null} onClose={() => onOpenChange(false)} onSaved={onSaved} /> : null}
+        {open ? (
+          <ReloadableForm entity={company ?? null}>
+            {(current, reload, key) => <CompanyForm key={key} company={current} onReload={reload} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
+          </ReloadableForm>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function CompanyForm({ company, onClose, onSaved }: { company: CrmCompanyDto | null; onClose: () => void; onSaved?: (company: CrmCompanyDto) => void }) {
+function CompanyForm({
+  company,
+  onReload,
+  onClose,
+  onSaved,
+}: {
+  company: CrmCompanyDto | null;
+  onReload: (latest: CrmCompanyDto) => void;
+  onClose: () => void;
+  onSaved?: (company: CrmCompanyDto) => void;
+}) {
   const queryClient = useQueryClient();
+  const edit = useEditVersion(company, async () => {
+    const id = company!.id;
+    const detail = await queryClient.fetchQuery({ queryKey: queryKeys.crmCompany(id), queryFn: ({ signal }) => api.crm.companies.get(id, signal), staleTime: 0 });
+    return detail.company;
+  });
   const { session } = useSession();
   const [form, setForm] = useState({
     name: company?.name ?? '',
@@ -56,7 +77,7 @@ function CompanyForm({ company, onClose, onSaved }: { company: CrmCompanyDto | n
         tags: parseTags(form.tags),
         ownerUserId: form.owner,
         customFields: custom.request(),
-        expectedUpdatedAt: company?.updatedAt,
+        expectedUpdatedAt: edit.expected(),
       };
       return company ? api.crm.companies.update(company.id, request) : api.crm.companies.create(request);
     },
@@ -65,8 +86,12 @@ function CompanyForm({ company, onClose, onSaved }: { company: CrmCompanyDto | n
       onSaved?.(saved);
       onClose();
     },
-    // 冲突时刷新，下次打开就是最新内容。
-    onError: () => queryClient.invalidateQueries({ queryKey: ['crm'] }),
+    meta: { handledError: isEditConflict },
+    // 冲突时保留表单里的修改，由用户选择载入最新或仍然覆盖；页面上的数据照常刷新。
+    onError: (error) => {
+      edit.onError(error);
+      void queryClient.invalidateQueries({ queryKey: ['crm'] });
+    },
   });
   const field = (key: keyof typeof form) => ({
     value: (form[key] as string | undefined) ?? '',
@@ -116,6 +141,7 @@ function CompanyForm({ company, onClose, onSaved }: { company: CrmCompanyDto | n
         <Textarea id='company-description' {...field('description')} rows={4} placeholder='业务、规模、合作背景等' />
       </div>
       <CustomFieldInputs fields={custom.fields} values={custom.values} onChange={custom.onChange} />
+      <EditConflictAlert edit={edit} subject='客户' onLoadLatest={onReload} onOverwrite={() => save.mutate()} disabled={save.isPending} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

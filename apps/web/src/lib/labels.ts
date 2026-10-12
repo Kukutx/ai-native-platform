@@ -23,8 +23,10 @@ import type {
   WorkflowStepStatus,
   WorkflowTriggerKind,
 } from '@ainative/api-client';
+import { today } from './dates';
 
-type Tone = 'default' | 'secondary' | 'destructive' | 'outline';
+/** 状态徽标的色调：success 表示顺利完成，warning 表示需要留意但不算失败。 */
+export type Tone = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning';
 
 export const agentStatus: Record<AgentStatus, { label: string; tone: Tone }> = {
   idle: { label: '空闲', tone: 'secondary' },
@@ -40,15 +42,15 @@ export const workItemStatus: Record<WorkItemStatus, { label: string; tone: Tone 
   in_progress: { label: '进行中', tone: 'default' },
   in_review: { label: '待验收', tone: 'default' },
   blocked: { label: '受阻', tone: 'destructive' },
-  done: { label: '已完成', tone: 'secondary' },
+  done: { label: '已完成', tone: 'success' },
   cancelled: { label: '已取消', tone: 'outline' },
 };
 
 export const projectStatus: Record<ProjectStatus, { label: string; tone: Tone }> = {
   planned: { label: '计划中', tone: 'outline' },
   active: { label: '进行中', tone: 'default' },
-  on_hold: { label: '暂停', tone: 'secondary' },
-  completed: { label: '已完成', tone: 'secondary' },
+  on_hold: { label: '暂停', tone: 'warning' },
+  completed: { label: '已完成', tone: 'success' },
   cancelled: { label: '已取消', tone: 'outline' },
 };
 
@@ -64,15 +66,15 @@ export const priority: Record<WorkItemPriority, string> = {
 export const runStatus: Record<RunStatus, { label: string; tone: Tone }> = {
   queued: { label: '排队中', tone: 'outline' },
   running: { label: '执行中', tone: 'default' },
-  succeeded: { label: '成功', tone: 'secondary' },
+  succeeded: { label: '成功', tone: 'success' },
   failed: { label: '失败', tone: 'destructive' },
   cancelled: { label: '已取消', tone: 'outline' },
-  timed_out: { label: '超时', tone: 'destructive' },
+  timed_out: { label: '超时', tone: 'warning' },
 };
 
 export const approvalStatus: Record<ApprovalStatus, { label: string; tone: Tone }> = {
   pending: { label: '待审批', tone: 'default' },
-  approved: { label: '已批准', tone: 'secondary' },
+  approved: { label: '已批准', tone: 'success' },
   rejected: { label: '已驳回', tone: 'destructive' },
 };
 
@@ -97,7 +99,7 @@ export const workflowRunStatus: Record<WorkflowRunStatus, { label: string; tone:
   queued: { label: '排队中', tone: 'outline' },
   running: { label: '运行中', tone: 'default' },
   waiting: { label: '等待中', tone: 'default' },
-  succeeded: { label: '成功', tone: 'secondary' },
+  succeeded: { label: '成功', tone: 'success' },
   failed: { label: '失败', tone: 'destructive' },
   cancelled: { label: '已取消', tone: 'outline' },
 };
@@ -105,7 +107,7 @@ export const workflowRunStatus: Record<WorkflowRunStatus, { label: string; tone:
 export const workflowStepStatus: Record<WorkflowStepStatus, { label: string; tone: Tone }> = {
   running: { label: '执行中', tone: 'default' },
   waiting: { label: '等待中', tone: 'default' },
-  succeeded: { label: '成功', tone: 'secondary' },
+  succeeded: { label: '成功', tone: 'success' },
   failed: { label: '失败', tone: 'destructive' },
   skipped: { label: '已跳过', tone: 'outline' },
 };
@@ -132,7 +134,7 @@ export const workflowControlKinds: WorkflowStepKind[] = ['branch', 'for_each'];
 
 export const crmDealStatus: Record<CrmDealStatus, { label: string; tone: Tone }> = {
   open: { label: '进行中', tone: 'default' },
-  won: { label: '赢单', tone: 'secondary' },
+  won: { label: '赢单', tone: 'success' },
   lost: { label: '输单', tone: 'outline' },
 };
 
@@ -175,7 +177,7 @@ export const erpSalesOrderStatus: Record<ErpSalesOrderStatus, { label: string; t
   draft: { label: '草稿', tone: 'outline' },
   confirmed: { label: '待发货', tone: 'default' },
   partially_shipped: { label: '部分发货', tone: 'default' },
-  shipped: { label: '已发货', tone: 'secondary' },
+  shipped: { label: '已发货', tone: 'success' },
   cancelled: { label: '已取消', tone: 'outline' },
 };
 
@@ -183,7 +185,7 @@ export const erpPurchaseOrderStatus: Record<ErpPurchaseOrderStatus, { label: str
   draft: { label: '草稿', tone: 'outline' },
   ordered: { label: '待收货', tone: 'default' },
   partially_received: { label: '部分到货', tone: 'default' },
-  received: { label: '已入库', tone: 'secondary' },
+  received: { label: '已入库', tone: 'success' },
   cancelled: { label: '已取消', tone: 'outline' },
 };
 
@@ -264,9 +266,7 @@ export function isPastDate(value?: string | null) {
     return false;
   }
 
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  return value < today;
+  return value < today();
 }
 
 export function formatTime(value?: string | null) {
@@ -279,13 +279,4 @@ export function formatTime(value?: string | null) {
 
 export function formatUsd(value: number) {
   return `$${value.toFixed(value < 1 ? 4 : 2)}`;
-}
-
-/** 本机时区（IANA 名称），注册空间时作为默认的统计时区。 */
-export function localTimeZone() {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
-  } catch {
-    return undefined;
-  }
 }

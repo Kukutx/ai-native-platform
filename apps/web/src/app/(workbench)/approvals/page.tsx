@@ -3,9 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import type { ApprovalDto } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
+import { RawKeyTooltip } from '@/components/app/raw-key';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Button } from '@/components/ui/button';
@@ -41,6 +44,8 @@ export default function ApprovalsPage() {
       />
       {approvals.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : approvals.isError && !approvals.data ? (
+        <ErrorState query={approvals} />
       ) : approvals.data?.length ? (
         <div className='grid gap-4'>
           {approvals.data.map((approval) => (
@@ -60,7 +65,17 @@ function ApprovalCard({ approval }: { approval: ApprovalDto }) {
   const [note, setNote] = useState('');
   const decide = useMutation({
     mutationFn: (approve: boolean) => api.approvals.decide(approval.id, { approve, note: note.trim() || undefined }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['approvals'] }),
+    onSuccess: (decided, approve) => {
+      if (!approve) {
+        toast.success('已驳回');
+      } else if (decided.executionError) {
+        toast.warning(`已批准，但执行失败：${decided.executionError}`);
+      } else {
+        toast.success('已批准并执行');
+      }
+
+      return queryClient.invalidateQueries({ queryKey: ['approvals'] });
+    },
   });
   const pending = approval.status === 'pending';
 
@@ -68,9 +83,13 @@ function ApprovalCard({ approval }: { approval: ApprovalDto }) {
     <Card>
       <CardHeader className='flex flex-row flex-wrap items-start justify-between gap-2'>
         <div className='space-y-1'>
-          <CardTitle>{approval.actionTitle}</CardTitle>
+          <CardTitle>
+            <RawKeyTooltip value={approval.actionKey}>
+              <span tabIndex={0}>{approval.actionTitle}</span>
+            </RawKeyTooltip>
+          </CardTitle>
           <p className='text-muted-foreground text-xs'>
-            <span className='font-mono'>{approval.actionKey}</span> · {approval.requestedBy.name ?? '系统'} 申请于 {formatTime(approval.createdAt)}
+            {approval.requestedBy.name ?? '系统'} 申请于 {formatTime(approval.createdAt)}
           </p>
         </div>
         <StatusBadge meta={approvalStatus[approval.status]} />
@@ -100,7 +119,7 @@ function ApprovalCard({ approval }: { approval: ApprovalDto }) {
         </div>
         {pending && can('approvals.decide') ? (
           <div className='space-y-2'>
-            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder='审批意见（可选，会转达给智能体）' rows={2} />
+            <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder='审批意见（可选，会转达给智能体）' rows={2} aria-label='审批意见' />
             <div className='flex gap-2'>
               <Button disabled={decide.isPending} onClick={() => decide.mutate(true)}>
                 批准并执行

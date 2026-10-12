@@ -4,13 +4,14 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DetailState } from '@/components/app/query-state';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { InfoRow } from '@/features/crm/info-row';
+import { InfoRow } from '@/components/app/info-row';
 import { DeliveryDialog, type DeliveryMode } from '@/features/erp/delivery-dialog';
 import { OrderLinesTable } from '@/features/erp/order-lines-table';
 import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
@@ -26,6 +27,7 @@ function SalesOrderDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [delivery, setDelivery] = useState<DeliveryMode | null>(null);
   const detail = useQuery({ queryKey: queryKeys.erpSalesOrder(id), queryFn: ({ signal }) => api.erp.salesOrders.get(id, signal), enabled: !!id });
@@ -42,7 +44,7 @@ function SalesOrderDetail() {
   });
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='销售订单' back={{ href: '/erp/sales-orders', label: '销售订单' }} />;
   }
 
   const order = detail.data;
@@ -109,7 +111,14 @@ function SalesOrderDetail() {
             {order.status === 'partially_shipped' ? (
               <Button
                 variant='outline'
-                onClick={() => confirm('剩下没发的不再发货，释放预留的库存，订单记为已发货？') && transition.mutate('close')}
+                onClick={() =>
+                  void confirm({
+                    title: '结束发货？',
+                    description: '剩下没发的不再发货，释放预留的库存，订单记为已发货。',
+                    confirmLabel: '结束发货',
+                    destructive: false,
+                  }).then((ok) => ok && transition.mutate('close'))
+                }
                 disabled={busy}
               >
                 <Icons.circleCheck />
@@ -125,7 +134,13 @@ function SalesOrderDetail() {
             {order.status === 'draft' || order.status === 'confirmed' ? (
               <Button
                 variant='ghost'
-                onClick={() => confirm(order.status === 'confirmed' ? '取消订单并释放预留的库存？' : '取消这张订单？') && transition.mutate('cancel')}
+                onClick={() =>
+                  void confirm({
+                    title: order.status === 'confirmed' ? '取消订单并释放预留的库存？' : '取消这张订单？',
+                    confirmLabel: '取消订单',
+                    cancelLabel: '不取消',
+                  }).then((ok) => ok && transition.mutate('cancel'))
+                }
                 disabled={busy}
               >
                 <Icons.circleX />
@@ -133,7 +148,7 @@ function SalesOrderDetail() {
               </Button>
             ) : null}
             {order.status === 'draft' || order.status === 'cancelled' ? (
-              <Button variant='ghost' onClick={() => confirm(`删除订单 ${order.number}？`) && remove.mutate()} disabled={busy}>
+              <Button variant='ghost' onClick={() => void confirm({ title: `删除订单 ${order.number}？`, confirmLabel: '删除' }).then((ok) => ok && remove.mutate())} disabled={busy}>
                 <Icons.trash />
                 删除
               </Button>

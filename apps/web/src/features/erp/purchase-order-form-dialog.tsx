@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ErpPurchaseOrderDto } from '@ainative/api-client';
 import { CurrencySelect } from '@/components/app/currency-select';
+import { EditConflictAlert, isEditConflict, ReloadableForm, useEditVersion } from '@/components/app/edit-conflict';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -11,8 +12,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { RecordPicker, type PickedRecord } from '@/features/crm/record-picker';
 import { api } from '@/lib/api';
+import { today } from '@/lib/dates';
+import { queryKeys } from '@/lib/query-keys';
 import { fromOrderLine, OrderLinesEditor, toLineRequests, type LineDraft } from './order-lines-editor';
-import { today } from './utils';
 import { WarehouseSelect } from './warehouse-select';
 
 /** order 为 null 时新建，否则编辑（只有草稿可以编辑）。供应商就是客户管理里的客户（公司或组织）。 */
@@ -30,14 +32,32 @@ export function PurchaseOrderFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-3xl'>
-        {open ? <PurchaseOrderForm key={order?.id ?? 'new'} order={order ?? null} onClose={() => onOpenChange(false)} onSaved={onSaved} /> : null}
+        {open ? (
+          <ReloadableForm entity={order ?? null}>
+            {(current, reload, key) => <PurchaseOrderForm key={key} order={current} onReload={reload} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
+          </ReloadableForm>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function PurchaseOrderForm({ order, onClose, onSaved }: { order: ErpPurchaseOrderDto | null; onClose: () => void; onSaved?: (order: ErpPurchaseOrderDto) => void }) {
+function PurchaseOrderForm({
+  order,
+  onReload,
+  onClose,
+  onSaved,
+}: {
+  order: ErpPurchaseOrderDto | null;
+  onReload: (latest: ErpPurchaseOrderDto) => void;
+  onClose: () => void;
+  onSaved?: (order: ErpPurchaseOrderDto) => void;
+}) {
   const queryClient = useQueryClient();
+  const edit = useEditVersion(order, () => {
+    const id = order!.id;
+    return queryClient.fetchQuery({ queryKey: queryKeys.erpPurchaseOrder(id), queryFn: ({ signal }) => api.erp.purchaseOrders.get(id, signal), staleTime: 0 });
+  });
   const [supplier, setSupplier] = useState<PickedRecord | null>(order?.supplierId ? { id: order.supplierId, name: order.supplierName ?? '供应商' } : null);
   const [warehouseId, setWarehouseId] = useState(order?.warehouseId);
   const [currency, setCurrency] = useState(order?.currency ?? 'CNY');
@@ -55,7 +75,7 @@ function PurchaseOrderForm({ order, onClose, onSaved }: { order: ErpPurchaseOrde
         expectedDate: expectedDate || undefined,
         note,
         lines: toLineRequests(lines),
-        expectedUpdatedAt: order?.updatedAt,
+        expectedUpdatedAt: edit.expected(),
       };
       return order ? api.erp.purchaseOrders.update(order.id, request) : api.erp.purchaseOrders.create(request);
     },
@@ -64,7 +84,11 @@ function PurchaseOrderForm({ order, onClose, onSaved }: { order: ErpPurchaseOrde
       onSaved?.(saved);
       onClose();
     },
-    onError: () => queryClient.invalidateQueries({ queryKey: ['erp'] }),
+    meta: { handledError: isEditConflict },
+    onError: (error) => {
+      edit.onError(error);
+      void queryClient.invalidateQueries({ queryKey: ['erp'] });
+    },
   });
 
   return (
@@ -108,6 +132,7 @@ function PurchaseOrderForm({ order, onClose, onSaved }: { order: ErpPurchaseOrde
         <Label htmlFor='po-note'>备注</Label>
         <Textarea id='po-note' value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
       </div>
+      <EditConflictAlert edit={edit} subject='采购订单' onLoadLatest={onReload} onOverwrite={() => save.mutate()} disabled={save.isPending} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

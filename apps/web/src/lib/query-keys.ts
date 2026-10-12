@@ -14,7 +14,6 @@ export const queryKeys = {
   messages: (id: string) => ['messages', id] as const,
   members: ['members'] as const,
   roles: ['roles'] as const,
-  features: ['features'] as const,
   modules: ['modules'] as const,
   usage: ['usage'] as const,
   models: ['models'] as const,

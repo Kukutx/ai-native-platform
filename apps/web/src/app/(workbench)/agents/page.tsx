@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -47,6 +48,8 @@ export default function AgentsPage() {
         <TabsContent value='list' className='mt-4'>
           {agents.isPending ? (
             <Skeleton className='h-32 w-full' />
+          ) : agents.isError && !agents.data ? (
+            <ErrorState query={agents} />
           ) : active.length === 0 ? (
             <EmptyState title='还没有智能体' description='招聘第一位 AI 员工，开始分配工作。' />
           ) : (
@@ -77,7 +80,13 @@ export default function AgentsPage() {
           )}
         </TabsContent>
         <TabsContent value='org' className='mt-4'>
-          {orgChart.data ? <OrgChart nodes={orgChart.data} /> : <Skeleton className='h-32 w-full' />}
+          {orgChart.data ? (
+            <OrgChart nodes={orgChart.data} />
+          ) : orgChart.isError ? (
+            <ErrorState query={orgChart} />
+          ) : (
+            <Skeleton className='h-32 w-full' />
+          )}
         </TabsContent>
       </Tabs>
       <AgentFormDialog open={creating} onOpenChange={setCreating} />

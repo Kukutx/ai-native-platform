@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ErpSalesOrderDto } from '@ainative/api-client';
 import { CurrencySelect } from '@/components/app/currency-select';
+import { EditConflictAlert, isEditConflict, ReloadableForm, useEditVersion } from '@/components/app/edit-conflict';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -15,8 +16,9 @@ import { OwnerSelect } from '@/features/crm/owner-select';
 import { RecordPicker, type PickedRecord } from '@/features/crm/record-picker';
 import { ownerUserId } from '@/features/crm/utils';
 import { api } from '@/lib/api';
+import { today } from '@/lib/dates';
+import { queryKeys } from '@/lib/query-keys';
 import { fromOrderLine, OrderLinesEditor, toLineRequests, type LineDraft } from './order-lines-editor';
-import { today } from './utils';
 import { WarehouseSelect } from './warehouse-select';
 
 /** 从商机生成订单时带入的内容。 */
@@ -44,7 +46,11 @@ export function SalesOrderFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-3xl'>
         {open ? (
-          <SalesOrderForm key={order?.id ?? 'new'} order={order ?? null} defaults={defaults} onClose={() => onOpenChange(false)} onSaved={onSaved} />
+          <ReloadableForm entity={order ?? null}>
+            {(current, reload, key) => (
+              <SalesOrderForm key={key} order={current} defaults={defaults} onReload={reload} onClose={() => onOpenChange(false)} onSaved={onSaved} />
+            )}
+          </ReloadableForm>
         ) : null}
       </DialogContent>
     </Dialog>
@@ -54,16 +60,22 @@ export function SalesOrderFormDialog({
 function SalesOrderForm({
   order,
   defaults,
+  onReload,
   onClose,
   onSaved,
 }: {
   order: ErpSalesOrderDto | null;
   defaults?: SalesOrderDefaults;
+  onReload: (latest: ErpSalesOrderDto) => void;
   onClose: () => void;
   onSaved?: (order: ErpSalesOrderDto) => void;
 }) {
   const queryClient = useQueryClient();
   const { session } = useSession();
+  const edit = useEditVersion(order, () => {
+    const id = order!.id;
+    return queryClient.fetchQuery({ queryKey: queryKeys.erpSalesOrder(id), queryFn: ({ signal }) => api.erp.salesOrders.get(id, signal), staleTime: 0 });
+  });
   const [deal, setDeal] = useState(order?.dealId ? { id: order.dealId, title: order.dealTitle ?? '商机' } : defaults?.deal);
   const [company, setCompany] = useState<PickedRecord | null>(
     order ? (order.companyId ? { id: order.companyId, name: order.companyName ?? '客户' } : null) : (defaults?.company ?? null),
@@ -89,7 +101,7 @@ function SalesOrderForm({
         note,
         ownerUserId: owner,
         lines: toLineRequests(lines),
-        expectedUpdatedAt: order?.updatedAt,
+        expectedUpdatedAt: edit.expected(),
       };
       return order ? api.erp.salesOrders.update(order.id, request) : api.erp.salesOrders.create(request, confirm);
     },
@@ -98,7 +110,11 @@ function SalesOrderForm({
       onSaved?.(saved);
       onClose();
     },
-    onError: () => queryClient.invalidateQueries({ queryKey: ['erp'] }),
+    meta: { handledError: isEditConflict },
+    onError: (error) => {
+      edit.onError(error);
+      void queryClient.invalidateQueries({ queryKey: ['erp'] });
+    },
   });
 
   return (
@@ -165,6 +181,7 @@ function SalesOrderForm({
         <Label htmlFor='so-note'>备注</Label>
         <Textarea id='so-note' value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder='交付要求、开票信息等' />
       </div>
+      <EditConflictAlert edit={edit} subject='销售订单' onLoadLatest={onReload} onOverwrite={() => save.mutate(false)} disabled={save.isPending} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import type { WorkItemDto } from '@ainative/api-client';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -82,6 +83,8 @@ export default function TasksPage() {
       />
       {tasks.isPending ? (
         <Skeleton className='h-64 w-full' />
+      ) : tasks.isError && !tasks.data ? (
+        <ErrorState query={tasks} />
       ) : (
         <div className='flex min-h-0 flex-1 gap-4 overflow-x-auto pb-2'>
           {boardColumns.map((status) => (
@@ -112,7 +115,7 @@ export default function TasksPage() {
                       <p
                         className={cn(
                           'mt-1 flex items-center gap-1 text-xs',
-                          task.status !== 'done' && task.status !== 'cancelled' && isPastDate(task.dueDate) ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground',
+                          task.status !== 'done' && task.status !== 'cancelled' && isPastDate(task.dueDate) ? 'text-warning' : 'text-muted-foreground',
                         )}
                       >
                         <Icons.calendar className='size-3' />

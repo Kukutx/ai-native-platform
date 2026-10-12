@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { DetailState } from '@/components/app/query-state';
 import { Icons } from '@/components/icons';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WorkflowEditor } from '@/features/workflows/workflow-editor';
@@ -20,9 +21,13 @@ function EditWorkflow() {
         <Icons.chevronLeft className='size-4' />
         {id ? '返回工作流' : '自动化'}
       </Link>
-      <h1 className='text-2xl font-semibold tracking-tight'>{id ? `编辑「${workflow.data?.name ?? ''}」` : '新建工作流'}</h1>
+      <h1 className='text-2xl font-semibold tracking-tight'>{id ? (workflow.data ? `编辑「${workflow.data.name}」` : '编辑工作流') : '新建工作流'}</h1>
       {id && !workflow.data ? (
-        <Skeleton className='h-96 w-full' />
+        workflow.isError ? (
+          <DetailState id={id} query={workflow} subject='工作流' back={{ href: '/workflows', label: '自动化' }} />
+        ) : (
+          <Skeleton className='h-96 w-full' />
+        )
       ) : (
         // 载入后再挂载编辑器，草稿只在初次渲染时从数据生成。
         <WorkflowEditor key={workflow.data?.id ?? 'new'} workflow={workflow.data} />

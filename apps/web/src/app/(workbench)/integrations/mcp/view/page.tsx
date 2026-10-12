@@ -6,14 +6,15 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { McpServerDto, UpdateMcpToolRequest } from '@ainative/api-client';
-import { useSession } from '@/components/app/session-provider';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
+import { DetailState } from '@/components/app/query-state';
+import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { McpServerFormDialog } from '@/features/integrations/mcp-server-form-dialog';
@@ -25,6 +26,7 @@ function McpServerDetail() {
   const id = useSearchParams().get('id') ?? '';
   const router = useRouter();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { can } = useSession();
   const manage = can('integrations.manage');
   const [editing, setEditing] = useState(false);
@@ -60,13 +62,9 @@ function McpServerDetail() {
     },
   });
 
-  if (detail.isPending && id) {
-    return <Skeleton className='m-6 h-96' />;
-  }
-
   const server = detail.data;
   if (!server) {
-    return <p className='text-muted-foreground p-6'>服务不存在或已被删除。</p>;
+    return <DetailState id={id} query={detail} subject='外部服务' back={{ href: '/integrations', label: '集成' }} />;
   }
 
   return (
@@ -100,7 +98,14 @@ function McpServerDetail() {
             <Button
               variant='ghost'
               aria-label='删除服务'
-              onClick={() => confirm(`删除「${server.name}」？它的工具会从动作列表里移除；被工作流引用时无法删除。`) && remove.mutate()}
+              disabled={remove.isPending}
+              onClick={() =>
+                void confirm({
+                  title: `删除「${server.name}」？`,
+                  description: '它的工具会从动作列表里移除；被工作流引用时无法删除。',
+                  confirmLabel: '删除',
+                }).then((ok) => ok && remove.mutate())
+              }
             >
               <Icons.trash />
             </Button>

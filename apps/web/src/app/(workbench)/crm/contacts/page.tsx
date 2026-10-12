@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import { ContactFormDialog } from '@/features/crm/contact-form-dialog';
 import { CrmNav } from '@/features/crm/crm-nav';
 import { FieldSettingsDialog } from '@/features/crm/field-settings-dialog';
 import { ImportDialog } from '@/features/crm/import-dialog';
-import { Pager } from '@/features/crm/pager';
+import { Pager } from '@/components/app/pager';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -79,6 +80,8 @@ export default function CrmContactsPage() {
       <CrmNav />
       {contacts.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : contacts.isError && !contacts.data ? (
+        <ErrorState query={contacts} />
       ) : contacts.data?.items.length ? (
         <Card>
           <CardContent>

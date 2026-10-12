@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { TenantSecretDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { Icons } from '@/components/icons';
@@ -11,12 +13,13 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
-import { fieldError, fieldErrorsOf, FieldMessage } from './field-errors';
+import { fieldError, fieldErrorsOf, FieldMessage } from '@/components/app/field-errors';
 
 const reference = (name: string) => `{{ secrets.${name} }}`;
 
@@ -25,6 +28,7 @@ const reference = (name: string) => `{{ secrets.${name} }}`;
  */
 export function SecretsTab() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { can } = useSession();
   const manage = can('integrations.manage');
   const secrets = useQuery({ queryKey: queryKeys.secrets, queryFn: ({ signal }) => api.integrations.secrets(signal) });
@@ -83,7 +87,11 @@ export function SecretsTab() {
                         size='sm'
                         variant='ghost'
                         aria-label={`删除 ${secret.name}`}
-                        onClick={() => confirm(`删除密钥 ${secret.name}？删除后无法恢复。`) && remove.mutate(secret.id)}
+                        onClick={() =>
+                          void confirm({ title: `删除密钥 ${secret.name}？`, description: '删除后无法恢复。', confirmLabel: '删除' }).then(
+                            (ok) => ok && remove.mutate(secret.id),
+                          )
+                        }
                       >
                         <Icons.trash />
                       </Button>
@@ -94,7 +102,11 @@ export function SecretsTab() {
             ))}
           </TableBody>
         </Table>
-      ) : secrets.isPending ? null : (
+      ) : secrets.isPending ? (
+        <Skeleton className='h-40 w-full' />
+      ) : secrets.isError ? (
+        <ErrorState query={secrets} />
+      ) : (
         <EmptyState title='还没有密钥' description='添加一个密钥（例如 GITHUB_TOKEN），就能在接入外部服务时引用，不用把令牌明文写进配置。' />
       )}
       <SecretDialog editing={editing} onClose={() => setEditing(null)} />

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CrmContactDto } from '@ainative/api-client';
+import { EditConflictAlert, isEditConflict, ReloadableForm, useEditVersion } from '@/components/app/edit-conflict';
 import { useSession } from '@/components/app/session-provider';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { queryKeys } from '@/lib/query-keys';
 import { CustomFieldInputs, useCustomFieldForm } from './custom-fields';
 import { OwnerSelect } from './owner-select';
 import { RecordPicker, type PickedRecord } from './record-picker';
@@ -33,7 +35,11 @@ export function ContactFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-xl'>
         {open ? (
-          <ContactForm key={contact?.id ?? 'new'} contact={contact ?? null} company={company ?? null} onClose={() => onOpenChange(false)} onSaved={onSaved} />
+          <ReloadableForm entity={contact ?? null}>
+            {(current, reload, key) => (
+              <ContactForm key={key} contact={current} company={company ?? null} onReload={reload} onClose={() => onOpenChange(false)} onSaved={onSaved} />
+            )}
+          </ReloadableForm>
         ) : null}
       </DialogContent>
     </Dialog>
@@ -43,15 +49,22 @@ export function ContactFormDialog({
 function ContactForm({
   contact,
   company,
+  onReload,
   onClose,
   onSaved,
 }: {
   contact: CrmContactDto | null;
   company: PickedRecord | null;
+  onReload: (latest: CrmContactDto) => void;
   onClose: () => void;
   onSaved?: (contact: CrmContactDto) => void;
 }) {
   const queryClient = useQueryClient();
+  const edit = useEditVersion(contact, async () => {
+    const id = contact!.id;
+    const detail = await queryClient.fetchQuery({ queryKey: queryKeys.crmContact(id), queryFn: ({ signal }) => api.crm.contacts.get(id, signal), staleTime: 0 });
+    return detail.contact;
+  });
   const { session } = useSession();
   const [form, setForm] = useState({
     name: contact?.name ?? '',
@@ -74,7 +87,7 @@ function ContactForm({
         companyId: picked?.id,
         ownerUserId: owner,
         customFields: custom.request(),
-        expectedUpdatedAt: contact?.updatedAt,
+        expectedUpdatedAt: edit.expected(),
       };
       return contact ? api.crm.contacts.update(contact.id, request) : api.crm.contacts.create(request);
     },
@@ -83,7 +96,12 @@ function ContactForm({
       onSaved?.(saved);
       onClose();
     },
-    onError: () => queryClient.invalidateQueries({ queryKey: ['crm'] }),
+    meta: { handledError: isEditConflict },
+    // 冲突时保留表单里的修改，由用户选择载入最新或仍然覆盖；页面上的数据照常刷新。
+    onError: (error) => {
+      edit.onError(error);
+      void queryClient.invalidateQueries({ queryKey: ['crm'] });
+    },
   });
   const field = (key: keyof typeof form) => ({
     value: form[key],
@@ -135,6 +153,7 @@ function ContactForm({
         <Textarea id='contact-description' {...field('description')} rows={3} placeholder='负责什么、偏好、关系背景等' />
       </div>
       <CustomFieldInputs fields={custom.fields} values={custom.values} onChange={custom.onChange} />
+      <EditConflictAlert edit={edit} subject='联系人' onLoadLatest={onReload} onOverwrite={() => save.mutate()} disabled={save.isPending} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

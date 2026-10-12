@@ -34,7 +34,7 @@ export function MovementTable({ movements, showProduct }: { movements: ErpStockM
             ) : null}
             <TableCell>{m.warehouseName}</TableCell>
             <TableCell>{erpMovementKind[m.kind]}</TableCell>
-            <TableCell className={cn('text-right tabular-nums', m.quantity > 0 ? 'text-emerald-600 dark:text-emerald-500' : 'text-foreground')}>
+            <TableCell className={cn('text-right tabular-nums', m.quantity > 0 ? 'text-success' : 'text-foreground')}>
               {m.quantity > 0 ? '+' : ''}
               {formatQuantity(m.quantity)}
             </TableCell>

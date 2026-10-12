@@ -7,6 +7,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ProjectStatus } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -17,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pager } from '@/features/crm/pager';
+import { Pager } from '@/components/app/pager';
 import { ProgressBar } from '@/features/projects/progress-bar';
 import { ProjectFormDialog } from '@/features/projects/project-form-dialog';
 import { api } from '@/lib/api';
@@ -90,6 +91,8 @@ export default function ProjectsPage() {
       />
       {projects.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : projects.isError && !projects.data ? (
+        <ErrorState query={projects} />
       ) : projects.data?.items.length ? (
         <Card>
           <CardContent>

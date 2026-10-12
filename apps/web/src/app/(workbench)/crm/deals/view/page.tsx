@@ -5,21 +5,23 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CrmDealDto, CrmStageDto } from '@ainative/api-client';
+import { DetailState } from '@/components/app/query-state';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { ActivityTimeline } from '@/features/crm/activity-timeline';
 import { CustomFieldValues } from '@/features/crm/custom-fields';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
-import { InfoRow } from '@/features/crm/info-row';
+import { InfoRow } from '@/components/app/info-row';
 import { CloseDealDialog, useMoveDeal, type MoveRequest } from '@/features/crm/move-deal';
 import { isOverdue } from '@/features/crm/utils';
 import { DealOrders } from '@/features/erp/deal-orders';
 import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { crmDealStatus, crmStageKind, formatAmount, formatDate, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
@@ -29,11 +31,12 @@ function DealDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [closing, setClosing] = useState<MoveRequest | null>(null);
   const [ordering, setOrdering] = useState(false);
   const detail = useQuery({ queryKey: queryKeys.crmDeal(id), queryFn: ({ signal }) => api.crm.deals.get(id, signal), enabled: !!id });
-  const stages = useQuery({ queryKey: queryKeys.crmStages, queryFn: ({ signal }) => api.crm.stages.list(signal) });
+  const stages = useQuery(catalogQueries.crmStages());
   const move = useMoveDeal();
   const remove = useMutation({
     mutationFn: () => api.crm.deals.delete(id),
@@ -44,7 +47,7 @@ function DealDetail() {
   });
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='商机' back={{ href: '/crm', label: '销售看板' }} />;
   }
 
   const { deal } = detail.data;
@@ -105,7 +108,9 @@ function DealDetail() {
                 <Button
                   variant='ghost'
                   disabled={remove.isPending}
-                  onClick={() => confirm(`删除商机「${deal.title}」？它的阶段变化记录一并删除。`) && remove.mutate()}
+                  onClick={() =>
+                    void confirm({ title: `删除商机「${deal.title}」？`, description: '它的阶段变化记录一并删除。', confirmLabel: '删除' }).then((ok) => ok && remove.mutate())
+                  }
                 >
                   <Icons.trash />
                   删除
@@ -198,7 +203,7 @@ function StageBar({ deal, stages, disabled, onSelect }: { deal: CrmDealDto; stag
             onClick={() => onSelect(stage)}
             className={cn(
               'min-w-24 flex-1 rounded-md border px-3 py-2 text-left text-sm transition-colors disabled:cursor-default',
-              active && stage.kind === 'won' && 'border-emerald-600 bg-emerald-600 text-white',
+              active && stage.kind === 'won' && 'border-success bg-success text-success-foreground',
               active && stage.kind === 'lost' && 'bg-muted-foreground border-muted-foreground text-background',
               active && stage.kind === 'open' && 'bg-primary border-primary text-primary-foreground',
               !active && reached(stage) && 'bg-primary/10 border-primary/30',

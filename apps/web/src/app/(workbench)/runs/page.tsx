@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
-import { Button } from '@/components/ui/button';
+import { Pager } from '@/components/app/pager';
+import { ErrorState } from '@/components/app/query-state';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,7 +26,6 @@ export default function RunsPage() {
     queryFn: ({ signal }) => api.runs.list(filter, page, PAGE_SIZE, signal),
     placeholderData: keepPreviousData,
   });
-  const pages = runs.data ? Math.max(1, Math.ceil(runs.data.total / PAGE_SIZE)) : 1;
 
   return (
     <div className='space-y-6 p-6'>
@@ -56,19 +56,13 @@ export default function RunsPage() {
       />
       {runs.isPending ? (
         <Skeleton className='h-64 w-full' />
+      ) : runs.isError && !runs.data ? (
+        <ErrorState query={runs} />
       ) : runs.data?.items.length ? (
         <Card>
           <CardContent>
             <RunTable runs={runs.data.items} />
-            <div className='text-muted-foreground flex items-center justify-end gap-2 pt-4 text-sm'>
-              第 {page} / {pages} 页
-              <Button size='sm' variant='outline' disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                上一页
-              </Button>
-              <Button size='sm' variant='outline' disabled={page >= pages} onClick={() => setPage(page + 1)}>
-                下一页
-              </Button>
-            </div>
+            <Pager page={page} pageSize={PAGE_SIZE} total={runs.data.total} onChange={setPage} />
           </CardContent>
         </Card>
       ) : (

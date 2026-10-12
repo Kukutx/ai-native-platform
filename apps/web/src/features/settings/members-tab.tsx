@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import type { AddMemberRequest, MemberDto, RoleDto } from '@ainative/api-client';
+import { useConfirm } from '@/components/app/confirm-provider';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
@@ -19,13 +23,14 @@ import { RoleChecklist } from './role-checklist';
 export function MembersTab() {
   const { can, session } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const members = useQuery({ queryKey: queryKeys.members, queryFn: ({ signal }) => api.members.list(signal) });
   const roles = useQuery({ queryKey: queryKeys.roles, queryFn: ({ signal }) => api.roles.list(signal) });
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<MemberDto | null>(null);
   const manage = can('platform.members.manage');
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.members });
-  const remove = useMutation({ mutationFn: (id: string) => api.members.remove(id), onSuccess: refresh });
+  const remove = useMutation({ mutationFn: (id: string) => api.members.remove(id), meta: { successMessage: '已移除成员' }, onSuccess: refresh });
   const toggle = useMutation({
     mutationFn: (m: MemberDto) =>
       api.members.update(m.membershipId, {
@@ -33,7 +38,10 @@ export function MembersTab() {
         organizationId: m.organizationId,
         status: m.status === 'active' ? 'suspended' : 'active',
       }),
-    onSuccess: refresh,
+    onSuccess: (_, m) => {
+      toast.success(m.status === 'active' ? `已停用 ${m.displayName}` : `已启用 ${m.displayName}`);
+      return refresh();
+    },
   });
   const roleNames = new Map(roles.data?.map((r) => [r.id, r.name]));
 
@@ -47,6 +55,7 @@ export function MembersTab() {
           </Button>
         </div>
       ) : null}
+      {members.isError && !members.data ? <ErrorState query={members} /> : null}
       <Table>
         <TableHeader>
           <TableRow>
@@ -58,6 +67,15 @@ export function MembersTab() {
           </TableRow>
         </TableHeader>
         <TableBody>
+          {members.isPending
+            ? Array.from({ length: 3 }, (_, i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={5}>
+                    <Skeleton className='h-9' />
+                  </TableCell>
+                </TableRow>
+              ))
+            : null}
           {members.data?.map((m) => (
             <TableRow key={m.membershipId}>
               <TableCell>
@@ -82,10 +100,16 @@ export function MembersTab() {
                     <Button size='sm' variant='ghost' onClick={() => setEditing(m)}>
                       角色
                     </Button>
-                    <Button size='sm' variant='ghost' onClick={() => toggle.mutate(m)}>
+                    <Button size='sm' variant='ghost' disabled={toggle.isPending} onClick={() => toggle.mutate(m)}>
                       {m.status === 'active' ? '停用' : '启用'}
                     </Button>
-                    <Button size='sm' variant='ghost' onClick={() => confirm(`移除 ${m.displayName}？`) && remove.mutate(m.membershipId)}>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      disabled={remove.isPending}
+                      aria-label={`移除 ${m.displayName}`}
+                      onClick={() => void confirm({ title: `移除 ${m.displayName}？`, confirmLabel: '移除' }).then((ok) => ok && remove.mutate(m.membershipId))}
+                    >
                       <Icons.trash />
                     </Button>
                   </div>
@@ -107,7 +131,8 @@ function AddMemberDialog({ open, onOpenChange, roles }: { open: boolean; onOpenC
   const [form, setForm] = useState<AddMemberRequest>(empty);
   const add = useMutation({
     mutationFn: () => api.members.add({ ...form, password: form.password || undefined }),
-    onSuccess: async () => {
+    onSuccess: async (added) => {
+      toast.success(`${added.displayName} 已加入空间`);
       await queryClient.invalidateQueries({ queryKey: queryKeys.members });
       setForm(empty);
       onOpenChange(false);
@@ -165,6 +190,7 @@ function EditRolesDialog({ member, roles, onClose }: { member: MemberDto; roles:
   const [roleIds, setRoleIds] = useState(member.roleIds);
   const save = useMutation({
     mutationFn: () => api.members.update(member.membershipId, { roleIds, organizationId: member.organizationId, status: member.status }),
+    meta: { successMessage: '角色已更新' },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.members });
       onClose();

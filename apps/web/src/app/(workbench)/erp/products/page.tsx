@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pager } from '@/features/crm/pager';
+import { Pager } from '@/components/app/pager';
 import { ErpNav } from '@/features/erp/erp-nav';
 import { ProductFormDialog } from '@/features/erp/product-form-dialog';
 import { api } from '@/lib/api';
@@ -107,6 +108,8 @@ export default function ErpProductsPage() {
       <ErpNav />
       {products.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : products.isError && !products.data ? (
+        <ErrorState query={products} />
       ) : products.data?.items.length ? (
         <Card>
           <CardContent>
@@ -147,7 +150,7 @@ export default function ErpProductsPage() {
                       <>
                         <TableCell className='text-right tabular-nums'>{formatQuantity(p.onHand)}</TableCell>
                         <TableCell className='text-muted-foreground text-right tabular-nums'>{formatQuantity(p.reserved)}</TableCell>
-                        <TableCell className={cn('text-right font-medium tabular-nums', p.lowStock && 'text-amber-600 dark:text-amber-500')}>
+                        <TableCell className={cn('text-right font-medium tabular-nums', p.lowStock && 'text-warning')}>
                           {formatQuantity(p.available, p.unit)}
                         </TableCell>
                       </>

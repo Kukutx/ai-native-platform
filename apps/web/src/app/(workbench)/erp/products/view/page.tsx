@@ -4,14 +4,15 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DetailState } from '@/components/app/query-state';
+import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { InfoRow } from '@/features/crm/info-row';
+import { InfoRow } from '@/components/app/info-row';
 import { MovementTable } from '@/features/erp/movement-table';
 import { ProductFormDialog } from '@/features/erp/product-form-dialog';
 import { AdjustStockDialog, TransferStockDialog } from '@/features/erp/stock-dialogs';
@@ -24,6 +25,7 @@ function ProductDetail() {
   const router = useRouter();
   const { can } = useSession();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [adjusting, setAdjusting] = useState<{ warehouseId?: string } | null>(null);
   const [transferring, setTransferring] = useState<{ warehouseId?: string } | null>(null);
@@ -37,7 +39,7 @@ function ProductDetail() {
   });
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='产品' back={{ href: '/erp/products', label: '产品' }} />;
   }
 
   const { product, levels, movements } = detail.data;
@@ -79,7 +81,11 @@ function ProductDetail() {
             <Button
               variant='ghost'
               disabled={remove.isPending}
-              onClick={() => confirm(`删除产品「${product.name}」？用过的产品不能删除，可以改为停售。`) && remove.mutate()}
+              onClick={() =>
+                void confirm({ title: `删除产品「${product.name}」？`, description: '用过的产品不能删除，可以改为停售。', confirmLabel: '删除' }).then(
+                  (ok) => ok && remove.mutate(),
+                )
+              }
             >
               <Icons.trash />
               删除

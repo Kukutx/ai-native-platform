@@ -1,4 +1,5 @@
 import type { ActorDto } from '@ainative/api-client';
+import { isPastDate } from '@/lib/labels';
 
 /** 标签输入：逗号、顿号或空格分隔。 */
 export function parseTags(text: string) {
@@ -22,7 +23,5 @@ export function isOverdue(expectedCloseDate: string | undefined, status: string)
     return false;
   }
 
-  const today = new Date();
-  const local = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  return expectedCloseDate < local;
+  return isPastDate(expectedCloseDate);
 }
