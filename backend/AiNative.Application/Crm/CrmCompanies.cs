@@ -51,7 +51,14 @@ public sealed class UpdateCrmCompanyCommandValidator : AbstractValidator<UpdateC
     public UpdateCrmCompanyCommandValidator() => RuleFor(x => x.Request).SetValidator(new SaveCrmCompanyRequestValidator());
 }
 
-internal sealed class CrmCompanyHandlers(IAppDbContext db, ITenantContext tenant, CrmRecords records, ITextMatcher text, IChangeFeed changes, TimeProvider clock) :
+internal sealed class CrmCompanyHandlers(
+    IAppDbContext db,
+    ITenantContext tenant,
+    CrmRecords records,
+    CrmCustomFields customFields,
+    ITextMatcher text,
+    IChangeFeed changes,
+    TimeProvider clock) :
     IRequestHandler<ListCrmCompaniesQuery, PagedResult<CrmCompanyDto>>,
     IRequestHandler<GetCrmCompanyQuery, CrmCompanyDetailDto>,
     IRequestHandler<CreateCrmCompanyCommand, CrmCompanyDto>,
@@ -116,7 +123,13 @@ internal sealed class CrmCompanyHandlers(IAppDbContext db, ITenantContext tenant
         var r = request.Request;
         var owner = records.DefaultOwner(r.OwnerUserId);
         await records.EnsureOwnerAsync(owner, cancellationToken).ConfigureAwait(false);
-        var company = new CrmCompany { Name = r.Name.Trim(), CreatedBy = tenant.Actor, OwnerUserId = owner };
+        var company = new CrmCompany
+        {
+            Name = r.Name.Trim(),
+            CreatedBy = tenant.Actor,
+            OwnerUserId = owner,
+            CustomFields = await customFields.ForCreateAsync(CrmRecordType.Company, r.CustomFields, cancellationToken).ConfigureAwait(false),
+        };
         Apply(company, r);
         db.CrmCompanies.Add(company);
         changes.Publish(CrmRealtime.Company, company.Id, RealtimeChangeKind.Created);
@@ -139,8 +152,10 @@ internal sealed class CrmCompanyHandlers(IAppDbContext db, ITenantContext tenant
         }
 
         await records.EnsureOwnerAsync(r.OwnerUserId, cancellationToken).ConfigureAwait(false);
+        var values = await customFields.ForUpdateAsync(CrmRecordType.Company, r.CustomFields, cancellationToken).ConfigureAwait(false);
         company.Name = r.Name.Trim();
         company.OwnerUserId = r.OwnerUserId;
+        company.CustomFields = values ?? company.CustomFields;
         Apply(company, r);
 
         // 显式写入，返回的 UpdatedAt 就是落库值，可直接作为下一次编辑的版本。

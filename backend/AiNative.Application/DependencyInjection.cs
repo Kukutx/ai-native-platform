@@ -37,6 +37,7 @@ public static class DependencyInjection
 
         services.AddScoped<WorkItemWorkflow>();
         services.AddScoped<Crm.CrmRecords>();
+        services.AddScoped<Crm.CrmCustomFields>();
         services.AddScoped<Erp.ErpRecords>();
         services.AddScoped<Erp.Actions.ErpRefs>();
         services.AddScoped<Projects.ProjectRecords>();

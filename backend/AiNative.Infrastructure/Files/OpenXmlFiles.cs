@@ -1,8 +1,7 @@
 using System.IO.Packaging;
-using AiNative.Application.Knowledge;
 using DocumentFormat.OpenXml.Packaging;
 
-namespace AiNative.Infrastructure.Knowledge.Files;
+namespace AiNative.Infrastructure.Files;
 
 /// <summary>
 /// Office Open XML（docx / xlsx / pptx）共用的打开方式：只读，限制单个部件的大小，防止压缩包解开后撑爆内存。
@@ -16,7 +15,8 @@ internal static class OpenXmlFiles
         MaxCharactersInPart = 30_000_000,
     };
 
-    public static T Open<T>(Func<T> open, string format)
+    /// <param name="unreadable">文件损坏、加密或扩展名与实际格式不符时抛出的异常（消息给用户看）。</param>
+    public static T Open<T>(Func<T> open, Func<Exception> unreadable)
         where T : OpenXmlPackage
     {
         try
@@ -25,7 +25,7 @@ internal static class OpenXmlFiles
         }
         catch (Exception ex) when (ex is OpenXmlPackageException or FileFormatException or InvalidDataException or IOException)
         {
-            throw new KnowledgeFileException("knowledge.file_unreadable", $"无法打开这个{format}文件，可能已损坏、加了密码，或者扩展名和实际格式不符。");
+            throw unreadable();
         }
     }
 

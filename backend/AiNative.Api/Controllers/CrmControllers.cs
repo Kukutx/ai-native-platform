@@ -1,4 +1,5 @@
 using AiNative.Application.Crm;
+using AiNative.Application.Files;
 using AiNative.Contracts.Common;
 using AiNative.Contracts.Crm;
 using AiNative.Domain.Crm;
@@ -156,4 +157,90 @@ public sealed class CrmStagesController : ApiControllerBase
     /// </summary>
     [HttpPut]
     public Task<IReadOnlyList<CrmStageDto>> Save(SaveCrmStagesRequest request) => SendAsync(new SaveCrmStagesCommand(request));
+}
+
+[Route("api/crm/fields")]
+public sealed class CrmFieldsController : ApiControllerBase
+{
+    /// <summary>
+    /// 自定义字段，按记录类型和顺序排列；recordType 为空时返回全部。
+    /// </summary>
+    [HttpGet]
+    public Task<IReadOnlyList<CrmFieldDto>> List([FromQuery] CrmRecordType? recordType) => SendAsync(new ListCrmFieldsQuery(recordType));
+
+    [HttpPost]
+    public Task<CrmFieldDto> Create(SaveCrmFieldRequest request) => SendAsync(new CreateCrmFieldCommand(request));
+
+    /// <summary>
+    /// 修改名称、说明、选项和是否必填。标识、类型和记录类型不能改；删掉的选项会从记录里清除。
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    public Task<CrmFieldDto> Update(Guid id, SaveCrmFieldRequest request) => SendAsync(new UpdateCrmFieldCommand(id, request));
+
+    /// <summary>
+    /// 删除字段，同时清除所有记录里这个字段的值。
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        await SendAsync(new DeleteCrmFieldCommand(id)).ConfigureAwait(false);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// 调整一类记录的字段顺序：提交这类记录的全部字段 ID。
+    /// </summary>
+    [HttpPut("order")]
+    public Task<IReadOnlyList<CrmFieldDto>> Reorder(ReorderCrmFieldsRequest request) => SendAsync(new ReorderCrmFieldsCommand(request));
+}
+
+[Route("api/crm/import")]
+public sealed class CrmImportController : ApiControllerBase
+{
+    private const long MultipartOverheadBytes = 1024 * 1024;
+
+    /// <summary>
+    /// 读取上传的表格（.csv、.xlsx），返回列、示例值和建议的对应字段。不保存任何内容。
+    /// </summary>
+    [HttpPost("preview")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(CrmImportLimits.MaxFileBytes + MultipartOverheadBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = CrmImportLimits.MaxFileBytes + MultipartOverheadBytes)]
+    public async Task<CrmImportPreviewDto> Preview(IFormFile? file, [FromForm] CrmRecordType recordType)
+    {
+        await using var content = OpenFile(file);
+        return await SendAsync(new PreviewCrmImportQuery(recordType, file!.FileName, file.Length, content)).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 导入客户或联系人。mapping 按列的顺序给出每列对应的字段（见预览返回的 targets），不导入的列传空字符串。
+    /// 有问题的行跳过并在结果里说明原因；dryRun 为 true 时只检查不保存。
+    /// </summary>
+    [HttpPost]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(CrmImportLimits.MaxFileBytes + MultipartOverheadBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = CrmImportLimits.MaxFileBytes + MultipartOverheadBytes)]
+    public async Task<CrmImportResultDto> Import(
+        IFormFile? file,
+        [FromForm] CrmRecordType recordType,
+        [FromForm] List<string?>? mapping,
+        [FromForm] CrmImportDuplicateMode duplicates = CrmImportDuplicateMode.Skip,
+        [FromForm] bool createMissingCompanies = false,
+        [FromForm] bool dryRun = false)
+    {
+        await using var content = OpenFile(file);
+        var options = new CrmImportOptions
+        {
+            RecordType = recordType,
+            Mapping = mapping ?? [],
+            Duplicates = duplicates,
+            CreateMissingCompanies = createMissingCompanies,
+            DryRun = dryRun,
+        };
+        return await SendAsync(new ImportCrmRecordsCommand(options, file!.FileName, file.Length, content)).ConfigureAwait(false);
+    }
+
+    private static Stream OpenFile(IFormFile? file)
+        => file?.OpenReadStream() ?? throw new TabularFileException("file.missing", "请选择要导入的文件。");
 }

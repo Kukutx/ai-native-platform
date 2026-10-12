@@ -80,6 +80,8 @@ public interface IAppDbContext
 
     DbSet<CrmActivity> CrmActivities { get; }
 
+    DbSet<CrmFieldDefinition> CrmFieldDefinitions { get; }
+
     DbSet<ErpProduct> ErpProducts { get; }
 
     DbSet<ErpWarehouse> ErpWarehouses { get; }

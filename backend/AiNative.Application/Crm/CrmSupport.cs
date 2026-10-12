@@ -1,6 +1,7 @@
 using AiNative.Application.Abstractions;
 using AiNative.Application.Common;
 using AiNative.Application.Modules;
+using AiNative.Application.Realtime;
 using AiNative.Application.Tenancy;
 using AiNative.Contracts.Common;
 using AiNative.Contracts.Crm;
@@ -54,7 +55,8 @@ internal static class CrmMapping
                 actors(c.CreatedBy),
                 c.CreatedAt,
                 c.UpdatedAt,
-                c.LastActivityAt)),
+                c.LastActivityAt,
+                c.CustomFields)),
         ];
     }
 
@@ -83,7 +85,8 @@ internal static class CrmMapping
                 actors(c.CreatedBy),
                 c.CreatedAt,
                 c.UpdatedAt,
-                c.LastActivityAt)),
+                c.LastActivityAt,
+                c.CustomFields)),
         ];
     }
 
@@ -125,7 +128,8 @@ internal static class CrmMapping
                     d.CreatedAt,
                     d.UpdatedAt,
                     d.ClosedAt,
-                    d.LastActivityAt);
+                    d.LastActivityAt,
+                    d.CustomFields);
             }),
         ];
     }
@@ -165,6 +169,9 @@ internal static class CrmMapping
 
     public static CrmStageDto ToDto(this CrmStage stage) => new(stage.Id, stage.Name, stage.Position, stage.Probability, stage.Kind);
 
+    public static CrmFieldDto ToDto(this CrmFieldDefinition field)
+        => new(field.Id, field.RecordType, field.Key, field.Label, field.Type, field.Options, field.Required, field.Position, field.Description);
+
     private static Task<Func<Actor, ActorDto>> ActorsAsync(IAppDbContext db, IEnumerable<Actor> creators, IEnumerable<Guid?> owners, CancellationToken cancellationToken)
         => ActorNames.ResolveAsync(db, creators.Concat(owners.Where(o => o.HasValue).Select(o => Actor.ForUser(o!.Value))), cancellationToken);
 
@@ -192,7 +199,7 @@ internal static class CrmMapping
 /// <summary>
 /// 客户管理各处理器共用的校验与写入辅助。
 /// </summary>
-internal sealed class CrmRecords(IAppDbContext db, ITenantContext tenant, IPlatformEvents events)
+internal sealed class CrmRecords(IAppDbContext db, ITenantContext tenant, IPlatformEvents events, IChangeFeed changes)
 {
     public const int TimelinePageSize = 50;
 
@@ -231,6 +238,27 @@ internal sealed class CrmRecords(IAppDbContext db, ITenantContext tenant, IPlatf
         if (id is { } companyId && !await db.CrmCompanies.AnyAsync(c => c.Id == companyId, cancellationToken).ConfigureAwait(false))
         {
             throw new NotFoundException("crm_company", companyId);
+        }
+    }
+
+    /// <summary>
+    /// 联系人换到另一个客户（例如跳槽）时，原客户的商机仍归原客户，只是不再由这个人对接：解除它与这些商机的关联，
+    /// 保持"商机的联系人属于商机的客户"。
+    /// </summary>
+    public async Task DetachContactFromOtherCompaniesDealsAsync(Guid contactId, Guid newCompany, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var deals = db.CrmDeals.Where(d => d.ContactId == contactId && d.CompanyId != null && d.CompanyId != newCompany);
+        var ids = await deals.Select(d => d.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        await db.CrmDeals.Where(d => ids.Contains(d.Id))
+            .ExecuteUpdateAsync(s => s.SetProperty(d => d.ContactId, (Guid?)null).SetProperty(d => d.UpdatedAt, now), cancellationToken).ConfigureAwait(false);
+        foreach (var id in ids)
+        {
+            changes.Publish(CrmRealtime.Deal, id, RealtimeChangeKind.Updated);
         }
     }
 
@@ -306,6 +334,14 @@ internal sealed class CrmRecords(IAppDbContext db, ITenantContext tenant, IPlatf
     /// </summary>
     public static List<string> NormalizeTags(IEnumerable<string> tags)
         => [.. tags.Select(t => t.Trim()).Where(t => t.Length > 0).DistinctBy(t => t.ToUpperInvariant())];
+
+    /// <summary>
+    /// 把一段文字拆成多个值（标签、多选项）：逗号、顿号、分号、竖线和换行都算分隔符，中英文标点都可以。
+    /// </summary>
+    public static IEnumerable<string> SplitList(string text)
+        => text.Split(ListSeparators, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static readonly char[] ListSeparators = [',', '，', '、', ';', '；', '|', '\n', '\r'];
 }
 
 internal static class CrmValidation

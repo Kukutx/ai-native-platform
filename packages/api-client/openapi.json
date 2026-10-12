@@ -2533,6 +2533,276 @@
         }
       }
     },
+    "/api/crm/fields": {
+      "get": {
+        "tags": [
+          "CrmFields"
+        ],
+        "summary": "自定义字段，按记录类型和顺序排列；recordType 为空时返回全部。",
+        "operationId": "CrmFields_List",
+        "parameters": [
+          {
+            "name": "recordType",
+            "in": "query",
+            "schema": {
+              "nullable": true,
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CrmRecordType"
+                }
+              ]
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CrmFieldDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "CrmFields"
+        ],
+        "operationId": "CrmFields_Create",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCrmFieldRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmFieldDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crm/fields/{id}": {
+      "put": {
+        "tags": [
+          "CrmFields"
+        ],
+        "summary": "修改名称、说明、选项和是否必填。标识、类型和记录类型不能改；删掉的选项会从记录里清除。",
+        "operationId": "CrmFields_Update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveCrmFieldRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmFieldDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "CrmFields"
+        ],
+        "summary": "删除字段，同时清除所有记录里这个字段的值。",
+        "operationId": "CrmFields_Delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/crm/fields/order": {
+      "put": {
+        "tags": [
+          "CrmFields"
+        ],
+        "summary": "调整一类记录的字段顺序：提交这类记录的全部字段 ID。",
+        "operationId": "CrmFields_Reorder",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderCrmFieldsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CrmFieldDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crm/import/preview": {
+      "post": {
+        "tags": [
+          "CrmImport"
+        ],
+        "summary": "读取上传的表格（.csv、.xlsx），返回列、示例值和建议的对应字段。不保存任何内容。",
+        "operationId": "CrmImport_Preview",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "nullable": true
+                  },
+                  "recordType": {
+                    "$ref": "#/components/schemas/CrmRecordType"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmImportPreviewDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/crm/import": {
+      "post": {
+        "tags": [
+          "CrmImport"
+        ],
+        "summary": "导入客户或联系人。mapping 按列的顺序给出每列对应的字段（见预览返回的 targets），不导入的列传空字符串。\n有问题的行跳过并在结果里说明原因；dryRun 为 true 时只检查不保存。",
+        "operationId": "CrmImport_Import",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "nullable": true
+                  },
+                  "recordType": {
+                    "$ref": "#/components/schemas/CrmRecordType"
+                  },
+                  "mapping": {
+                    "type": "array",
+                    "nullable": true,
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "duplicates": {
+                    "$ref": "#/components/schemas/CrmImportDuplicateMode"
+                  },
+                  "createMissingCompanies": {
+                    "type": "boolean"
+                  },
+                  "dryRun": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrmImportResultDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/erp/products": {
       "get": {
         "tags": [
@@ -7979,7 +8249,8 @@
           "openDealCount",
           "createdBy",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "customFields"
         ],
         "properties": {
           "id": {
@@ -8041,6 +8312,10 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "customFields": {
+            "type": "object",
+            "additionalProperties": {}
           }
         }
       },
@@ -8100,7 +8375,8 @@
           "tags",
           "createdBy",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "customFields"
         ],
         "properties": {
           "id": {
@@ -8160,6 +8436,10 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "customFields": {
+            "type": "object",
+            "additionalProperties": {}
           }
         }
       },
@@ -8177,7 +8457,8 @@
           "description",
           "createdBy",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "customFields"
         ],
         "properties": {
           "id": {
@@ -8263,6 +8544,10 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "customFields": {
+            "type": "object",
+            "additionalProperties": {}
           }
         }
       },
@@ -8397,6 +8682,11 @@
             "format": "guid",
             "nullable": true
           },
+          "customFields": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {}
+          },
           "expectedUpdatedAt": {
             "type": "string",
             "format": "date-time",
@@ -8503,6 +8793,11 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "customFields": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {}
           },
           "expectedUpdatedAt": {
             "type": "string",
@@ -8741,6 +9036,11 @@
             "format": "guid",
             "nullable": true
           },
+          "customFields": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {}
+          },
           "expectedUpdatedAt": {
             "type": "string",
             "format": "date-time",
@@ -8874,6 +9174,312 @@
             "$ref": "#/components/schemas/CrmStageKind"
           }
         }
+      },
+      "CrmFieldDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "recordType",
+          "key",
+          "label",
+          "type",
+          "options",
+          "required",
+          "position",
+          "description"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "recordType": {
+            "$ref": "#/components/schemas/CrmRecordType"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CrmFieldType"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "CrmRecordType": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Company",
+          "Contact",
+          "Deal"
+        ],
+        "enum": [
+          "company",
+          "contact",
+          "deal"
+        ]
+      },
+      "CrmFieldType": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Text",
+          "Number",
+          "Date",
+          "Select",
+          "MultiSelect",
+          "Checkbox"
+        ],
+        "enum": [
+          "text",
+          "number",
+          "date",
+          "select",
+          "multi_select",
+          "checkbox"
+        ]
+      },
+      "SaveCrmFieldRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "key",
+          "label"
+        ],
+        "properties": {
+          "recordType": {
+            "$ref": "#/components/schemas/CrmRecordType"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/CrmFieldType"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "ReorderCrmFieldsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ids",
+          "ids"
+        ],
+        "properties": {
+          "recordType": {
+            "$ref": "#/components/schemas/CrmRecordType"
+          },
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        }
+      },
+      "CrmImportPreviewDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recordType",
+          "fileName",
+          "rowCount",
+          "columns",
+          "targets"
+        ],
+        "properties": {
+          "recordType": {
+            "$ref": "#/components/schemas/CrmRecordType"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "rowCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmImportColumnDto"
+            }
+          },
+          "targets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmImportTargetDto"
+            }
+          }
+        }
+      },
+      "CrmImportColumnDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "index",
+          "header",
+          "samples"
+        ],
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "header": {
+            "type": "string"
+          },
+          "samples": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suggestedTarget": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CrmImportTargetDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "required"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "hint": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "CrmImportResultDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "dryRun",
+          "total",
+          "created",
+          "updated",
+          "skipped",
+          "failed",
+          "companiesCreated",
+          "errors"
+        ],
+        "properties": {
+          "dryRun": {
+            "type": "boolean"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "created": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "updated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "companiesCreated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CrmImportRowError"
+            }
+          }
+        }
+      },
+      "CrmImportRowError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "row",
+          "message"
+        ],
+        "properties": {
+          "row": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "CrmImportDuplicateMode": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Skip",
+          "Update",
+          "Create"
+        ],
+        "enum": [
+          "skip",
+          "update",
+          "create"
+        ]
       },
       "PagedResultOfErpProductDto": {
         "type": "object",

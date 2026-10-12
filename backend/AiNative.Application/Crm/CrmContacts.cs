@@ -51,7 +51,14 @@ public sealed class UpdateCrmContactCommandValidator : AbstractValidator<UpdateC
     public UpdateCrmContactCommandValidator() => RuleFor(x => x.Request).SetValidator(new SaveCrmContactRequestValidator());
 }
 
-internal sealed class CrmContactHandlers(IAppDbContext db, ITenantContext tenant, CrmRecords records, ITextMatcher text, IChangeFeed changes, TimeProvider clock) :
+internal sealed class CrmContactHandlers(
+    IAppDbContext db,
+    ITenantContext tenant,
+    CrmRecords records,
+    CrmCustomFields customFields,
+    ITextMatcher text,
+    IChangeFeed changes,
+    TimeProvider clock) :
     IRequestHandler<ListCrmContactsQuery, PagedResult<CrmContactDto>>,
     IRequestHandler<GetCrmContactQuery, CrmContactDetailDto>,
     IRequestHandler<CreateCrmContactCommand, CrmContactDto>,
@@ -114,7 +121,13 @@ internal sealed class CrmContactHandlers(IAppDbContext db, ITenantContext tenant
         var owner = records.DefaultOwner(r.OwnerUserId);
         await records.EnsureOwnerAsync(owner, cancellationToken).ConfigureAwait(false);
         await records.EnsureCompanyExistsAsync(r.CompanyId, cancellationToken).ConfigureAwait(false);
-        var contact = new CrmContact { Name = r.Name.Trim(), CreatedBy = tenant.Actor, OwnerUserId = owner };
+        var contact = new CrmContact
+        {
+            Name = r.Name.Trim(),
+            CreatedBy = tenant.Actor,
+            OwnerUserId = owner,
+            CustomFields = await customFields.ForCreateAsync(CrmRecordType.Contact, r.CustomFields, cancellationToken).ConfigureAwait(false),
+        };
         Apply(contact, r);
         db.CrmContacts.Add(contact);
         changes.Publish(CrmRealtime.Contact, contact.Id, RealtimeChangeKind.Created);
@@ -143,14 +156,16 @@ internal sealed class CrmContactHandlers(IAppDbContext db, ITenantContext tenant
 
         await records.EnsureOwnerAsync(r.OwnerUserId, cancellationToken).ConfigureAwait(false);
         await records.EnsureCompanyExistsAsync(r.CompanyId, cancellationToken).ConfigureAwait(false);
+        var values = await customFields.ForUpdateAsync(CrmRecordType.Contact, r.CustomFields, cancellationToken).ConfigureAwait(false);
         var previousCompany = contact.CompanyId;
         if (r.CompanyId is { } newCompany && newCompany != previousCompany)
         {
-            await DetachFromOtherCompaniesDealsAsync(contact.Id, newCompany, now, cancellationToken).ConfigureAwait(false);
+            await records.DetachContactFromOtherCompaniesDealsAsync(contact.Id, newCompany, now, cancellationToken).ConfigureAwait(false);
         }
 
         contact.Name = r.Name.Trim();
         contact.OwnerUserId = r.OwnerUserId;
+        contact.CustomFields = values ?? contact.CustomFields;
         Apply(contact, r);
         contact.UpdatedAt = now;
         changes.Publish(CrmRealtime.Contact, contact.Id, RealtimeChangeKind.Updated);
@@ -178,27 +193,6 @@ internal sealed class CrmContactHandlers(IAppDbContext db, ITenantContext tenant
         }
 
         return Unit.Value;
-    }
-
-    /// <summary>
-    /// 联系人换到另一个客户（例如跳槽）时，原客户的商机仍归原客户，只是不再由这个人对接：解除它与这些商机的关联，
-    /// 保持"商机的联系人属于商机的客户"。
-    /// </summary>
-    private async Task DetachFromOtherCompaniesDealsAsync(Guid contactId, Guid newCompany, DateTimeOffset now, CancellationToken cancellationToken)
-    {
-        var deals = db.CrmDeals.Where(d => d.ContactId == contactId && d.CompanyId != null && d.CompanyId != newCompany);
-        var ids = await deals.Select(d => d.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
-        if (ids.Count == 0)
-        {
-            return;
-        }
-
-        await db.CrmDeals.Where(d => ids.Contains(d.Id))
-            .ExecuteUpdateAsync(s => s.SetProperty(d => d.ContactId, (Guid?)null).SetProperty(d => d.UpdatedAt, now), cancellationToken).ConfigureAwait(false);
-        foreach (var id in ids)
-        {
-            changes.Publish(CrmRealtime.Deal, id, RealtimeChangeKind.Updated);
-        }
     }
 
     private static void Apply(CrmContact contact, SaveCrmContactRequest r)

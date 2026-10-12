@@ -3,7 +3,9 @@ using AiNative.Application.Abstractions;
 using AiNative.Application.Agents;
 using AiNative.Application.Agents.Runtime;
 using AiNative.Application.Ai;
+using AiNative.Application.Crm;
 using AiNative.Application.Erp;
+using AiNative.Application.Files;
 using AiNative.Application.Integrations;
 using AiNative.Application.Knowledge;
 using AiNative.Application.Platform;
@@ -13,7 +15,9 @@ using AiNative.Infrastructure.Agents;
 using AiNative.Infrastructure.Common;
 using AiNative.Infrastructure.Ai;
 using AiNative.Infrastructure.Dispatching;
+using AiNative.Infrastructure.Crm;
 using AiNative.Infrastructure.Erp;
+using AiNative.Infrastructure.Files;
 using AiNative.Infrastructure.Integrations;
 using AiNative.Infrastructure.Knowledge;
 using AiNative.Infrastructure.Knowledge.Files;
@@ -115,6 +119,7 @@ public static class DependencyInjection
         services.AddSingleton<IKnowledgeFileExtractor, WordExtractor>();
         services.AddSingleton<IKnowledgeFileExtractor, SpreadsheetExtractor>();
         services.AddSingleton<IKnowledgeFileExtractor, PresentationExtractor>();
+        services.AddSingleton<ITabularFileReader, TabularFileReader>();
 
         // 智能体调度
         services.AddOptions<AgentRunOptions>().BindConfiguration(AgentRunOptions.SectionName);
@@ -125,6 +130,7 @@ public static class DependencyInjection
         services.AddScoped<IWorkItemNumbers, WorkItemNumbers>();
         services.AddScoped<ISequenceAllocator, SequenceAllocator>();
         services.AddScoped<IStockLedger, StockLedger>();
+        services.AddScoped<ICrmCustomFieldStore, CrmCustomFieldStore>();
         services.AddScoped<IWorkItemCheckout, WorkItemCheckout>();
         services.AddHostedService<HeartbeatScheduler>();
 

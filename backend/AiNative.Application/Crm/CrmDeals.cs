@@ -73,7 +73,14 @@ public sealed class MoveCrmDealCommandValidator : AbstractValidator<MoveCrmDealC
     public MoveCrmDealCommandValidator() => RuleFor(x => x.Note).MaximumLength(2_000).WithMessage("推进说明最多 2000 个字。").OverridePropertyName("note");
 }
 
-internal sealed class CrmDealHandlers(IAppDbContext db, ITenantContext tenant, CrmRecords records, ITextMatcher text, IChangeFeed changes, TimeProvider clock) :
+internal sealed class CrmDealHandlers(
+    IAppDbContext db,
+    ITenantContext tenant,
+    CrmRecords records,
+    CrmCustomFields customFields,
+    ITextMatcher text,
+    IChangeFeed changes,
+    TimeProvider clock) :
     IRequestHandler<ListCrmDealsQuery, PagedResult<CrmDealDto>>,
     IRequestHandler<GetCrmDealQuery, CrmDealDetailDto>,
     IRequestHandler<GetCrmPipelineQuery, CrmPipelineDto>,
@@ -197,7 +204,13 @@ internal sealed class CrmDealHandlers(IAppDbContext db, ITenantContext tenant, C
             : await db.CrmStages.AsNoTracking().Where(s => s.Kind == CrmStageKind.Open).OrderBy(s => s.Position)
                   .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false)
               ?? throw new ConflictException("crm.no_stage", "还没有配置进行中的销售阶段，请先在看板的阶段设置里添加。");
-        var deal = new CrmDeal { Title = r.Title.Trim(), CreatedBy = tenant.Actor, OwnerUserId = owner };
+        var deal = new CrmDeal
+        {
+            Title = r.Title.Trim(),
+            CreatedBy = tenant.Actor,
+            OwnerUserId = owner,
+            CustomFields = await customFields.ForCreateAsync(CrmRecordType.Deal, r.CustomFields, cancellationToken).ConfigureAwait(false),
+        };
         await ApplyAsync(deal, r, cancellationToken).ConfigureAwait(false);
         deal.MoveTo(stage, clock.GetUtcNow());
         db.CrmDeals.Add(deal);
@@ -221,10 +234,12 @@ internal sealed class CrmDealHandlers(IAppDbContext db, ITenantContext tenant, C
         }
 
         await records.EnsureOwnerAsync(r.OwnerUserId, cancellationToken).ConfigureAwait(false);
+        var values = await customFields.ForUpdateAsync(CrmRecordType.Deal, r.CustomFields, cancellationToken).ConfigureAwait(false);
         var previousCompany = deal.CompanyId;
         var previousContact = deal.ContactId;
         deal.Title = r.Title.Trim();
         deal.OwnerUserId = r.OwnerUserId;
+        deal.CustomFields = values ?? deal.CustomFields;
         await ApplyAsync(deal, r, cancellationToken).ConfigureAwait(false);
         deal.UpdatedAt = now;
         PublishChanges(deal, RealtimeChangeKind.Updated, previousCompany, previousContact);
