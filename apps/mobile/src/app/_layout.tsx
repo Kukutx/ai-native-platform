@@ -9,19 +9,26 @@ import { toProblem } from '@ainative/api-client';
 import { auth, useAuth } from '@/lib/auth';
 import { useRealtimeSync } from '@/lib/realtime';
 
+/**
+ * 只有明确没有网络（NONE）时才算离线。不看能否访问互联网：内网部署的服务器在没有外网的 Wi-Fi 下也要能用；
+ * 也不用 isConnected：安卓上识别不了的连接方式（USB 共享等）会报 UNKNOWN，isConnected 为 false，但其实连着网。
+ */
+function isOnline(state: Network.NetworkState) {
+  return state.type !== Network.NetworkStateType.NONE;
+}
+
 // 断网时暂停查询和变更，恢复连接后自动继续，而不是一路报错（Web 预览沿用浏览器的 online/offline 事件）。
-// 只看有没有网络连接，不看能否访问互联网：内网部署的服务器在没有外网的 Wi-Fi 下也要能用。
 if (Platform.OS !== 'web') {
   onlineManager.setEventListener((setOnline) => {
     let changed = false;
     const subscription = Network.addNetworkStateListener((state) => {
       changed = true;
-      setOnline(state.isConnected !== false);
+      setOnline(isOnline(state));
     });
     Network.getNetworkStateAsync()
       .then((state) => {
         if (!changed) {
-          setOnline(state.isConnected !== false);
+          setOnline(isOnline(state));
         }
       })
       .catch(() => {
