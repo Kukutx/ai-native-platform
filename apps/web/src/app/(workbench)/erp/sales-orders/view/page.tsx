@@ -4,13 +4,13 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DetailState } from '@/components/app/query-state';
 import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { InfoRow } from '@/components/app/info-row';
 import { DeliveryDialog, type DeliveryMode } from '@/features/erp/delivery-dialog';
 import { OrderLinesTable } from '@/features/erp/order-lines-table';
@@ -44,7 +44,7 @@ function SalesOrderDetail() {
   });
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='销售订单' back={{ href: '/erp/sales-orders', label: '销售订单' }} />;
   }
 
   const order = detail.data;

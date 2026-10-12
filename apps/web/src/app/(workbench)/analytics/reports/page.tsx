@@ -6,6 +6,7 @@ import type { AnalyticsReportDto, MetricDefinitionDto } from '@ainative/api-clie
 import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -77,6 +78,8 @@ export default function AnalyticsReportsPage() {
           <Skeleton className='h-72' />
           <Skeleton className='h-72' />
         </div>
+      ) : reports.isError && !reports.data ? (
+        <ErrorState query={reports} />
       ) : reports.data?.length ? (
         <div className='grid gap-4 lg:grid-cols-2'>
           {reports.data.map((report, index) => (

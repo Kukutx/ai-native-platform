@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RunEventDto } from '@ainative/api-client';
+import { DetailState } from '@/components/app/query-state';
 import { StatusBadge } from '@/components/app/status-badge';
 import { ValueRow } from '@/components/app/info-row';
 import { Icons } from '@/components/icons';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { RunTimeline } from '@/features/runs/run-timeline';
 import { api, getRealtime } from '@/lib/api';
 import { formatTime, formatUsd, runStatus, wakeupSource } from '@/lib/labels';
@@ -71,7 +71,7 @@ function RunDetail() {
   }, [detail.data, live.events]);
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='执行记录' back={{ href: '/runs', label: '执行记录' }} />;
   }
 
   const { run, wakeup } = detail.data;

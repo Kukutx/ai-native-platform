@@ -7,6 +7,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ErpPurchaseOrderStatus } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -91,6 +92,8 @@ export default function PurchaseOrdersPage() {
       <ErpNav />
       {orders.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : orders.isError && !orders.data ? (
+        <ErrorState query={orders} />
       ) : orders.data?.items.length ? (
         <Card>
           <CardContent>

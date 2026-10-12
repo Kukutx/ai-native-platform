@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ProjectMilestoneDto, WorkItemDto } from '@ainative/api-client';
+import { DetailState } from '@/components/app/query-state';
 import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatCard } from '@/components/app/stat-card';
@@ -91,7 +92,7 @@ function ProjectDetail() {
   }, [tasks.data]);
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='项目' back={{ href: '/projects', label: '项目' }} />;
   }
 
   const { project, milestones, members } = detail.data;

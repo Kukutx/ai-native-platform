@@ -7,6 +7,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ProjectStatus } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -90,6 +91,8 @@ export default function ProjectsPage() {
       />
       {projects.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : projects.isError && !projects.data ? (
+        <ErrorState query={projects} />
       ) : projects.data?.items.length ? (
         <Card>
           <CardContent>

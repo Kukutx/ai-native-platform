@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { TenantSecretDto } from '@ainative/api-client';
 import { useConfirm } from '@/components/app/confirm-provider';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { Icons } from '@/components/icons';
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
@@ -100,7 +102,11 @@ export function SecretsTab() {
             ))}
           </TableBody>
         </Table>
-      ) : secrets.isPending ? null : (
+      ) : secrets.isPending ? (
+        <Skeleton className='h-40 w-full' />
+      ) : secrets.isError ? (
+        <ErrorState query={secrets} />
+      ) : (
         <EmptyState title='还没有密钥' description='添加一个密钥（例如 GITHUB_TOKEN），就能在接入外部服务时引用，不用把令牌明文写进配置。' />
       )}
       <SecretDialog editing={editing} onClose={() => setEditing(null)} />

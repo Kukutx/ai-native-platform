@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState, InlineError, type QueryStatus } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatCard } from '@/components/app/stat-card';
 import { Icons } from '@/components/icons';
@@ -81,11 +82,13 @@ export default function ErpOverviewPage() {
             tone={summary.data.lowStockProducts ? 'warning' : undefined}
           />
         </div>
+      ) : summary.isError ? (
+        <ErrorState query={summary} />
       ) : (
         <Skeleton className='h-24 w-full' />
       )}
       <div className='grid gap-6 lg:grid-cols-3'>
-        <ListCard title='待发货的销售订单' href='/erp/sales-orders' empty='没有待发货的订单。' loading={toShip.isPending}>
+        <ListCard title='待发货的销售订单' href='/erp/sales-orders' empty='没有待发货的订单。' query={toShip}>
           {toShip.data?.items.map((o) => (
             <Row
               key={o.id}
@@ -96,7 +99,7 @@ export default function ErpOverviewPage() {
             />
           ))}
         </ListCard>
-        <ListCard title='待收货的采购订单' href='/erp/purchase-orders' empty='没有待收货的采购单。' loading={incoming.isPending}>
+        <ListCard title='待收货的采购订单' href='/erp/purchase-orders' empty='没有待收货的采购单。' query={incoming}>
           {incoming.data?.items.map((o) => (
             <Row
               key={o.id}
@@ -107,7 +110,7 @@ export default function ErpOverviewPage() {
             />
           ))}
         </ListCard>
-        <ListCard title='需要补货' href='/erp/inventory?low=1' empty='库存都在提醒线以上。' loading={lowStock.isPending}>
+        <ListCard title='需要补货' href='/erp/inventory?low=1' empty='库存都在提醒线以上。' query={lowStock}>
           {lowStock.data?.items.map((p) => (
             <Row
               key={p.id}
@@ -134,7 +137,7 @@ export default function ErpOverviewPage() {
   );
 }
 
-function ListCard({ title, href, empty, loading, children }: { title: string; href: string; empty: string; loading: boolean; children?: React.ReactNode[] }) {
+function ListCard({ title, href, empty, query, children }: { title: string; href: string; empty: string; query: QueryStatus & { isPending: boolean }; children?: React.ReactNode[] }) {
   return (
     <Card>
       <CardHeader className='flex flex-row items-center justify-between'>
@@ -144,8 +147,10 @@ function ListCard({ title, href, empty, loading, children }: { title: string; hr
         </Link>
       </CardHeader>
       <CardContent>
-        {loading ? (
+        {query.isPending ? (
           <Skeleton className='h-24 w-full' />
+        ) : query.isError && !children?.length ? (
+          <InlineError query={query} />
         ) : children?.length ? (
           <ul className='divide-y text-sm'>{children}</ul>
         ) : (

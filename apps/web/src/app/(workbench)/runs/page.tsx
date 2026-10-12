@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
 import { Pager } from '@/components/app/pager';
+import { ErrorState } from '@/components/app/query-state';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,6 +56,8 @@ export default function RunsPage() {
       />
       {runs.isPending ? (
         <Skeleton className='h-64 w-full' />
+      ) : runs.isError && !runs.data ? (
+        <ErrorState query={runs} />
       ) : runs.data?.items.length ? (
         <Card>
           <CardContent>

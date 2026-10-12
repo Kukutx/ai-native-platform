@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -80,6 +81,8 @@ export default function CrmCompaniesPage() {
       <CrmNav />
       {companies.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : companies.isError && !companies.data ? (
+        <ErrorState query={companies} />
       ) : companies.data?.items.length ? (
         <Card>
           <CardContent>

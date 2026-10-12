@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { DetailState } from '@/components/app/query-state';
 import { useConfirm } from '@/components/app/confirm-provider';
 import { Pager } from '@/components/app/pager';
 import { useSession } from '@/components/app/session-provider';
@@ -13,7 +14,6 @@ import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { describeTrigger } from '@/features/workflows/describe';
 import { RunWorkflowButton } from '@/features/workflows/run-workflow-dialog';
 import { StepTree } from '@/features/workflows/step-tree';
@@ -56,7 +56,7 @@ function WorkflowDetail() {
   });
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='工作流' back={{ href: '/workflows', label: '自动化' }} />;
   }
 
   const workflow = detail.data;

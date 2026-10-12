@@ -6,6 +6,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
 import { Pager } from '@/components/app/pager';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -59,6 +60,8 @@ export default function WorkflowsPage() {
       />
       {workflows.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : workflows.isError && !workflows.data ? (
+        <ErrorState query={workflows} />
       ) : workflows.data?.length ? (
         <Card>
           <CardContent>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { DetailState } from '@/components/app/query-state';
 import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
@@ -16,7 +17,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
 import { AgentFormDialog } from '@/features/agents/agent-form-dialog';
 import { RunTable } from '@/features/runs/run-table';
 import { api } from '@/lib/api';
@@ -51,7 +51,7 @@ function AgentDetail() {
   const terminate = useMutation({ mutationFn: () => api.agents.terminate(id), onSuccess: refresh });
 
   if (!agent.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={agent} subject='智能体' back={{ href: '/agents', label: '智能体' }} />;
   }
 
   const a = agent.data;

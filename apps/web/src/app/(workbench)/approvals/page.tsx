@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApprovalDto } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,8 @@ export default function ApprovalsPage() {
       />
       {approvals.isPending ? (
         <Skeleton className='h-48 w-full' />
+      ) : approvals.isError && !approvals.data ? (
+        <ErrorState query={approvals} />
       ) : approvals.data?.length ? (
         <div className='grid gap-4'>
           {approvals.data.map((approval) => (

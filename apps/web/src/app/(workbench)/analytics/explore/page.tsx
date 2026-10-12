@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { AnalyticsChart, AnalyticsInterval, AnalyticsRange, AnalyticsReportDto, MetricDefinitionDto } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { DetailState, ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -55,6 +56,20 @@ function ExploreLoader() {
     queryFn: ({ signal }) => api.analytics.getReport(reportId, signal),
     enabled: !!reportId,
   });
+
+  if (reportId && report.isError) {
+    return <DetailState id={reportId} query={report} subject='报表' back={{ href: '/analytics/reports', label: '报表' }} />;
+  }
+
+  if (catalog.isError) {
+    return (
+      <div className='space-y-6 p-6'>
+        <PageHeader title='自由分析' />
+        <AnalyticsNav />
+        <ErrorState query={catalog} />
+      </div>
+    );
+  }
 
   if (catalog.isPending || (reportId && report.isPending)) {
     return (
@@ -301,7 +316,7 @@ function Explorer({ metrics, report, initial }: { metrics: MetricDefinitionDto[]
       {!request ? (
         <EmptyState title='请选择开始和结束日期' />
       ) : query.isError && !result ? (
-        <EmptyState title='查询失败' description='请调整区间或粒度后重试。' />
+        <ErrorState query={query} title='查询失败' />
       ) : !result ? (
         <Skeleton className='h-96' />
       ) : (

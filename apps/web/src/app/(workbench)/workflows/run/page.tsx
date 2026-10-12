@@ -4,6 +4,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DetailState } from '@/components/app/query-state';
 import { useConfirm } from '@/components/app/confirm-provider';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
@@ -11,7 +12,6 @@ import { ValueRow } from '@/components/app/info-row';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { RunSteps } from '@/features/workflows/run-steps';
 import { api } from '@/lib/api';
 import { formatTime, workflowRunStatus, workflowTriggerKind } from '@/lib/labels';
@@ -32,7 +32,7 @@ function WorkflowRunDetail() {
   });
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='运行记录' back={{ href: '/workflows', label: '自动化' }} />;
   }
 
   const run = detail.data;

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApiKeyDto, CreatedApiKeyDto } from '@ainative/api-client';
 import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
+import { ErrorState } from '@/components/app/query-state';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { api } from '@/lib/api';
 import { absoluteApiUrl } from '@/lib/config';
@@ -99,7 +101,11 @@ export function ApiKeysTab() {
             })}
           </TableBody>
         </Table>
-      ) : keys.isPending ? null : (
+      ) : keys.isPending ? (
+        <Skeleton className='h-40 w-full' />
+      ) : keys.isError ? (
+        <ErrorState query={keys} />
+      ) : (
         <EmptyState title='还没有 API 密钥' description='创建一个密钥，就能在 Claude Code 里直接查任务、建任务、检索知识库。' />
       )}
       <CreateKeyDialog

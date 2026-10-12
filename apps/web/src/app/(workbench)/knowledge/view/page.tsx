@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConfirm } from '@/components/app/confirm-provider';
+import { DetailState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DocumentFormDialog, type DocumentDraft } from '@/features/knowledge/document-form-dialog';
 import { api } from '@/lib/api';
@@ -33,12 +33,8 @@ function DocumentDetail() {
     },
   });
 
-  if (detail.isPending) {
-    return <Skeleton className='m-6 h-96' />;
-  }
-
   if (!detail.data) {
-    return <p className='text-muted-foreground p-6'>文档不存在或已被删除。</p>;
+    return <DetailState id={id} query={detail} subject='文档' back={{ href: '/knowledge', label: '知识库' }} />;
   }
 
   const { document, content, chunks } = detail.data;

@@ -7,14 +7,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { McpServerDto, UpdateMcpToolRequest } from '@ainative/api-client';
 import { useConfirm } from '@/components/app/confirm-provider';
-import { useSession } from '@/components/app/session-provider';
 import { EmptyState } from '@/components/app/empty-state';
+import { DetailState } from '@/components/app/query-state';
+import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { McpServerFormDialog } from '@/features/integrations/mcp-server-form-dialog';
@@ -62,13 +62,9 @@ function McpServerDetail() {
     },
   });
 
-  if (detail.isPending && id) {
-    return <Skeleton className='m-6 h-96' />;
-  }
-
   const server = detail.data;
   if (!server) {
-    return <p className='text-muted-foreground p-6'>服务不存在或已被删除。</p>;
+    return <DetailState id={id} query={detail} subject='外部服务' back={{ href: '/integrations', label: '集成' }} />;
   }
 
   return (

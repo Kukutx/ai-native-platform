@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UpdateWorkItemRequest, WorkItemDto, WorkItemLinkDto } from '@ainative/api-client';
+import { DetailState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -13,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { ProjectPlacementFields } from '@/features/tasks/project-placement-fields';
 import { TaskCreateDialog } from '@/features/tasks/task-create-dialog';
@@ -74,7 +74,7 @@ function TaskDetail() {
   });
 
   if (!detail.data) {
-    return <Skeleton className='m-6 h-40' />;
+    return <DetailState id={id} query={detail} subject='任务' back={{ href: '/tasks', label: '任务' }} />;
   }
 
   const { item, comments, subtasks, dependencies, dependents } = detail.data;

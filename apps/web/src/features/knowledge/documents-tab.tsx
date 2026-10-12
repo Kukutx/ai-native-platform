@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -101,6 +102,8 @@ export function DocumentsTab() {
       {uploadError ? <p className='text-destructive text-sm'>{uploadError}</p> : null}
       {documents.isPending ? (
         <Skeleton className='h-40 w-full' />
+      ) : documents.isError && !documents.data ? (
+        <ErrorState query={documents} />
       ) : documents.data?.length ? (
         <Table>
           <TableHeader>

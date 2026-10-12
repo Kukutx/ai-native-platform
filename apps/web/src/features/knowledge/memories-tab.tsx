@@ -5,6 +5,7 @@ import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-q
 import type { MemoryDto, MemoryScope } from '@ainative/api-client';
 import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
@@ -99,6 +100,8 @@ export function MemoriesTab() {
       </div>
       {memories.isPending ? (
         <Skeleton className='h-40 w-full' />
+      ) : memories.isError && !memories.data ? (
+        <ErrorState query={memories} />
       ) : items.length ? (
         <ul className='divide-y rounded-xl border'>
           {items.map((m) => (

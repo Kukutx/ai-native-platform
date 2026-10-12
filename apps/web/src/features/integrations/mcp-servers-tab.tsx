@@ -4,11 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { EmptyState } from '@/components/app/empty-state';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { api } from '@/lib/api';
 import { formatTime, mcpApprovalMode } from '@/lib/labels';
@@ -80,7 +82,11 @@ export function McpServersTab() {
             })}
           </TableBody>
         </Table>
-      ) : servers.isPending ? null : (
+      ) : servers.isPending ? (
+        <Skeleton className='h-40 w-full' />
+      ) : servers.isError ? (
+        <ErrorState query={servers} />
+      ) : (
         <EmptyState title='还没有接入外部服务' description='接入一个 MCP 服务，智能体就能调用它的工具，例如在 GitHub 上建 issue、查 Notion 页面。' />
       )}
       <McpServerFormDialog open={creating} onOpenChange={setCreating} onSaved={(server) => router.push(`/integrations/mcp/view?id=${server.id}`)} />

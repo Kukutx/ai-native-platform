@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import type { AnalyticsOverviewDto, AnalyticsRange, MetricDefinitionDto } from '@ainative/api-client';
 import { PageHeader } from '@/components/app/page-header';
+import { ErrorState } from '@/components/app/query-state';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,6 +67,8 @@ export default function AnalyticsOverviewPage() {
           ) : null}
           <Sections overview={overview.data} />
         </>
+      ) : overview.isError ? (
+        <ErrorState query={overview} />
       ) : null}
     </div>
   );
