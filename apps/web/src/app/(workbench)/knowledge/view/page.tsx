@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConfirm } from '@/components/app/confirm-provider';
+import { Markdown } from '@/components/app/markdown';
 import { DetailState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
@@ -13,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DocumentFormDialog, type DocumentDraft } from '@/features/knowledge/document-form-dialog';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -32,6 +34,8 @@ function DocumentDetail() {
       router.push('/knowledge');
     },
   });
+
+  useDocumentTitle(detail.data?.document.title ?? '知识库');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='文档' back={{ href: '/knowledge', label: '知识库' }} />;
@@ -86,7 +90,7 @@ function DocumentDetail() {
         <TabsContent value='content' className='pt-4'>
           <Card>
             <CardContent className='pt-6'>
-              <div className='text-sm leading-7 whitespace-pre-wrap'>{content}</div>
+              <Markdown className='leading-7'>{content}</Markdown>
             </CardContent>
           </Card>
         </TabsContent>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useDeferredValue, useState } from 'react';
+import { useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { MemoryDto, MemoryScope } from '@ainative/api-client';
 import { useConfirm } from '@/components/app/confirm-provider';
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { pickOption, useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { formatTime, memoryScope } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -26,9 +27,11 @@ export function MemoriesTab() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const manage = can('memory.manage');
-  const [scope, setScope] = useState<MemoryScope | typeof ALL>(ALL);
-  const [filter, setFilter] = useState('');
-  const term = useDeferredValue(filter.trim());
+  // 筛选条件记在地址里（mem、scope）。
+  const [urlFilters, setUrlFilters] = useUrlState({ mem: '', scope: '' });
+  const term = urlFilters.mem;
+  const scope: MemoryScope | typeof ALL = pickOption(urlFilters.scope, memoryScope) ?? ALL;
+  const [filter, setFilter] = useSearchText(term, (mem) => setUrlFilters({ mem }));
   const [content, setContent] = useState('');
   const [shared, setShared] = useState(false);
   const filters = { scope, search: term };
@@ -84,8 +87,8 @@ export function MemoriesTab() {
       </form>
       <div className='flex flex-wrap items-center gap-2'>
         <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder='搜索记忆' className='w-56' aria-label='搜索记忆' />
-        <Select value={scope} onValueChange={(v) => setScope(v as MemoryScope | typeof ALL)}>
-          <SelectTrigger className='w-36'>
+        <Select value={scope} onValueChange={(v) => setUrlFilters({ scope: v === ALL ? '' : v })}>
+          <SelectTrigger className='w-36' aria-label='记忆范围'>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

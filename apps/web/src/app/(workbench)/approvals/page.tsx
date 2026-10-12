@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -16,12 +16,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { approvalStatus, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
 export default function ApprovalsPage() {
-  const [tab, setTab] = useState<'pending' | 'all'>('pending');
+  return (
+    <Suspense>
+      <Approvals />
+    </Suspense>
+  );
+}
+
+function Approvals() {
+  const [filters, setFilters] = useUrlState({ tab: 'pending' });
+  const tab = filters.tab === 'all' ? 'all' : 'pending';
   const status = tab === 'pending' ? 'pending' : undefined;
   const approvals = useQuery({
     queryKey: queryKeys.approvals(status),
@@ -34,7 +44,7 @@ export default function ApprovalsPage() {
         title='审批'
         description='智能体执行高风险动作（招聘新智能体、超出权限的操作等）前，需要人工批准。批准后动作以申请人的身份执行。'
         actions={
-          <Tabs value={tab} onValueChange={(v) => setTab(v as 'pending' | 'all')}>
+          <Tabs value={tab} onValueChange={(v) => setFilters({ tab: v })}>
             <TabsList>
               <TabsTrigger value='pending'>待处理</TabsTrigger>
               <TabsTrigger value='all'>全部</TabsTrigger>

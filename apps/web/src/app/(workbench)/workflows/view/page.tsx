@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,6 +19,8 @@ import { RunWorkflowButton } from '@/features/workflows/run-workflow-dialog';
 import { StepTree } from '@/features/workflows/step-tree';
 import { WebhookCard } from '@/features/workflows/webhook-card';
 import { WorkflowRunTable } from '@/features/workflows/workflow-run-table';
+import { useUrlState } from '@/hooks/use-url-state';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { catalogQueries } from '@/lib/catalogs';
 import { formatTime, workflowTriggerKind } from '@/lib/labels';
@@ -32,7 +34,7 @@ function WorkflowDetail() {
   const { can } = useSession();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
-  const [page, setPage] = useState(1);
+  const [{ page }, setFilters] = useUrlState({ page: 1 });
   const detail = useQuery({ queryKey: queryKeys.workflow(id), queryFn: ({ signal }) => api.workflows.get(id, signal), enabled: !!id });
   const catalog = useQuery({ queryKey: queryKeys.workflowCatalog, queryFn: ({ signal }) => api.workflows.catalog(signal) });
   const actions = useQuery(catalogQueries.actions());
@@ -55,6 +57,8 @@ function WorkflowDetail() {
       router.push('/workflows');
     },
   });
+
+  useDocumentTitle(detail.data?.name ?? '工作流');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='工作流' back={{ href: '/workflows', label: '自动化' }} />;
@@ -137,7 +141,7 @@ function WorkflowDetail() {
           {runs.data?.items.length ? (
             <>
               <WorkflowRunTable runs={runs.data.items} showWorkflow={false} />
-              <Pager page={page} pageSize={PAGE_SIZE} total={runs.data.total} onChange={setPage} />
+              <Pager page={page} pageSize={PAGE_SIZE} total={runs.data.total} onChange={(next) => setFilters({ page: next })} />
             </>
           ) : (
             <p className='text-muted-foreground text-sm'>还没有运行过。</p>

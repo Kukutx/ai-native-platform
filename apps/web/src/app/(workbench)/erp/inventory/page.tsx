@@ -1,12 +1,12 @@
 'use client';
 
-import { Suspense, useDeferredValue, useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ErpStockMovementKind } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { Pager } from '@/components/app/pager';
 import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
@@ -17,12 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Pager } from '@/components/app/pager';
 import { ErpNav } from '@/features/erp/erp-nav';
 import { MovementTable } from '@/features/erp/movement-table';
 import { AdjustStockDialog, TransferStockDialog } from '@/features/erp/stock-dialogs';
 import { WarehouseSelect } from '@/features/erp/warehouse-select';
 import { WarehousesDialog } from '@/features/erp/warehouses-dialog';
+import { pickOption, useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { erpMovementKind, formatAmount, formatQuantity } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -30,12 +30,17 @@ import { queryKeys } from '@/lib/query-keys';
 const PAGE_SIZE = 50;
 const ALL = '__all__';
 
+/** 库存页记在地址里的状态：两个标签各自的筛选条件和页码互不影响；productId、low 也是其他页面跳转过来时带的参数。 */
+const inventoryDefaults = { tab: '', warehouse: '', productId: '', q: '', low: false, page: 1, kind: '', mpage: 1 };
+type InventoryState = typeof inventoryDefaults;
+type SetInventoryState = (patch: Partial<InventoryState>) => void;
+
 function Inventory() {
-  const params = useSearchParams();
   const { can } = useSession();
-  const productId = params.get('productId') ?? undefined;
-  const [tab, setTab] = useState(productId ? 'movements' : 'levels');
-  const [warehouseId, setWarehouseId] = useState<string | undefined>();
+  const [filters, setFilters] = useUrlState(inventoryDefaults);
+  const productId = filters.productId || undefined;
+  const tab = pickOption(filters.tab, ['levels', 'movements']) ?? (productId ? 'movements' : 'levels');
+  const warehouseId = filters.warehouse || undefined;
   const [dialog, setDialog] = useState<'adjust' | 'transfer' | 'warehouses' | null>(null);
   const manage = can('erp.inventory');
 
@@ -66,19 +71,24 @@ function Inventory() {
         }
       />
       <ErpNav />
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs value={tab} onValueChange={(next) => setFilters({ tab: next })}>
         <div className='flex flex-wrap items-center justify-between gap-3'>
           <TabsList>
             <TabsTrigger value='levels'>库存</TabsTrigger>
             <TabsTrigger value='movements'>流水</TabsTrigger>
           </TabsList>
-          <WarehouseSelect value={warehouseId} onChange={setWarehouseId} allLabel='全部仓库' className='w-40' />
+          <WarehouseSelect
+            value={warehouseId}
+            onChange={(next) => setFilters({ warehouse: next ?? '', page: 1, mpage: 1 })}
+            allLabel='全部仓库'
+            className='w-40'
+          />
         </div>
         <TabsContent value='levels' className='mt-4'>
-          <Levels warehouseId={warehouseId} lowOnly={params.get('low') === '1'} />
+          <Levels warehouseId={warehouseId} filters={filters} setFilters={setFilters} />
         </TabsContent>
         <TabsContent value='movements' className='mt-4'>
-          <Movements warehouseId={warehouseId} productId={productId} />
+          <Movements warehouseId={warehouseId} productId={productId} filters={filters} setFilters={setFilters} />
         </TabsContent>
       </Tabs>
       <AdjustStockDialog open={dialog === 'adjust'} warehouseId={warehouseId} onOpenChange={(open) => !open && setDialog(null)} />
@@ -88,18 +98,9 @@ function Inventory() {
   );
 }
 
-/** 页码随上层的筛选条件（仓库、产品）重置：条件变了自动回到第 1 页，不会停在超出范围的页码上。 */
-function usePage(scope: string) {
-  const [state, setState] = useState({ scope, page: 1 });
-  const page = state.scope === scope ? state.page : 1;
-  return [page, (next: number) => setState({ scope, page: next })] as const;
-}
-
-function Levels({ warehouseId, lowOnly: initialLow }: { warehouseId?: string; lowOnly: boolean }) {
-  const [search, setSearch] = useState('');
-  const [lowOnly, setLowOnly] = useState(initialLow);
-  const [page, setPage] = usePage(warehouseId ?? '');
-  const term = useDeferredValue(search.trim());
+function Levels({ warehouseId, filters, setFilters }: { warehouseId?: string; filters: InventoryState; setFilters: SetInventoryState }) {
+  const { q: term, low: lowOnly, page } = filters;
+  const [search, setSearch] = useSearchText(term, (q) => setFilters({ q, page: 1 }));
   const levels = useQuery({
     queryKey: queryKeys.erpStock({ warehouseId, search: term, lowOnly, page }),
     queryFn: ({ signal }) => api.erp.stock.levels(warehouseId, undefined, term || undefined, lowOnly, page, PAGE_SIZE, signal),
@@ -112,19 +113,14 @@ function Levels({ warehouseId, lowOnly: initialLow }: { warehouseId?: string; lo
         <div className='flex flex-wrap gap-2'>
           <Input
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder='搜索产品名称或编码'
+            aria-label='搜索库存'
             className='w-56'
           />
           <Select
             value={lowOnly ? 'low' : 'all'}
-            onValueChange={(v) => {
-              setLowOnly(v === 'low');
-              setPage(1);
-            }}
+            onValueChange={(v) => setFilters({ low: v === 'low', page: 1 })}
           >
             <SelectTrigger className='w-32'>
               <SelectValue />
@@ -172,7 +168,7 @@ function Levels({ warehouseId, lowOnly: initialLow }: { warehouseId?: string; lo
                 ))}
               </TableBody>
             </Table>
-            <Pager page={page} pageSize={PAGE_SIZE} total={levels.data.total} onChange={setPage} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={levels.data.total} onChange={(next) => setFilters({ page: next })} />
           </>
         ) : (
           <EmptyState
@@ -185,9 +181,19 @@ function Levels({ warehouseId, lowOnly: initialLow }: { warehouseId?: string; lo
   );
 }
 
-function Movements({ warehouseId, productId }: { warehouseId?: string; productId?: string }) {
-  const [kind, setKind] = useState<ErpStockMovementKind | undefined>();
-  const [page, setPage] = usePage(`${warehouseId ?? ''}:${productId ?? ''}`);
+function Movements({
+  warehouseId,
+  productId,
+  filters,
+  setFilters,
+}: {
+  warehouseId?: string;
+  productId?: string;
+  filters: InventoryState;
+  setFilters: SetInventoryState;
+}) {
+  const kind: ErpStockMovementKind | undefined = pickOption(filters.kind, erpMovementKind);
+  const page = filters.mpage;
   const movements = useQuery({
     queryKey: queryKeys.erpMovements({ warehouseId, productId, kind, page }),
     queryFn: ({ signal }) => api.erp.stock.movements(productId, warehouseId, kind, page, PAGE_SIZE, signal),
@@ -201,10 +207,7 @@ function Movements({ warehouseId, productId }: { warehouseId?: string; productId
         <div className='flex flex-wrap items-center gap-2'>
           <Select
             value={kind ?? ALL}
-            onValueChange={(v) => {
-              setKind(v === ALL ? undefined : (v as ErpStockMovementKind));
-              setPage(1);
-            }}
+            onValueChange={(v) => setFilters({ kind: v === ALL ? '' : v, mpage: 1 })}
           >
             <SelectTrigger className='w-32'>
               <SelectValue />
@@ -219,10 +222,15 @@ function Movements({ warehouseId, productId }: { warehouseId?: string; productId
             </SelectContent>
           </Select>
           {productId ? (
-            <Link href='/erp/inventory' className='bg-muted inline-flex h-8 items-center gap-1 rounded-md px-3 text-sm'>
+            <button
+              type='button'
+              onClick={() => setFilters({ productId: '', mpage: 1 })}
+              className='bg-muted inline-flex h-8 items-center gap-1 rounded-md px-3 text-sm'
+              aria-label='不再只看这个产品'
+            >
               只看：{productName ?? '所选产品'}
               <Icons.close className='size-3.5' />
-            </Link>
+            </button>
           ) : null}
         </div>
         {movements.isPending ? (
@@ -232,7 +240,7 @@ function Movements({ warehouseId, productId }: { warehouseId?: string; productId
         ) : movements.data?.items.length ? (
           <>
             <MovementTable movements={movements.data.items} showProduct={!productId} />
-            <Pager page={page} pageSize={PAGE_SIZE} total={movements.data.total} onChange={setPage} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={movements.data.total} onChange={(next) => setFilters({ mpage: next })} />
           </>
         ) : (
           <EmptyState title='没有流水' description='入库、出库、调整和调拨都会在这里留下记录。' />

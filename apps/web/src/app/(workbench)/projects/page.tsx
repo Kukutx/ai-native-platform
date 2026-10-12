@@ -1,12 +1,13 @@
 'use client';
 
-import { useDeferredValue, useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import type { ProjectStatus } from '@ainative/api-client';
 import { EmptyState } from '@/components/app/empty-state';
 import { PageHeader } from '@/components/app/page-header';
+import { Pager } from '@/components/app/pager';
 import { ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
@@ -18,26 +19,34 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Pager } from '@/components/app/pager';
 import { ProgressBar } from '@/features/projects/progress-bar';
 import { ProjectFormDialog } from '@/features/projects/project-form-dialog';
+import { pickOption, useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { formatDate, projectStatus } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
 const PAGE_SIZE = 50;
-const OPEN = '__open__';
-const ALL = '__all__';
+const OPEN = 'open';
+const ALL = 'all';
 
 export default function ProjectsPage() {
+  return (
+    <Suspense>
+      <Projects />
+    </Suspense>
+  );
+}
+
+function Projects() {
   const { can } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState(OPEN);
-  const [page, setPage] = useState(1);
-  const term = useDeferredValue(search.trim());
-  const status = filter === OPEN || filter === ALL ? undefined : (filter as ProjectStatus);
+  const [filters, setFilters] = useUrlState({ q: '', status: OPEN, page: 1 });
+  const { q: term, page } = filters;
+  const status: ProjectStatus | undefined = pickOption(filters.status, projectStatus);
+  const filter = status ?? (filters.status === ALL ? ALL : OPEN);
+  const [search, setSearch] = useSearchText(term, (q) => setFilters({ q, page: 1 }));
   const projects = useQuery({
     queryKey: queryKeys.projects({ search: term, filter, page }),
     queryFn: ({ signal }) => api.projects.list(term || undefined, status, filter === OPEN, page, PAGE_SIZE, signal),
@@ -53,19 +62,14 @@ export default function ProjectsPage() {
           <>
             <Input
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder='搜索项目'
+              aria-label='搜索项目'
               className='w-48'
             />
             <Select
               value={filter}
-              onValueChange={(v) => {
-                setFilter(v);
-                setPage(1);
-              }}
+              onValueChange={(v) => setFilters({ status: v, page: 1 })}
             >
               <SelectTrigger className='w-32'>
                 <SelectValue />
@@ -139,7 +143,7 @@ export default function ProjectsPage() {
                 ))}
               </TableBody>
             </Table>
-            <Pager page={page} pageSize={PAGE_SIZE} total={projects.data.total} onChange={setPage} />
+            <Pager page={page} pageSize={PAGE_SIZE} total={projects.data.total} onChange={(next) => setFilters({ page: next })} />
           </CardContent>
         </Card>
       ) : (

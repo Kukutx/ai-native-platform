@@ -62,8 +62,10 @@ import {
   IconItalic,
   IconKey,
   IconLayoutDashboard,
+  IconLayoutKanban,
   IconLayoutSidebar,
   IconLink,
+  IconList,
   IconLoader2,
   IconLock,
   IconLogin,
@@ -85,10 +87,12 @@ import {
   IconProps,
   IconReceipt,
   IconRefresh,
+  IconRobot,
   IconRosetteDiscountCheck,
   IconSearch,
   IconSelector,
   IconSend,
+  IconServer,
   IconSettings,
   IconShare,
   IconSlash,
@@ -154,6 +158,8 @@ export const Icons = {
 
   // Layout
   overview: IconLayoutDashboard,
+  board: IconLayoutKanban,
+  list: IconList,
   panelLeft: IconLayoutSidebar,
 
   // User
@@ -164,6 +170,7 @@ export const Icons = {
   employee: IconUserX,
   userPen: IconUserEdit,
   teams: IconUsers,
+  agent: IconRobot,
 
   // Brand
   github: IconBrandGithub,
@@ -234,6 +241,7 @@ export const Icons = {
   key: IconKey,
   workflow: IconBolt,
   integration: IconPlug,
+  server: IconServer,
   play: IconPlayerPlay,
   badgeCheck: IconRosetteDiscountCheck,
   lock: IconLock,

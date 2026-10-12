@@ -16,6 +16,7 @@ import { InfoRow } from '@/components/app/info-row';
 import { MovementTable } from '@/features/erp/movement-table';
 import { ProductFormDialog } from '@/features/erp/product-form-dialog';
 import { AdjustStockDialog, TransferStockDialog } from '@/features/erp/stock-dialogs';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { formatAmount, formatQuantity, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -37,6 +38,8 @@ function ProductDetail() {
       router.replace('/erp/products');
     },
   });
+
+  useDocumentTitle(detail.data?.product.name ?? '产品');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='产品' back={{ href: '/erp/products', label: '产品' }} />;

@@ -16,6 +16,7 @@ import { DeliveryDialog, type DeliveryMode } from '@/features/erp/delivery-dialo
 import { OrderLinesTable } from '@/features/erp/order-lines-table';
 import { PurchaseOrderFormDialog } from '@/features/erp/purchase-order-form-dialog';
 import { StockDocumentList } from '@/features/erp/stock-document-list';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { erpPurchaseOrderStatus, formatAmount, formatDate, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -42,6 +43,8 @@ function PurchaseOrderDetail() {
       router.replace('/erp/purchase-orders');
     },
   });
+
+  useDocumentTitle(detail.data ? `采购订单 ${detail.data.number}` : '采购订单');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='采购订单' back={{ href: '/erp/purchase-orders', label: '采购订单' }} />;

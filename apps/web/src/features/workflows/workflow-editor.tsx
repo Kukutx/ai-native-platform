@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useUnsavedChangesGuard } from '@/hooks/use-unsaved-changes';
 import { api } from '@/lib/api';
 import { catalogQueries } from '@/lib/catalogs';
 import { localTimeZone } from '@/lib/dates';
@@ -46,6 +47,9 @@ function toDraft(workflow?: WorkflowDto): Draft {
   };
 }
 
+/** 比较草稿是否改动过：uid 只是编辑期间的界面标识，不算内容。 */
+const snapshot = (draft: Draft) => JSON.stringify(draft, (key, value: unknown) => (key === 'uid' ? undefined : value));
+
 const triggerKinds = Object.keys(workflowTriggerKind) as WorkflowTriggerKind[];
 const NO_PRESET = '__custom__';
 
@@ -55,6 +59,8 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
   const { session } = useSession();
   const [draft, setDraft] = useState<Draft>(() => toDraft(workflow));
   const [errors, setErrors] = useState<FieldErrors>({});
+  // 与草稿比较的基准：打开编辑器（或载入最新）时的内容。
+  const [baseline, setBaseline] = useState(() => snapshot(draft));
   // 打开编辑器时的版本：后台刷新拿到别人保存的新版本后，不能用它悄悄覆盖对方的修改。
   const edit = useEditVersion(workflow, () => {
     const id = workflow!.id;
@@ -63,6 +69,8 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
   const catalog = useQuery({ queryKey: queryKeys.workflowCatalog, queryFn: ({ signal }) => api.workflows.catalog(signal) });
   const actions = useQuery(catalogQueries.actions());
   const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
+
+  useUnsavedChangesGuard(snapshot(draft) !== baseline);
 
   const events = catalog.data?.events;
   const setTrigger = (patch: Partial<WorkflowTriggerDto>) => setDraft((d) => ({ ...d, trigger: { ...d.trigger, ...patch } }));
@@ -285,7 +293,9 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
         edit={edit}
         subject='工作流'
         onLoadLatest={(latest) => {
-          setDraft(toDraft(latest));
+          const next = toDraft(latest);
+          setDraft(next);
+          setBaseline(snapshot(next));
           setErrors({});
         }}
         onOverwrite={submit}
@@ -293,6 +303,7 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
       />
 
       <div className='flex justify-end gap-2'>
+        {/* 有未保存的修改时，后退会先弹出确认框。 */}
         <Button type='button' variant='outline' onClick={() => router.back()}>
           取消
         </Button>

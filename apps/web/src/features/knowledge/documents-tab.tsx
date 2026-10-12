@@ -1,6 +1,6 @@
 'use client';
 
-import { useDeferredValue, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useConfirm } from '@/components/app/confirm-provider';
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useSearchText, useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -31,8 +32,9 @@ export function DocumentsTab() {
   const confirm = useConfirm();
   const manage = can('knowledge.manage');
   const fileInput = useRef<HTMLInputElement>(null);
-  const [filter, setFilter] = useState('');
-  const term = useDeferredValue(filter.trim());
+  // 筛选条件记在地址里（doc），从文档详情返回时保持不变。
+  const [{ doc: term }, setFilters] = useUrlState({ doc: '' });
+  const [filter, setFilter] = useSearchText(term, (doc) => setFilters({ doc }));
   const [draft, setDraft] = useState<DocumentDraft | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const documents = useQuery({
@@ -72,7 +74,7 @@ export function DocumentsTab() {
   return (
     <div className='space-y-4'>
       <div className='flex flex-wrap items-center justify-between gap-2'>
-        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder='按标题或标签筛选' className='w-56' />
+        <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder='按标题或标签筛选' className='w-56' aria-label='筛选文档' />
         {manage ? (
           <div className='flex gap-2'>
             <input

@@ -18,6 +18,7 @@ import { CustomFieldValues } from '@/features/crm/custom-fields';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
 import { InfoRow } from '@/components/app/info-row';
 import { ListLimitNote } from '@/components/app/list-limit-note';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { crmDealStatus, formatAmount, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -38,6 +39,8 @@ function ContactDetail() {
       router.replace('/crm/contacts');
     },
   });
+
+  useDocumentTitle(detail.data?.contact.name ?? '联系人');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='联系人' back={{ href: '/crm/contacts', label: '联系人' }} />;

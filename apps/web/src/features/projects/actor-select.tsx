@@ -30,12 +30,14 @@ export function ActorSelect({
   noneLabel,
   exclude = [],
   id,
+  disabled,
 }: {
   value: ActorRef;
   onChange: (value: ActorRef) => void;
   noneLabel?: string;
   exclude?: string[];
   id?: string;
+  disabled?: boolean;
 }) {
   const { can } = useSession();
   const members = useQuery({ queryKey: queryKeys.members, queryFn: ({ signal }) => api.members.list(signal), enabled: can('platform.members.view') });
@@ -43,14 +45,18 @@ export function ActorSelect({
   const current = encodeActor(value);
   const people = members.data?.filter((m) => (m.status === 'active' && !exclude.includes(`user:${m.userId}`)) || `user:${m.userId}` === current) ?? [];
   const bots = agents.data?.filter((a) => (a.status !== 'terminated' && !exclude.includes(`agent:${a.id}`)) || `agent:${a.id}` === current) ?? [];
+  // 当前选中的人不在可见名单里（没有查看名单的权限，或者已被移除）：保留一项，不让下拉框显示成空白。
+  const unlisted =
+    current !== NOBODY && !members.isLoading && !agents.isLoading && !people.some((m) => `user:${m.userId}` === current) && !bots.some((a) => `agent:${a.id}` === current);
 
   return (
-    <Select value={current} onValueChange={(v) => onChange(decodeActor(v))}>
+    <Select value={current} onValueChange={(v) => onChange(decodeActor(v))} disabled={disabled}>
       <SelectTrigger id={id} className='w-full'>
         <SelectValue placeholder='请选择' />
       </SelectTrigger>
       <SelectContent>
         {noneLabel ? <SelectItem value={NOBODY}>{noneLabel}</SelectItem> : null}
+        {unlisted ? <SelectItem value={current}>{value.userId ? '其他成员' : '其他智能体'}</SelectItem> : null}
         {people.length ? (
           <SelectGroup>
             <SelectLabel>成员</SelectLabel>

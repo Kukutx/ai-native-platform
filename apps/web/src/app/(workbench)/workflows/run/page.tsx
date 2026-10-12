@@ -13,6 +13,7 @@ import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RunSteps } from '@/features/workflows/run-steps';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { formatTime, workflowRunStatus, workflowTriggerKind } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -30,6 +31,8 @@ function WorkflowRunDetail() {
     mutationFn: () => api.workflows.cancel(id),
     onSettled: () => queryClient.invalidateQueries({ queryKey: queryKeys.workflowRun(id) }),
   });
+
+  useDocumentTitle(detail.data ? `${detail.data.summary.workflowName} 的一次运行` : '运行记录');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='运行记录' back={{ href: '/workflows', label: '自动化' }} />;

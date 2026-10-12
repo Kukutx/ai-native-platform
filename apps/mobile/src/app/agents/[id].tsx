@@ -41,7 +41,7 @@ export default function AgentScreen() {
   const agents = useQuery({ queryKey: ['agents'], queryFn: ({ signal }) => getApi().agents.list(signal) });
   const tasks = useQuery({
     queryKey: ['work-items', { assigneeAgentId: id, openOnly: true }],
-    queryFn: ({ signal }) => getApi().workItems.list(undefined, id, undefined, undefined, true, 1, 20, undefined, undefined, signal),
+    queryFn: ({ signal }) => getApi().workItems.list(undefined, id, undefined, undefined, true, 1, 20, undefined, undefined, undefined, undefined, signal),
     enabled: can('tasks.view'),
   });
   const runs = useQuery({

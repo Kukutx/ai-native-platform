@@ -56,8 +56,10 @@ COPY backend/AiNative.Contracts backend/AiNative.Contracts
 COPY backend/AiNative.Application backend/AiNative.Application
 COPY backend/AiNative.Infrastructure backend/AiNative.Infrastructure
 COPY backend/AiNative.Api backend/AiNative.Api
+# 不加 --no-restore：NuGet 包在缓存挂载里，不随镜像层导出。CI 从远端缓存命中上面的还原层时挂载是空的，
+# 这里会按已还原的清单补下载缺的包；本地构建包都在，还原只是检查一遍。
 RUN --mount=type=cache,id=ainative-nuget,target=/root/.nuget/packages \
-    dotnet publish backend/AiNative.Api/AiNative.Api.csproj -c Release --no-restore -o /app -p:UseAppHost=false
+    dotnet publish backend/AiNative.Api/AiNative.Api.csproj -c Release -o /app -p:UseAppHost=false
 
 # ---------- 运行时 ----------
 FROM mcr.microsoft.com/dotnet/aspnet:${DOTNET_VERSION} AS runtime

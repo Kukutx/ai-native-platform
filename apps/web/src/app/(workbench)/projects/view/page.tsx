@@ -25,6 +25,7 @@ import { MilestoneFormDialog } from '@/features/projects/milestone-form-dialog';
 import { ProgressBar } from '@/features/projects/progress-bar';
 import { ProjectFormDialog } from '@/features/projects/project-form-dialog';
 import { TaskCreateDialog } from '@/features/tasks/task-create-dialog';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { formatDate, formatTime, isPastDate, projectStatus, workItemStatus } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -49,7 +50,7 @@ function ProjectDetail() {
   const detail = useQuery({ queryKey: queryKeys.project(id), queryFn: ({ signal }) => api.projects.get(id, signal), enabled: !!id });
   const tasks = useQuery({
     queryKey: queryKeys.workItems({ projectId: id }),
-    queryFn: ({ signal }) => api.workItems.list(undefined, undefined, undefined, undefined, false, 1, TASK_LIMIT, id, undefined, signal),
+    queryFn: ({ signal }) => api.workItems.list(undefined, undefined, undefined, undefined, false, 1, TASK_LIMIT, id, undefined, undefined, undefined, signal),
     enabled: !!id && can('tasks.view'),
   });
   const schedule = useQuery({
@@ -90,6 +91,8 @@ function ProjectDetail() {
 
     return byMilestone;
   }, [tasks.data]);
+
+  useDocumentTitle(detail.data?.project.name ?? '项目');
 
   if (!detail.data) {
     return <DetailState id={id} query={detail} subject='项目' back={{ href: '/projects', label: '项目' }} />;

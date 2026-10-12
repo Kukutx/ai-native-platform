@@ -19,8 +19,10 @@ public sealed class WorkItemsController : ApiControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         [FromQuery] Guid? projectId = null,
-        [FromQuery] Guid? milestoneId = null)
-        => SendAsync(new ListWorkItemsQuery(status, assigneeAgentId, parentId, search, openOnly, page, pageSize, projectId, milestoneId));
+        [FromQuery] Guid? milestoneId = null,
+        [FromQuery] WorkItemPriority? priority = null,
+        [FromQuery] Guid? assigneeUserId = null)
+        => SendAsync(new ListWorkItemsQuery(status, assigneeAgentId, parentId, search, openOnly, page, pageSize, projectId, milestoneId, priority, assigneeUserId));
 
     [HttpGet("{id:guid}")]
     public Task<WorkItemDetailDto> Get(Guid id) => SendAsync(new GetWorkItemQuery(id));

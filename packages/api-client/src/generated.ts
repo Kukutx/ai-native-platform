@@ -7202,7 +7202,7 @@ export class WorkItemsClient {
         this.baseUrl = baseUrl ?? "http://localhost";
     }
 
-    list(status?: WorkItemStatus | null | undefined, assigneeAgentId?: string | null | undefined, parentId?: string | null | undefined, search?: string | null | undefined, openOnly?: boolean | undefined, page?: number | undefined, pageSize?: number | undefined, projectId?: string | null | undefined, milestoneId?: string | null | undefined, signal?: AbortSignal): Promise<PagedResultOfWorkItemDto> {
+    list(status?: WorkItemStatus | null | undefined, assigneeAgentId?: string | null | undefined, parentId?: string | null | undefined, search?: string | null | undefined, openOnly?: boolean | undefined, page?: number | undefined, pageSize?: number | undefined, projectId?: string | null | undefined, milestoneId?: string | null | undefined, priority?: WorkItemPriority | null | undefined, assigneeUserId?: string | null | undefined, signal?: AbortSignal): Promise<PagedResultOfWorkItemDto> {
         let url_ = this.baseUrl + "/api/work-items?";
         if (status !== undefined && status !== null)
             url_ += "status=" + encodeURIComponent("" + status) + "&";
@@ -7228,6 +7228,10 @@ export class WorkItemsClient {
             url_ += "projectId=" + encodeURIComponent("" + projectId) + "&";
         if (milestoneId !== undefined && milestoneId !== null)
             url_ += "milestoneId=" + encodeURIComponent("" + milestoneId) + "&";
+        if (priority !== undefined && priority !== null)
+            url_ += "priority=" + encodeURIComponent("" + priority) + "&";
+        if (assigneeUserId !== undefined && assigneeUserId !== null)
+            url_ += "assigneeUserId=" + encodeURIComponent("" + assigneeUserId) + "&";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_: RequestInit = {

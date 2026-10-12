@@ -20,6 +20,7 @@ import { CloseDealDialog, useMoveDeal, type MoveRequest } from '@/features/crm/m
 import { isOverdue } from '@/features/crm/utils';
 import { DealOrders } from '@/features/erp/deal-orders';
 import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { api } from '@/lib/api';
 import { catalogQueries } from '@/lib/catalogs';
 import { crmDealStatus, crmStageKind, formatAmount, formatDate, formatTime } from '@/lib/labels';
@@ -46,8 +47,10 @@ function DealDetail() {
     },
   });
 
+  useDocumentTitle(detail.data?.deal.title ?? '商机');
+
   if (!detail.data) {
-    return <DetailState id={id} query={detail} subject='商机' back={{ href: '/crm', label: '销售看板' }} />;
+    return <DetailState id={id} query={detail} subject='商机' back={{ href: '/crm', label: '商机' }} />;
   }
 
   const { deal } = detail.data;
@@ -68,7 +71,7 @@ function DealDetail() {
     <div className='space-y-6 p-6'>
       <Link href='/crm' className='text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm'>
         <Icons.chevronLeft className='size-4' />
-        销售看板
+        商机
       </Link>
       <div className='flex flex-wrap items-start justify-between gap-4'>
         <div className='space-y-2'>

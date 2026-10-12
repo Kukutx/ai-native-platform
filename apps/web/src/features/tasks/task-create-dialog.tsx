@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CreateWorkItemRequest, WorkItemPriority } from '@ainative/api-client';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -9,12 +9,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ActorSelect } from '@/features/projects/actor-select';
 import { api } from '@/lib/api';
 import { priority } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 import { ProjectPlacementFields } from './project-placement-fields';
-
-const UNASSIGNED = '__none__';
 
 /**
  * 新建任务。parentId 为子任务（项目和里程碑沿用上级任务）；projectId / milestoneId 给定时直接放进该项目或里程碑。
@@ -51,7 +50,6 @@ export function TaskCreateDialog({
 
 function TaskForm({ parentId, projectId, milestoneId, onClose }: { parentId?: string; projectId?: string; milestoneId?: string; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
   const [form, setForm] = useState<CreateWorkItemRequest>({ title: '', description: '', priority: 'medium', projectId, milestoneId });
   const fixedPlacement = !!parentId || !!projectId;
   const create = useMutation({
@@ -107,22 +105,13 @@ function TaskForm({ parentId, projectId, milestoneId, onClose }: { parentId?: st
           </Select>
         </div>
         <div className='grid gap-2'>
-          <Label>指派给智能体</Label>
-          <Select value={form.assigneeAgentId ?? UNASSIGNED} onValueChange={(v) => setForm({ ...form, assigneeAgentId: v === UNASSIGNED ? undefined : v })}>
-            <SelectTrigger className='w-full'>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={UNASSIGNED}>暂不指派</SelectItem>
-              {agents.data
-                ?.filter((a) => a.status !== 'terminated')
-                .map((a) => (
-                  <SelectItem key={a.id} value={a.id}>
-                    {a.name} · {a.title}
-                  </SelectItem>
-                ))}
-            </SelectContent>
-          </Select>
+          <Label htmlFor='task-assignee'>负责人</Label>
+          <ActorSelect
+            id='task-assignee'
+            value={{ userId: form.assigneeUserId, agentId: form.assigneeAgentId }}
+            noneLabel='暂不指派'
+            onChange={(next) => setForm({ ...form, assigneeUserId: next.userId, assigneeAgentId: next.agentId })}
+          />
         </div>
         {fixedPlacement ? null : (
           <ProjectPlacementFields
@@ -151,7 +140,7 @@ function TaskForm({ parentId, projectId, milestoneId, onClose }: { parentId?: st
           />
         </div>
       </div>
-      <p className='text-muted-foreground text-xs'>{parentId ? '子任务跟上级任务在同一个项目和里程碑里。' : null}指派后智能体会立即被唤醒并开始处理。</p>
+      <p className='text-muted-foreground text-xs'>{parentId ? '子任务跟上级任务在同一个项目和里程碑里。' : null}指派给智能体后它会立即被唤醒并开始处理。</p>
       <DialogFooter>
         <Button type='submit' disabled={create.isPending}>
           创建

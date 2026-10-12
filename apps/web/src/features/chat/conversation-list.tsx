@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
+import { useChatAgents } from './chat-agents';
 
 /**
  * 对话列表：桌面端放在左栏，手机上放在抽屉里。onOpen(null) 表示新对话；删除当前对话后回到新对话。
@@ -19,6 +20,7 @@ export function ConversationList({ selected, onOpen }: { selected: string | null
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const conversations = useQuery({ queryKey: queryKeys.conversations, queryFn: ({ signal }) => api.conversations.list(signal) });
+  const agents = useChatAgents();
   const remove = useMutation({
     mutationFn: (id: string) => api.conversations.delete(id),
     meta: { successMessage: '对话已删除' },
@@ -60,7 +62,12 @@ export function ConversationList({ selected, onOpen }: { selected: string | null
               onClick={() => onOpen(conversation.id)}
             >
               <span className='block truncate'>{conversation.title}</span>
-              <span className='text-muted-foreground block text-xs font-normal'>{formatTime(conversation.lastMessageAt)}</span>
+              <span className='text-muted-foreground flex items-center gap-1 text-xs font-normal'>
+                {conversation.agentId ? <Icons.agent className='size-3 shrink-0' aria-hidden /> : null}
+                <span className='truncate'>
+                  {agents.label(conversation.agentId)} · {formatTime(conversation.lastMessageAt)}
+                </span>
+              </span>
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
