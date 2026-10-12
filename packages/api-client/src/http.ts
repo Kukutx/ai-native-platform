@@ -11,6 +11,8 @@ import {
   CrmCompaniesClient,
   CrmContactsClient,
   CrmDealsClient,
+  CrmFieldsClient,
+  CrmImportClient,
   CrmStagesClient,
   ErpProductsClient,
   ErpPurchaseOrdersClient,
@@ -101,6 +103,8 @@ export function createApi(config: ApiConfig) {
       deals: new CrmDealsClient(baseUrl, http),
       activities: new CrmActivitiesClient(baseUrl, http),
       stages: new CrmStagesClient(baseUrl, http),
+      fields: new CrmFieldsClient(baseUrl, http),
+      import: new CrmImportClient(baseUrl, http),
     },
     erp: {
       products: new ErpProductsClient(baseUrl, http),

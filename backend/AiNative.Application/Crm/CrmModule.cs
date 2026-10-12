@@ -40,7 +40,7 @@ internal sealed class CrmModule : IPlatformModule
     [
         new(CrmFeatures.View, "查看客户、联系人、商机与跟进记录", ModuleKey),
         new(CrmFeatures.Manage, "新建、编辑、删除客户、联系人与商机，记录跟进", ModuleKey),
-        new(CrmFeatures.Configure, "配置销售阶段", ModuleKey),
+        new(CrmFeatures.Configure, "配置销售阶段和自定义字段", ModuleKey),
     ];
 
     public IReadOnlyList<PlatformEventDefinition> Events { get; } =
@@ -50,19 +50,19 @@ internal sealed class CrmModule : IPlatformModule
             "新客户",
             ModuleKey,
             CrmFeatures.View,
-            "新建客户时触发。载荷：trigger.company 为客户（id、name、industry、website、phone、address、description、tags、owner 等），trigger.actor 为创建者（kind、id、name）。"),
+            "新建客户时触发（表格导入的不触发）。载荷：trigger.company 为客户（id、name、industry、website、phone、address、description、tags、owner、customFields 等，customFields 的键为自定义字段标识），trigger.actor 为创建者（kind、id、name）。"),
         new(
             CrmEventKeys.ContactCreated,
             "新联系人",
             ModuleKey,
             CrmFeatures.View,
-            "新建联系人时触发。载荷：trigger.contact 为联系人（id、name、companyId、companyName、title、email、phone、tags、owner 等），trigger.actor 为创建者。"),
+            "新建联系人时触发（表格导入的不触发）。载荷：trigger.contact 为联系人（id、name、companyId、companyName、title、email、phone、tags、owner、customFields 等），trigger.actor 为创建者。"),
         new(
             CrmEventKeys.DealCreated,
             "新商机",
             ModuleKey,
             CrmFeatures.View,
-            "新建商机时触发。载荷：trigger.deal 为商机（id、title、companyId、companyName、contactName、stageName、status、amount、currency、expectedCloseDate、owner 等），trigger.actor 为创建者。"),
+            "新建商机时触发。载荷：trigger.deal 为商机（id、title、companyId、companyName、contactName、stageName、status、amount、currency、expectedCloseDate、owner、customFields 等），trigger.actor 为创建者。"),
         new(
             CrmEventKeys.DealStageChanged,
             "商机阶段变化",
@@ -88,4 +88,5 @@ public static class CrmRealtime
     public const string Deal = "crm_deal";
     public const string Activity = "crm_activity";
     public const string Stage = "crm_stage";
+    public const string Field = "crm_field";
 }

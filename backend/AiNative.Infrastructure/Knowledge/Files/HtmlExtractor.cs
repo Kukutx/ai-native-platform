@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using AiNative.Application.Knowledge;
+using AiNative.Infrastructure.Files;
 
 namespace AiNative.Infrastructure.Knowledge.Files;
 

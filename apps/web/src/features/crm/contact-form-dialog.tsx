@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { CustomFieldInputs, useCustomFieldForm } from './custom-fields';
 import { OwnerSelect } from './owner-select';
 import { RecordPicker, type PickedRecord } from './record-picker';
 import { ownerUserId, parseTags } from './utils';
@@ -30,7 +31,7 @@ export function ContactFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-xl'>
+      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-xl'>
         {open ? (
           <ContactForm key={contact?.id ?? 'new'} contact={contact ?? null} company={company ?? null} onClose={() => onOpenChange(false)} onSaved={onSaved} />
         ) : null}
@@ -64,9 +65,17 @@ function ContactForm({
   const [picked, setPicked] = useState<PickedRecord | null>(
     contact?.companyId ? { id: contact.companyId, name: contact.companyName ?? '客户' } : company,
   );
+  const custom = useCustomFieldForm('contact', contact?.customFields);
   const save = useMutation({
     mutationFn: () => {
-      const request = { ...form, tags: parseTags(form.tags), companyId: picked?.id, ownerUserId: owner, expectedUpdatedAt: contact?.updatedAt };
+      const request = {
+        ...form,
+        tags: parseTags(form.tags),
+        companyId: picked?.id,
+        ownerUserId: owner,
+        customFields: custom.request(),
+        expectedUpdatedAt: contact?.updatedAt,
+      };
       return contact ? api.crm.contacts.update(contact.id, request) : api.crm.contacts.create(request);
     },
     onSuccess: async (saved) => {
@@ -125,6 +134,7 @@ function ContactForm({
         <Label htmlFor='contact-description'>备注</Label>
         <Textarea id='contact-description' {...field('description')} rows={3} placeholder='负责什么、偏好、关系背景等' />
       </div>
+      <CustomFieldInputs fields={custom.fields} values={custom.values} onChange={custom.onChange} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

@@ -95,6 +95,8 @@ public sealed class AppDbContext : DbContext, IAppDbContext
 
     public DbSet<CrmActivity> CrmActivities => Set<CrmActivity>();
 
+    public DbSet<CrmFieldDefinition> CrmFieldDefinitions => Set<CrmFieldDefinition>();
+
     public DbSet<ErpProduct> ErpProducts => Set<ErpProduct>();
 
     public DbSet<ErpWarehouse> ErpWarehouses => Set<ErpWarehouse>();
@@ -522,6 +524,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => x.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
             b.HasIndex(x => x.Tags).HasMethod("gin");
             b.HasIndex(x => new { x.TenantId, x.UpdatedAt });
+            JsonMap(b.Property(x => x.CustomFields));
             b.HasIndex(x => new { x.TenantId, x.OwnerUserId });
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<User>().WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.SetNull);
@@ -540,6 +543,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => x.Tags).HasMethod("gin");
             b.HasIndex(x => new { x.TenantId, x.UpdatedAt });
             b.HasIndex(x => new { x.TenantId, x.OwnerUserId });
+            JsonMap(b.Property(x => x.CustomFields));
             b.HasIndex(x => x.CompanyId);
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<CrmCompany>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);
@@ -568,6 +572,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => x.StageId);
             b.HasIndex(x => x.CompanyId);
             b.HasIndex(x => x.ContactId);
+            JsonMap(b.Property(x => x.CustomFields));
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<CrmStage>().WithMany().HasForeignKey(x => x.StageId).OnDelete(DeleteBehavior.Restrict);
             b.HasOne<CrmCompany>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);
@@ -589,6 +594,16 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasOne<CrmCompany>().WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<CrmContact>().WithMany().HasForeignKey(x => x.ContactId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<CrmDeal>().WithMany().HasForeignKey(x => x.DealId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CrmFieldDefinition>(b =>
+        {
+            b.Property(x => x.Key).HasMaxLength(40);
+            b.Property(x => x.Label).HasMaxLength(50);
+            b.Property(x => x.Description).HasMaxLength(500);
+            JsonList(b.Property(x => x.Options));
+            b.HasIndex(x => new { x.TenantId, x.RecordType, x.Key }).IsUnique();
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<TenantSequence>(b =>
@@ -744,6 +759,21 @@ public sealed class AppDbContext : DbContext, IAppDbContext
                     (a, c) => JsonSerializer.Serialize(a, PlatformJson.Options) == JsonSerializer.Serialize(c, PlatformJson.Options),
                     v => JsonSerializer.Serialize(v, PlatformJson.Options).GetHashCode(StringComparison.Ordinal),
                     v => JsonSerializer.Deserialize<List<T>>(JsonSerializer.Serialize(v, PlatformJson.Options), PlatformJson.Options)!));
+
+    /// <summary>
+    /// 键值对存为 jsonb（例如客户管理的自定义字段），默认值为空对象。
+    /// </summary>
+    private static void JsonMap(Microsoft.EntityFrameworkCore.Metadata.Builders.PropertyBuilder<Dictionary<string, JsonElement>> property)
+        => property
+            .HasColumnType("jsonb")
+            .HasDefaultValueSql("'{}'::jsonb")
+            .HasConversion(
+                v => JsonSerializer.Serialize(v, PlatformJson.Options),
+                v => JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(v, PlatformJson.Options) ?? new Dictionary<string, JsonElement>(),
+                new ValueComparer<Dictionary<string, JsonElement>>(
+                    (a, c) => JsonSerializer.Serialize(a, PlatformJson.Options) == JsonSerializer.Serialize(c, PlatformJson.Options),
+                    v => JsonSerializer.Serialize(v, PlatformJson.Options).GetHashCode(StringComparison.Ordinal),
+                    v => JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(JsonSerializer.Serialize(v, PlatformJson.Options), PlatformJson.Options)!));
 
     private static readonly System.Reflection.MethodInfo ApplyTenantFilterMethod =
         typeof(AppDbContext).GetMethod(nameof(ApplyTenantFilter), System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;

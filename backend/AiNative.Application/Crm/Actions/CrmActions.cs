@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using AiNative.Application.Abstractions;
 using AiNative.Application.Actions;
 using AiNative.Application.Common;
@@ -202,6 +203,32 @@ internal sealed class GetCrmPipelineAction(IRequestDispatcher dispatcher) : Plat
     }
 }
 
+public sealed class ListCrmFieldsInput
+{
+    [Description("只看某类记录的字段：company 客户、contact 联系人、deal 商机；省略时返回全部")]
+    public CrmRecordType? RecordType { get; init; }
+}
+
+internal sealed class ListCrmFieldsAction(IRequestDispatcher dispatcher) : PlatformAction<ListCrmFieldsInput, IReadOnlyList<CrmFieldDto>>
+{
+    public override string Key => "crm.list_fields";
+
+    public override string ModuleKey => CrmModule.ModuleKey;
+
+    public override string Title => "查看自定义字段";
+
+    public override string Description =>
+        "查看客户、联系人、商机的自定义字段：标识（key）、名称（label）、类型、选项和是否必填。新建或修改记录时，自定义字段的值放在 customFields 里，键为字段标识。" +
+        "类型与取值：text 文本；number 数字；date 日期（yyyy-MM-dd）；select 单选（填一个选项原文）；multi_select 多选（选项数组）；checkbox 是否（true / false）。";
+
+    public override string RequiredFeature => CrmFeatures.View;
+
+    public override bool IsMutation => false;
+
+    protected override Task<IReadOnlyList<CrmFieldDto>> ExecuteAsync(ListCrmFieldsInput input, ActionContext context, CancellationToken cancellationToken)
+        => dispatcher.SendAsync(new ListCrmFieldsQuery(input.RecordType), cancellationToken);
+}
+
 public sealed class CreateCrmCompanyInput
 {
     [Description("客户名称（公司或组织全称）")]
@@ -227,6 +254,9 @@ public sealed class CreateCrmCompanyInput
 
     [Description("负责的成员（用户 ID）；留空时由创建者负责，智能体创建时为空")]
     public Guid? OwnerUserId { get; init; }
+
+    [Description("自定义字段的值，键为字段标识，例如 {\"region\": \"华东\"}。有哪些字段、怎么填用 crm.list_fields 查看；必填字段要带上")]
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }
 
 internal sealed class CreateCrmCompanyAction(IRequestDispatcher dispatcher) : PlatformAction<CreateCrmCompanyInput, CrmCompanyDto>
@@ -252,6 +282,7 @@ internal sealed class CreateCrmCompanyAction(IRequestDispatcher dispatcher) : Pl
             Description = input.Description,
             Tags = input.Tags,
             OwnerUserId = input.OwnerUserId,
+            CustomFields = input.CustomFields,
         }), cancellationToken);
 }
 
@@ -283,6 +314,9 @@ public sealed class UpdateCrmCompanyInput
 
     [Description("改由哪个成员负责（用户 ID）；不改就省略")]
     public Guid? OwnerUserId { get; init; }
+
+    [Description("要修改的自定义字段，键为字段标识；只改传了的字段，值为 null 表示清空。有哪些字段用 crm.list_fields 查看")]
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }
 
 internal sealed class UpdateCrmCompanyAction(IRequestDispatcher dispatcher) : PlatformAction<UpdateCrmCompanyInput, CrmCompanyDto>
@@ -310,6 +344,7 @@ internal sealed class UpdateCrmCompanyAction(IRequestDispatcher dispatcher) : Pl
             Description = input.Description ?? current.Description,
             Tags = input.Tags ?? current.Tags,
             OwnerUserId = input.OwnerUserId ?? current.Owner?.Id,
+            CustomFields = CrmCustomFieldInput.Merge(current.CustomFields, input.CustomFields),
             ExpectedUpdatedAt = current.UpdatedAt,
         }), cancellationToken).ConfigureAwait(false);
     }
@@ -340,6 +375,9 @@ public sealed class CreateCrmContactInput
 
     [Description("负责的成员（用户 ID）；留空时由创建者负责，智能体创建时为空")]
     public Guid? OwnerUserId { get; init; }
+
+    [Description("自定义字段的值，键为字段标识，例如 {\"region\": \"华东\"}。有哪些字段、怎么填用 crm.list_fields 查看；必填字段要带上")]
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }
 
 internal sealed class CreateCrmContactAction(IRequestDispatcher dispatcher) : PlatformAction<CreateCrmContactInput, CrmContactDto>
@@ -365,6 +403,7 @@ internal sealed class CreateCrmContactAction(IRequestDispatcher dispatcher) : Pl
             Description = input.Description,
             Tags = input.Tags,
             OwnerUserId = input.OwnerUserId,
+            CustomFields = input.CustomFields,
         }), cancellationToken);
 }
 
@@ -396,6 +435,9 @@ public sealed class UpdateCrmContactInput
 
     [Description("改由哪个成员负责（用户 ID）；不改就省略")]
     public Guid? OwnerUserId { get; init; }
+
+    [Description("要修改的自定义字段，键为字段标识；只改传了的字段，值为 null 表示清空。有哪些字段用 crm.list_fields 查看")]
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }
 
 internal sealed class UpdateCrmContactAction(IRequestDispatcher dispatcher) : PlatformAction<UpdateCrmContactInput, CrmContactDto>
@@ -423,6 +465,7 @@ internal sealed class UpdateCrmContactAction(IRequestDispatcher dispatcher) : Pl
             Description = input.Description ?? current.Description,
             Tags = input.Tags ?? current.Tags,
             OwnerUserId = input.OwnerUserId ?? current.Owner?.Id,
+            CustomFields = CrmCustomFieldInput.Merge(current.CustomFields, input.CustomFields),
             ExpectedUpdatedAt = current.UpdatedAt,
         }), cancellationToken).ConfigureAwait(false);
     }
@@ -456,6 +499,9 @@ public sealed class CreateCrmDealInput
 
     [Description("负责的成员（用户 ID）；留空时由创建者负责，智能体创建时为空")]
     public Guid? OwnerUserId { get; init; }
+
+    [Description("自定义字段的值，键为字段标识，例如 {\"region\": \"华东\"}。有哪些字段、怎么填用 crm.list_fields 查看；必填字段要带上")]
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }
 
 internal sealed class CreateCrmDealAction(IRequestDispatcher dispatcher) : PlatformAction<CreateCrmDealInput, CrmDealDto>
@@ -486,6 +532,7 @@ internal sealed class CreateCrmDealAction(IRequestDispatcher dispatcher) : Platf
             ExpectedCloseDate = input.ExpectedCloseDate,
             Description = input.Description,
             OwnerUserId = input.OwnerUserId,
+            CustomFields = input.CustomFields,
         }), cancellationToken).ConfigureAwait(false);
     }
 }
@@ -518,6 +565,9 @@ public sealed class UpdateCrmDealInput
 
     [Description("改由哪个成员负责（用户 ID）；不改就省略")]
     public Guid? OwnerUserId { get; init; }
+
+    [Description("要修改的自定义字段，键为字段标识；只改传了的字段，值为 null 表示清空。有哪些字段用 crm.list_fields 查看")]
+    public Dictionary<string, JsonElement>? CustomFields { get; init; }
 }
 
 internal sealed class UpdateCrmDealAction(IRequestDispatcher dispatcher) : PlatformAction<UpdateCrmDealInput, CrmDealDto>
@@ -545,6 +595,7 @@ internal sealed class UpdateCrmDealAction(IRequestDispatcher dispatcher) : Platf
             ExpectedCloseDate = input.ExpectedCloseDate ?? current.ExpectedCloseDate,
             Description = input.Description ?? current.Description,
             OwnerUserId = input.OwnerUserId ?? current.Owner?.Id,
+            CustomFields = CrmCustomFieldInput.Merge(current.CustomFields, input.CustomFields),
             ExpectedUpdatedAt = current.UpdatedAt,
         }), cancellationToken).ConfigureAwait(false);
     }
@@ -624,6 +675,35 @@ internal sealed class LogCrmActivityAction(IRequestDispatcher dispatcher) : Plat
             ContactId = input.ContactId,
             DealId = input.DealId,
         }, context.RunId), cancellationToken);
+}
+
+internal static class CrmCustomFieldInput
+{
+    /// <summary>
+    /// 修改类动作只传要改的自定义字段：在现有值上合并，null 表示清空；没传就不改。
+    /// </summary>
+    public static Dictionary<string, JsonElement>? Merge(IReadOnlyDictionary<string, JsonElement> current, Dictionary<string, JsonElement>? changes)
+    {
+        if (changes is null)
+        {
+            return null;
+        }
+
+        var merged = new Dictionary<string, JsonElement>(current, StringComparer.Ordinal);
+        foreach (var (key, value) in changes)
+        {
+            if (value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            {
+                merged.Remove(key);
+            }
+            else
+            {
+                merged[key] = value;
+            }
+        }
+
+        return merged;
+    }
 }
 
 /// <summary>

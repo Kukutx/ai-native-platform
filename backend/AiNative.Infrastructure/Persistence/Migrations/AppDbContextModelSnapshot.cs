@@ -672,6 +672,13 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("CustomFields")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("custom_fields")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(10000)
@@ -778,6 +785,13 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("CustomFields")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("custom_fields")
+                        .HasDefaultValueSql("'{}'::jsonb");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -915,6 +929,13 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnName("currency")
                         .IsFixedLength();
 
+                    b.Property<string>("CustomFields")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("custom_fields")
+                        .HasDefaultValueSql("'{}'::jsonb");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(10000)
@@ -1007,6 +1028,78 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_crm_deals_tenant_id_status_stage_id");
 
                     b.ToTable("crm_deals", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmFieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("key");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("label");
+
+                    b.Property<string>("Options")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("options");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<string>("RecordType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("record_type");
+
+                    b.Property<bool>("Required")
+                        .HasColumnType("boolean")
+                        .HasColumnName("required");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("type");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_crm_field_definitions");
+
+                    b.HasIndex("TenantId", "RecordType", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("ix_crm_field_definitions_tenant_id_record_type_key");
+
+                    b.ToTable("crm_field_definitions", (string)null);
                 });
 
             modelBuilder.Entity("AiNative.Domain.Crm.CrmStage", b =>
@@ -3592,6 +3685,16 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_crm_deals_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Crm.CrmFieldDefinition", b =>
+                {
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_crm_field_definitions_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("AiNative.Domain.Crm.CrmStage", b =>

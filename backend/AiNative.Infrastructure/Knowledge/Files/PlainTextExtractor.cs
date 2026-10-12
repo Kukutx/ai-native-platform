@@ -1,4 +1,5 @@
 using AiNative.Application.Knowledge;
+using AiNative.Infrastructure.Files;
 
 namespace AiNative.Infrastructure.Knowledge.Files;
 

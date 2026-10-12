@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ActivityTimeline } from '@/features/crm/activity-timeline';
+import { CustomFieldValues } from '@/features/crm/custom-fields';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
 import { InfoRow } from '@/features/crm/info-row';
 import { CloseDealDialog, useMoveDeal, type MoveRequest } from '@/features/crm/move-deal';
@@ -144,6 +145,7 @@ function DealDetail() {
             <InfoRow icon={Icons.user} label='负责人'>
               {deal.owner?.name ?? null}
             </InfoRow>
+            <CustomFieldValues recordType='deal' values={deal.customFields} />
             <div className='text-muted-foreground space-y-1 border-t pt-3 text-xs'>
               <p>
                 {deal.createdBy.name ?? '系统'} 创建于 {formatTime(deal.createdAt)}

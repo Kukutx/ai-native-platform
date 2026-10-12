@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
+import { CustomFieldInputs, useCustomFieldForm } from './custom-fields';
 import { OwnerSelect } from './owner-select';
 import { RecordPicker, type PickedRecord } from './record-picker';
 import { ownerUserId } from './utils';
@@ -39,7 +40,7 @@ export function DealFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-xl'>
+      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-xl'>
         {open ? <DealForm key={deal?.id ?? 'new'} deal={deal ?? null} defaults={defaults} onClose={() => onOpenChange(false)} onSaved={onSaved} /> : null}
       </DialogContent>
     </Dialog>
@@ -73,6 +74,7 @@ function DealForm({
   const [expectedCloseDate, setExpectedCloseDate] = useState(deal?.expectedCloseDate ?? '');
   const [description, setDescription] = useState(deal?.description ?? '');
   const [owner, setOwner] = useState(deal ? ownerUserId(deal.owner) : session?.user.id);
+  const custom = useCustomFieldForm('deal', deal?.customFields);
   const save = useMutation({
     mutationFn: () => {
       const request = {
@@ -85,6 +87,7 @@ function DealForm({
         expectedCloseDate: expectedCloseDate || undefined,
         description,
         ownerUserId: owner,
+        customFields: custom.request(),
         expectedUpdatedAt: deal?.updatedAt,
       };
       return deal ? api.crm.deals.update(deal.id, request) : api.crm.deals.create(request);
@@ -165,6 +168,7 @@ function DealForm({
         <Label htmlFor='deal-description'>描述</Label>
         <Textarea id='deal-description' value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder='需求、竞争情况、关键决策人等' />
       </div>
+      <CustomFieldInputs fields={custom.fields} values={custom.values} onChange={custom.onChange} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

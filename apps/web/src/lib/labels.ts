@@ -3,6 +3,9 @@ import type {
   ApprovalStatus,
   CrmActivityKind,
   CrmDealStatus,
+  CrmFieldType,
+  CrmImportDuplicateMode,
+  CrmRecordType,
   CrmStageKind,
   ErpPurchaseOrderStatus,
   ErpSalesOrderStatus,
@@ -143,6 +146,27 @@ export const crmActivityKind: Record<CrmActivityKind, string> = {
   meeting: '会议',
   email: '邮件',
   stage_change: '阶段变化',
+};
+
+export const crmRecordType: Record<CrmRecordType, string> = {
+  company: '客户',
+  contact: '联系人',
+  deal: '商机',
+};
+
+export const crmFieldType: Record<CrmFieldType, { label: string; hint: string }> = {
+  text: { label: '文本', hint: '一段文字，最多 2000 字' },
+  number: { label: '数字', hint: '可以有小数和负数' },
+  date: { label: '日期', hint: '年月日' },
+  select: { label: '单选', hint: '从选项里选一个' },
+  multi_select: { label: '多选', hint: '从选项里选多个' },
+  checkbox: { label: '是否', hint: '勾选或不勾选' },
+};
+
+export const crmImportDuplicateMode: Record<CrmImportDuplicateMode, { label: string; hint: string }> = {
+  skip: { label: '跳过', hint: '已有的记录保持不变' },
+  update: { label: '更新', hint: '用表格里有值的列更新已有记录' },
+  create: { label: '仍然新建', hint: '不检查重复，每行都新建' },
 };
 
 export const erpSalesOrderStatus: Record<ErpSalesOrderStatus, { label: string; tone: Tone }> = {

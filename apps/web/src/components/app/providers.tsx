@@ -17,10 +17,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: { staleTime: 15_000, retry: (count, error) => toProblem(error).status >= 500 && count < 2 },
         },
-        // 所有写操作的错误统一提示（后端返回中文 title）。
+        // 所有写操作的错误统一提示（后端返回中文 title）；参数校验失败时直接列出具体原因。
         mutationCache: new MutationCache({
           onError: (error) => {
-            toast.error(toProblem(error).title);
+            const problem = toProblem(error);
+            const reasons = Object.values(problem.errors ?? {}).flat();
+            toast.error(reasons.length ? reasons.slice(0, 3).join(' ') : problem.title);
           },
         }),
       }),

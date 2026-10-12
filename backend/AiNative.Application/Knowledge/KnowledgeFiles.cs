@@ -2,6 +2,7 @@ using System.Text;
 using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
 using AiNative.Application.Common;
+using AiNative.Application.Files;
 using AiNative.Contracts.Knowledge;
 using Microsoft.Extensions.Logging;
 
@@ -160,31 +161,23 @@ internal sealed class ExtractKnowledgeFileQueryHandler(IEnumerable<IKnowledgeFil
 
     public async Task<ExtractedKnowledgeFileDto> HandleAsync(ExtractKnowledgeFileQuery request, CancellationToken cancellationToken)
     {
-        var fileName = Path.GetFileName(request.FileName.Trim());
-        if (fileName.Length > 260)
-        {
-            fileName = fileName[^260..];
-        }
-
+        var fileName = UploadedFiles.SafeName(request.FileName);
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         var extractor = _extractors.FirstOrDefault(e => e.Extensions.Contains(extension))
                         ?? throw new KnowledgeFileException("knowledge.file_unsupported",
                             KnowledgeFiles.UnsupportedMessage(extension, _extractors.SelectMany(e => e.Extensions).Order(StringComparer.Ordinal)));
-
-        if (request.Length > KnowledgeFiles.MaxFileBytes)
-        {
-            throw new KnowledgeFileException("knowledge.file_too_large", $"文件超过 {KnowledgeFiles.MaxFileBytes / 1024 / 1024} MB，请拆分后再上传。");
-        }
 
         if (request.Length == 0)
         {
             throw new KnowledgeFileException("knowledge.file_empty", "文件是空的。");
         }
 
-        // 解析库需要可定位的流；文件不大，整体读进内存，也顺带限制了实际读取的字节数。
-        using var buffer = new MemoryStream((int)Math.Min(request.Length, KnowledgeFiles.MaxFileBytes));
-        await CopyLimitedAsync(request.Content, buffer, KnowledgeFiles.MaxFileBytes, cancellationToken).ConfigureAwait(false);
-        buffer.Position = 0;
+        using var buffer = await UploadedFiles.ReadAsync(
+            request.Content,
+            request.Length,
+            KnowledgeFiles.MaxFileBytes,
+            () => new KnowledgeFileException("knowledge.file_too_large", $"文件超过 {KnowledgeFiles.MaxFileBytes / 1024 / 1024} MB，请拆分后再上传。"),
+            cancellationToken).ConfigureAwait(false);
 
         ExtractedText extracted;
         try
@@ -212,22 +205,5 @@ internal sealed class ExtractKnowledgeFileQueryHandler(IEnumerable<IKnowledgeFil
         }
 
         return new ExtractedKnowledgeFileDto(KnowledgeFiles.TitleFor(extracted.Title, fileName), kept, fileName, extractor.Format, extracted.Pages, truncated, warnings);
-    }
-
-    private static async Task CopyLimitedAsync(Stream source, Stream target, long limit, CancellationToken cancellationToken)
-    {
-        var chunk = new byte[81920];
-        long total = 0;
-        int read;
-        while ((read = await source.ReadAsync(chunk, cancellationToken).ConfigureAwait(false)) > 0)
-        {
-            total += read;
-            if (total > limit)
-            {
-                throw new KnowledgeFileException("knowledge.file_too_large", $"文件超过 {limit / 1024 / 1024} MB，请拆分后再上传。");
-            }
-
-            await target.WriteAsync(chunk.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-        }
     }
 }

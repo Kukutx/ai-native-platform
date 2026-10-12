@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { CustomFieldInputs, useCustomFieldForm } from './custom-fields';
 import { OwnerSelect } from './owner-select';
 import { ownerUserId, parseTags } from './utils';
 
@@ -27,7 +28,7 @@ export function CompanyFormDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='sm:max-w-xl'>
+      <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-xl'>
         {open ? <CompanyForm key={company?.id ?? 'new'} company={company ?? null} onClose={() => onOpenChange(false)} onSaved={onSaved} /> : null}
       </DialogContent>
     </Dialog>
@@ -47,9 +48,16 @@ function CompanyForm({ company, onClose, onSaved }: { company: CrmCompanyDto | n
     tags: company?.tags.join('，') ?? '',
     owner: company ? ownerUserId(company.owner) : session?.user.id,
   });
+  const custom = useCustomFieldForm('company', company?.customFields);
   const save = useMutation({
     mutationFn: () => {
-      const request = { ...form, tags: parseTags(form.tags), ownerUserId: form.owner, expectedUpdatedAt: company?.updatedAt };
+      const request = {
+        ...form,
+        tags: parseTags(form.tags),
+        ownerUserId: form.owner,
+        customFields: custom.request(),
+        expectedUpdatedAt: company?.updatedAt,
+      };
       return company ? api.crm.companies.update(company.id, request) : api.crm.companies.create(request);
     },
     onSuccess: async (saved) => {
@@ -107,6 +115,7 @@ function CompanyForm({ company, onClose, onSaved }: { company: CrmCompanyDto | n
         <Label htmlFor='company-description'>简介</Label>
         <Textarea id='company-description' {...field('description')} rows={4} placeholder='业务、规模、合作背景等' />
       </div>
+      <CustomFieldInputs fields={custom.fields} values={custom.values} onChange={custom.onChange} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

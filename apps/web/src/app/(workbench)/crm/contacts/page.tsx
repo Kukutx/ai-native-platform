@@ -15,6 +15,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ContactFormDialog } from '@/features/crm/contact-form-dialog';
 import { CrmNav } from '@/features/crm/crm-nav';
+import { FieldSettingsDialog } from '@/features/crm/field-settings-dialog';
+import { ImportDialog } from '@/features/crm/import-dialog';
 import { Pager } from '@/features/crm/pager';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
@@ -26,6 +28,8 @@ export default function CrmContactsPage() {
   const { can } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [configuring, setConfiguring] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const term = useDeferredValue(search.trim());
@@ -51,11 +55,23 @@ export default function CrmContactsPage() {
               placeholder='搜索姓名、邮箱、电话'
               className='w-56'
             />
-            {can('crm.manage') ? (
-              <Button onClick={() => setCreating(true)}>
-                <Icons.add />
-                新建联系人
+            {can('crm.configure') ? (
+              <Button variant='outline' onClick={() => setConfiguring(true)}>
+                <Icons.settings />
+                字段设置
               </Button>
+            ) : null}
+            {can('crm.manage') ? (
+              <>
+                <Button variant='outline' onClick={() => setImporting(true)}>
+                  <Icons.upload />
+                  导入
+                </Button>
+                <Button onClick={() => setCreating(true)}>
+                  <Icons.add />
+                  新建联系人
+                </Button>
+              </>
             ) : null}
           </>
         }
@@ -110,6 +126,8 @@ export default function CrmContactsPage() {
       ) : (
         <EmptyState title={term ? '没有找到联系人' : '还没有联系人'} description={term ? '换个关键字试试。' : '联系人可以挂在客户下，也可以单独记录个人客户。'} />
       )}
+      <ImportDialog open={importing} recordType='contact' onOpenChange={setImporting} />
+      <FieldSettingsDialog open={configuring} recordType='contact' onOpenChange={setConfiguring} />
       <ContactFormDialog open={creating} onOpenChange={setCreating} onSaved={(c) => router.push(`/crm/contacts/view?id=${c.id}`)} />
     </div>
   );

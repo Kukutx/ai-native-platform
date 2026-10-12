@@ -1,5 +1,6 @@
 using System.Text;
 using AiNative.Application.Knowledge;
+using AiNative.Infrastructure.Files;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Wordprocessing;
@@ -20,7 +21,7 @@ internal sealed class WordExtractor : IKnowledgeFileExtractor
 
     public ExtractedText Extract(Stream content, CancellationToken cancellationToken)
     {
-        using var document = OpenXmlFiles.Open(() => WordprocessingDocument.Open(content, false, OpenXmlFiles.Settings), "Word ");
+        using var document = KnowledgeOpenXml.Open(() => WordprocessingDocument.Open(content, false, OpenXmlFiles.Settings), "Word ");
         var main = document.MainDocumentPart;
         var body = main?.Document?.Body;
         if (main is null || body is null)

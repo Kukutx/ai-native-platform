@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AiNative.Domain.Common;
 
 namespace AiNative.Domain.Crm;
@@ -69,6 +70,8 @@ public sealed class CrmDeal : TenantEntity
     public DateTimeOffset? ClosedAt { get; private set; }
 
     public DateTimeOffset? LastActivityAt { get; set; }
+
+    public Dictionary<string, JsonElement> CustomFields { get; set; } = [];
 
     /// <summary>
     /// 移到某个阶段：状态跟随阶段类型；进入赢单或输单时记下结束时间，回到进行中的阶段则清除。

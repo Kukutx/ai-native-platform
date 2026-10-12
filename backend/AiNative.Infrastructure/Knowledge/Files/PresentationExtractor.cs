@@ -1,5 +1,6 @@
 using System.Text;
 using AiNative.Application.Knowledge;
+using AiNative.Infrastructure.Files;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
 using A = DocumentFormat.OpenXml.Drawing;
@@ -19,7 +20,7 @@ internal sealed class PresentationExtractor : IKnowledgeFileExtractor
 
     public ExtractedText Extract(Stream content, CancellationToken cancellationToken)
     {
-        using var document = OpenXmlFiles.Open(() => PresentationDocument.Open(content, false, OpenXmlFiles.Settings), " PowerPoint ");
+        using var document = KnowledgeOpenXml.Open(() => PresentationDocument.Open(content, false, OpenXmlFiles.Settings), " PowerPoint ");
         var presentation = document.PresentationPart;
         var slideIds = presentation?.Presentation?.SlideIdList?.Elements<P.SlideId>().ToList();
         if (presentation is null || slideIds is null || slideIds.Count == 0)

@@ -3026,6 +3026,343 @@ export class CrmStagesClient {
     }
 }
 
+export class CrmFieldsClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 自定义字段，按记录类型和顺序排列；recordType 为空时返回全部。
+     * @param recordType (optional) 
+     */
+    list(recordType?: CrmRecordType | null | undefined, signal?: AbortSignal): Promise<CrmFieldDto[]> {
+        let url_ = this.baseUrl + "/api/crm/fields?";
+        if (recordType !== undefined && recordType !== null)
+            url_ += "recordType=" + encodeURIComponent("" + recordType) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processList(_response);
+        });
+    }
+
+    protected processList(response: Response): Promise<CrmFieldDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as CrmFieldDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<CrmFieldDto[]>(null as any);
+    }
+
+    create(request: SaveCrmFieldRequest, signal?: AbortSignal): Promise<CrmFieldDto> {
+        let url_ = this.baseUrl + "/api/crm/fields";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreate(_response);
+        });
+    }
+
+    protected processCreate(response: Response): Promise<CrmFieldDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as CrmFieldDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<CrmFieldDto>(null as any);
+    }
+
+    /**
+     * 修改名称、说明、选项和是否必填。标识、类型和记录类型不能改；删掉的选项会从记录里清除。
+     */
+    update(id: string, request: SaveCrmFieldRequest, signal?: AbortSignal): Promise<CrmFieldDto> {
+        let url_ = this.baseUrl + "/api/crm/fields/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdate(_response);
+        });
+    }
+
+    protected processUpdate(response: Response): Promise<CrmFieldDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as CrmFieldDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<CrmFieldDto>(null as any);
+    }
+
+    /**
+     * 删除字段，同时清除所有记录里这个字段的值。
+     */
+    delete(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/crm/fields/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * 调整一类记录的字段顺序：提交这类记录的全部字段 ID。
+     */
+    reorder(request: ReorderCrmFieldsRequest, signal?: AbortSignal): Promise<CrmFieldDto[]> {
+        let url_ = this.baseUrl + "/api/crm/fields/order";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processReorder(_response);
+        });
+    }
+
+    protected processReorder(response: Response): Promise<CrmFieldDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as CrmFieldDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<CrmFieldDto[]>(null as any);
+    }
+}
+
+export class CrmImportClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 读取上传的表格（.csv、.xlsx），返回列、示例值和建议的对应字段。不保存任何内容。
+     * @param file (optional) 
+     * @param recordType (optional) 
+     */
+    preview(file?: FileParameter | null | undefined, recordType?: CrmRecordType | undefined, signal?: AbortSignal): Promise<CrmImportPreviewDto> {
+        let url_ = this.baseUrl + "/api/crm/import/preview";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = new FormData();
+        if (file !== null && file !== undefined)
+            content_.append("file", file.data, file.fileName ? file.fileName : "file");
+        if (recordType === null || recordType === undefined)
+            throw new globalThis.Error("The parameter 'recordType' cannot be null.");
+        else
+            content_.append("recordType", recordType.toString());
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processPreview(_response);
+        });
+    }
+
+    protected processPreview(response: Response): Promise<CrmImportPreviewDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as CrmImportPreviewDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<CrmImportPreviewDto>(null as any);
+    }
+
+    /**
+     * 导入客户或联系人。mapping 按列的顺序给出每列对应的字段（见预览返回的 targets），不导入的列传空字符串。
+    有问题的行跳过并在结果里说明原因；dryRun 为 true 时只检查不保存。
+     * @param file (optional) 
+     * @param recordType (optional) 
+     * @param mapping (optional) 
+     * @param duplicates (optional) 
+     * @param createMissingCompanies (optional) 
+     * @param dryRun (optional) 
+     */
+    import(file?: FileParameter | null | undefined, recordType?: CrmRecordType | undefined, mapping?: string[] | null | undefined, duplicates?: CrmImportDuplicateMode | undefined, createMissingCompanies?: boolean | undefined, dryRun?: boolean | undefined, signal?: AbortSignal): Promise<CrmImportResultDto> {
+        let url_ = this.baseUrl + "/api/crm/import";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = new FormData();
+        if (file !== null && file !== undefined)
+            content_.append("file", file.data, file.fileName ? file.fileName : "file");
+        if (recordType === null || recordType === undefined)
+            throw new globalThis.Error("The parameter 'recordType' cannot be null.");
+        else
+            content_.append("recordType", recordType.toString());
+        if (mapping !== null && mapping !== undefined)
+            mapping.forEach(item_ => content_.append("mapping", item_.toString()));
+        if (duplicates === null || duplicates === undefined)
+            throw new globalThis.Error("The parameter 'duplicates' cannot be null.");
+        else
+            content_.append("duplicates", duplicates.toString());
+        if (createMissingCompanies === null || createMissingCompanies === undefined)
+            throw new globalThis.Error("The parameter 'createMissingCompanies' cannot be null.");
+        else
+            content_.append("createMissingCompanies", createMissingCompanies.toString());
+        if (dryRun === null || dryRun === undefined)
+            throw new globalThis.Error("The parameter 'dryRun' cannot be null.");
+        else
+            content_.append("dryRun", dryRun.toString());
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processImport(_response);
+        });
+    }
+
+    protected processImport(response: Response): Promise<CrmImportResultDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as CrmImportResultDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<CrmImportResultDto>(null as any);
+    }
+}
+
 export class ErpProductsClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -7189,6 +7526,7 @@ export interface CrmCompanyDto {
     createdAt: string;
     updatedAt: string;
     lastActivityAt?: string | undefined;
+    customFields: { [key: string]: any; };
 }
 
 export interface CrmCompanyDetailDto {
@@ -7215,6 +7553,7 @@ export interface CrmContactDto {
     createdAt: string;
     updatedAt: string;
     lastActivityAt?: string | undefined;
+    customFields: { [key: string]: any; };
 }
 
 export interface CrmDealDto {
@@ -7238,6 +7577,7 @@ export interface CrmDealDto {
     updatedAt: string;
     closedAt?: string | undefined;
     lastActivityAt?: string | undefined;
+    customFields: { [key: string]: any; };
 }
 
 export type CrmDealStatus = "open" | "won" | "lost";
@@ -7268,6 +7608,7 @@ export interface SaveCrmCompanyRequest {
     description?: string;
     tags?: string[];
     ownerUserId?: string | undefined;
+    customFields?: { [key: string]: any; } | undefined;
     expectedUpdatedAt?: string | undefined;
 }
 
@@ -7294,6 +7635,7 @@ export interface SaveCrmContactRequest {
     description?: string;
     tags?: string[];
     ownerUserId?: string | undefined;
+    customFields?: { [key: string]: any; } | undefined;
     expectedUpdatedAt?: string | undefined;
 }
 
@@ -7349,6 +7691,7 @@ export interface SaveCrmDealRequest {
     expectedCloseDate?: string | undefined;
     description?: string;
     ownerUserId?: string | undefined;
+    customFields?: { [key: string]: any; } | undefined;
     expectedUpdatedAt?: string | undefined;
 }
 
@@ -7383,6 +7726,77 @@ export interface SaveCrmStageItem {
     probability?: number;
     kind?: CrmStageKind;
 }
+
+export interface CrmFieldDto {
+    id: string;
+    recordType: CrmRecordType;
+    key: string;
+    label: string;
+    type: CrmFieldType;
+    options: string[];
+    required: boolean;
+    position: number;
+    description: string;
+}
+
+export type CrmRecordType = "company" | "contact" | "deal";
+
+export type CrmFieldType = "text" | "number" | "date" | "select" | "multi_select" | "checkbox";
+
+export interface SaveCrmFieldRequest {
+    recordType?: CrmRecordType;
+    key: string;
+    label: string;
+    type?: CrmFieldType;
+    options?: string[];
+    required?: boolean;
+    description?: string;
+}
+
+export interface ReorderCrmFieldsRequest {
+    recordType?: CrmRecordType;
+    ids: string[];
+}
+
+export interface CrmImportPreviewDto {
+    recordType: CrmRecordType;
+    fileName: string;
+    rowCount: number;
+    columns: CrmImportColumnDto[];
+    targets: CrmImportTargetDto[];
+}
+
+export interface CrmImportColumnDto {
+    index: number;
+    header: string;
+    samples: string[];
+    suggestedTarget?: string | undefined;
+}
+
+export interface CrmImportTargetDto {
+    key: string;
+    label: string;
+    required: boolean;
+    hint?: string | undefined;
+}
+
+export interface CrmImportResultDto {
+    dryRun: boolean;
+    total: number;
+    created: number;
+    updated: number;
+    skipped: number;
+    failed: number;
+    companiesCreated: number;
+    errors: CrmImportRowError[];
+}
+
+export interface CrmImportRowError {
+    row: number;
+    message: string;
+}
+
+export type CrmImportDuplicateMode = "skip" | "update" | "create";
 
 export interface PagedResultOfErpProductDto {
     items: ErpProductDto[];

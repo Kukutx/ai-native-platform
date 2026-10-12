@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AiNative.Contracts.Common;
 using AiNative.Domain.Crm;
 
@@ -18,7 +19,8 @@ public sealed record CrmCompanyDto(
     ActorDto CreatedBy,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? LastActivityAt);
+    DateTimeOffset? LastActivityAt,
+    IReadOnlyDictionary<string, JsonElement> CustomFields);
 
 public sealed record CrmContactDto(
     Guid Id,
@@ -34,7 +36,8 @@ public sealed record CrmContactDto(
     ActorDto CreatedBy,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset? LastActivityAt);
+    DateTimeOffset? LastActivityAt,
+    IReadOnlyDictionary<string, JsonElement> CustomFields);
 
 public sealed record CrmStageDto(Guid Id, string Name, int Position, int Probability, CrmStageKind Kind);
 
@@ -58,7 +61,8 @@ public sealed record CrmDealDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset? ClosedAt,
-    DateTimeOffset? LastActivityAt);
+    DateTimeOffset? LastActivityAt,
+    IReadOnlyDictionary<string, JsonElement> CustomFields);
 
 public sealed record CrmActivityDto(
     Guid Id,
@@ -136,6 +140,11 @@ public sealed record SaveCrmCompanyRequest
     public Guid? OwnerUserId { get; init; }
 
     /// <summary>
+    /// 自定义字段的值，键为字段标识；不传表示不修改，传了就整体替换（没传的字段被清空）。
+    /// </summary>
+    public IReadOnlyDictionary<string, JsonElement>? CustomFields { get; init; }
+
+    /// <summary>
     /// 编辑时回传读取到的 UpdatedAt；期间被别人改过则返回 409。
     /// </summary>
     public DateTimeOffset? ExpectedUpdatedAt { get; init; }
@@ -158,6 +167,11 @@ public sealed record SaveCrmContactRequest
     public IReadOnlyList<string> Tags { get; init; } = [];
 
     public Guid? OwnerUserId { get; init; }
+
+    /// <summary>
+    /// 自定义字段的值，键为字段标识；不传表示不修改，传了就整体替换（没传的字段被清空）。
+    /// </summary>
+    public IReadOnlyDictionary<string, JsonElement>? CustomFields { get; init; }
 
     public DateTimeOffset? ExpectedUpdatedAt { get; init; }
 }
@@ -184,6 +198,11 @@ public sealed record SaveCrmDealRequest
     public string Description { get; init; } = string.Empty;
 
     public Guid? OwnerUserId { get; init; }
+
+    /// <summary>
+    /// 自定义字段的值，键为字段标识；不传表示不修改，传了就整体替换（没传的字段被清空）。
+    /// </summary>
+    public IReadOnlyDictionary<string, JsonElement>? CustomFields { get; init; }
 
     public DateTimeOffset? ExpectedUpdatedAt { get; init; }
 }
@@ -237,3 +256,127 @@ public sealed record SaveCrmStagesRequest
 {
     public required IReadOnlyList<SaveCrmStageItem> Stages { get; init; }
 }
+
+public sealed record CrmFieldDto(
+    Guid Id,
+    CrmRecordType RecordType,
+    string Key,
+    string Label,
+    CrmFieldType Type,
+    IReadOnlyList<string> Options,
+    bool Required,
+    int Position,
+    string Description);
+
+public sealed record SaveCrmFieldRequest
+{
+    public CrmRecordType RecordType { get; init; }
+
+    /// <summary>
+    /// 字段标识，创建后不能修改。小写字母开头，由小写字母、数字和下划线组成，例如 region。
+    /// </summary>
+    public required string Key { get; init; }
+
+    public required string Label { get; init; }
+
+    /// <summary>
+    /// 创建后不能修改。
+    /// </summary>
+    public CrmFieldType Type { get; init; }
+
+    /// <summary>
+    /// 单选、多选的选项。
+    /// </summary>
+    public IReadOnlyList<string> Options { get; init; } = [];
+
+    /// <summary>
+    /// 新建记录时必须填写（是否类字段不能设为必填）。
+    /// </summary>
+    public bool Required { get; init; }
+
+    public string Description { get; init; } = string.Empty;
+}
+
+public sealed record ReorderCrmFieldsRequest
+{
+    public CrmRecordType RecordType { get; init; }
+
+    /// <summary>
+    /// 这类记录的全部字段 ID，按新的顺序排列。
+    /// </summary>
+    public required IReadOnlyList<Guid> Ids { get; init; }
+}
+
+/// <summary>
+/// 导入时可以对应的字段。
+/// </summary>
+/// <param name="Key">标准字段为 name、email 这样的名称，自定义字段为 custom.字段标识。</param>
+public sealed record CrmImportTargetDto(string Key, string Label, bool Required, string? Hint);
+
+/// <param name="Samples">前几行的值，帮助确认这一列是什么。</param>
+/// <param name="SuggestedTarget">按表头猜出的对应字段，猜不出时为空。</param>
+public sealed record CrmImportColumnDto(int Index, string Header, IReadOnlyList<string> Samples, string? SuggestedTarget);
+
+public sealed record CrmImportPreviewDto(
+    CrmRecordType RecordType,
+    string FileName,
+    int RowCount,
+    IReadOnlyList<CrmImportColumnDto> Columns,
+    IReadOnlyList<CrmImportTargetDto> Targets);
+
+/// <summary>
+/// 已经有同样的记录时怎么办：客户按名称、联系人按邮箱判断。
+/// </summary>
+public enum CrmImportDuplicateMode
+{
+    /// <summary>
+    /// 跳过这一行。
+    /// </summary>
+    Skip = 0,
+
+    /// <summary>
+    /// 用这一行里有值的列更新已有记录。
+    /// </summary>
+    Update = 1,
+
+    /// <summary>
+    /// 仍然新建一条。
+    /// </summary>
+    Create = 2,
+}
+
+public sealed record CrmImportOptions
+{
+    public CrmRecordType RecordType { get; init; }
+
+    /// <summary>
+    /// 每一列导入到哪个字段（<see cref="CrmImportTargetDto.Key"/>），顺序与预览返回的列一致；不导入的列为 null 或空字符串。
+    /// </summary>
+    public IReadOnlyList<string?> Mapping { get; init; } = [];
+
+    public CrmImportDuplicateMode Duplicates { get; init; } = CrmImportDuplicateMode.Skip;
+
+    /// <summary>
+    /// 导入联系人时，所属客户不存在就新建。
+    /// </summary>
+    public bool CreateMissingCompanies { get; init; }
+
+    /// <summary>
+    /// 只检查，不保存。
+    /// </summary>
+    public bool DryRun { get; init; }
+}
+
+/// <param name="Row">表格里的行号（表头所在行之后从实际行号算起）。</param>
+public sealed record CrmImportRowError(int Row, string Message);
+
+/// <param name="Errors">出错的行，最多列出 200 条；Failed 为实际出错的行数。</param>
+public sealed record CrmImportResultDto(
+    bool DryRun,
+    int Total,
+    int Created,
+    int Updated,
+    int Skipped,
+    int Failed,
+    int CompaniesCreated,
+    IReadOnlyList<CrmImportRowError> Errors);

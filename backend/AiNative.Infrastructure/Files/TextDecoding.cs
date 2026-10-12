@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace AiNative.Infrastructure.Knowledge.Files;
+namespace AiNative.Infrastructure.Files;
 
 /// <summary>
 /// 文本文件的编码识别：有 BOM 按 BOM，否则先按 UTF-8 严格解码，失败再按 GB18030（兼容 GBK / GB2312）。

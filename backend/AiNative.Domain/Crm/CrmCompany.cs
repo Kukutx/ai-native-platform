@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AiNative.Domain.Common;
 
 namespace AiNative.Domain.Crm;
@@ -32,6 +33,11 @@ public sealed class CrmCompany : TenantEntity
     /// 最近一次跟进的时间（自己的、名下联系人与商机的都算），用于找出久未联系的客户。
     /// </summary>
     public DateTimeOffset? LastActivityAt { get; set; }
+
+    /// <summary>
+    /// 自定义字段的值，键为字段标识（见 <see cref="CrmFieldDefinition"/>）。
+    /// </summary>
+    public Dictionary<string, JsonElement> CustomFields { get; set; } = [];
 }
 
 /// <summary>
@@ -61,4 +67,6 @@ public sealed class CrmContact : TenantEntity
     public Actor CreatedBy { get; set; }
 
     public DateTimeOffset? LastActivityAt { get; set; }
+
+    public Dictionary<string, JsonElement> CustomFields { get; set; } = [];
 }
