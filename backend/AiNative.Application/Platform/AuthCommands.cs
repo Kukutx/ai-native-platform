@@ -18,6 +18,7 @@ using AiNative.Domain.Modules;
 using AiNative.Domain.Tenancy;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace AiNative.Application.Platform;
@@ -30,6 +31,11 @@ public sealed record LoginCommand(LoginRequest Request) : ICommand<AuthResponse>
 /// 切换到用户加入的另一个租户，重新签发令牌。
 /// </summary>
 public sealed record SwitchTenantCommand(Guid UserId, Guid TenantId) : ICommand<AuthResponse>;
+
+/// <summary>
+/// 修改密码：之前签发的所有登录令牌随之失效，返回当前空间的新令牌，本设备不用重新登录。
+/// </summary>
+public sealed record ChangePasswordCommand(Guid UserId, Guid TenantId, ChangePasswordRequest Request) : ICommand<AuthResponse>;
 
 public sealed record GetSessionQuery(Guid UserId, Guid TenantId, Guid MembershipId) : IQuery<SessionDto>;
 
@@ -51,8 +57,18 @@ public sealed class LoginCommandValidator : AbstractValidator<LoginCommand>
 {
     public LoginCommandValidator()
     {
-        RuleFor(x => x.Request.Email).NotEmpty();
-        RuleFor(x => x.Request.Password).NotEmpty();
+        RuleFor(x => x.Request.Email).NotEmpty().MaximumLength(254);
+        RuleFor(x => x.Request.Password).NotEmpty().MaximumLength(128);
+    }
+}
+
+public sealed class ChangePasswordCommandValidator : AbstractValidator<ChangePasswordCommand>
+{
+    public ChangePasswordCommandValidator()
+    {
+        RuleFor(x => x.Request.CurrentPassword).NotEmpty().MaximumLength(128);
+        RuleFor(x => x.Request.NewPassword).NotEmpty().MinimumLength(8).MaximumLength(128)
+            .NotEqual(x => x.Request.CurrentPassword).WithMessage("新密码不能和当前密码相同。");
     }
 }
 
@@ -64,13 +80,21 @@ internal sealed class AuthHandlers(
     IEnumerable<ITenantInitializer> initializers,
     IModelGateway models,
     IOptions<RegistrationOptions> registration,
+    LoginThrottle throttle,
+    IMemoryCache cache,
+    IPostCommitActions postCommit,
+    IClusterBus cluster,
     TimeProvider clock) :
     IRequestHandler<RegisterCommand, AuthResponse>,
     IRequestHandler<GetAuthOptionsQuery, AuthOptionsDto>,
     IRequestHandler<LoginCommand, AuthResponse>,
     IRequestHandler<SwitchTenantCommand, AuthResponse>,
+    IRequestHandler<ChangePasswordCommand, AuthResponse>,
     IRequestHandler<GetSessionQuery, SessionDto>
 {
+    // 邮箱不存在时也做一次同样耗时的哈希校验，不让响应时间透露邮箱是否注册过。
+    private static string? _decoyHash;
+
     public async Task<AuthResponse> HandleAsync(RegisterCommand request, CancellationToken cancellationToken)
     {
         if (!registration.Value.AllowRegistration)
@@ -133,7 +157,7 @@ internal sealed class AuthHandlers(
             await initializer.InitializeAsync(tenant.Id, cancellationToken).ConfigureAwait(false);
         }
 
-        var token = tokens.Issue(user.Id, tenant.Id, membership.Id);
+        var token = tokens.Issue(user.Id, tenant.Id, membership.Id, user.TokenVersion);
         var summary = new TenantSummaryDto(tenant.Id, tenant.Name, tenant.Slug, true, tenant.TimeZone);
         var defaults = modules.ResolveEnabled(new Dictionary<string, bool>());
         List<string> enabled = [.. modules.Modules.Where(m => defaults.Contains(m.Key)).Select(m => m.Key)];
@@ -153,12 +177,16 @@ internal sealed class AuthHandlers(
     public async Task<AuthResponse> HandleAsync(LoginCommand request, CancellationToken cancellationToken)
     {
         var email = User.NormalizeEmail(request.Request.Email);
+        throttle.EnsureAllowed(email);
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, cancellationToken).ConfigureAwait(false);
-        if (user is null || !passwords.Verify(user.PasswordHash, request.Request.Password))
+        var valid = passwords.Verify(user?.PasswordHash ?? DecoyHash(), request.Request.Password);
+        if (user is null || !valid)
         {
+            throttle.RecordFailure(email);
             throw new UnauthorizedException("邮箱或密码不正确。");
         }
 
+        throttle.Reset(email);
         user.LastLoginAt = clock.GetUtcNow();
         return await IssueAsync(user, request.Request.TenantId, cancellationToken).ConfigureAwait(false);
     }
@@ -167,6 +195,38 @@ internal sealed class AuthHandlers(
     {
         var user = await db.Users.FirstOrDefaultAsync(u => u.Id == request.UserId, cancellationToken).ConfigureAwait(false)
                    ?? throw new UnauthorizedException();
+        return await IssueAsync(user, request.TenantId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<AuthResponse> HandleAsync(ChangePasswordCommand request, CancellationToken cancellationToken)
+    {
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == request.UserId, cancellationToken).ConfigureAwait(false)
+                   ?? throw new UnauthorizedException();
+        if (!passwords.Verify(user.PasswordHash, request.Request.CurrentPassword))
+        {
+            throw new ValidationFailedException(new Dictionary<string, string[]>
+            {
+                [nameof(ChangePasswordRequest.CurrentPassword)] = ["当前密码不正确。"],
+            });
+        }
+
+        // 以读到的版本为条件更新：并发的两次修改只有一次成功，另一次的令牌不会意外保持有效。
+        var hash = passwords.Hash(request.Request.NewPassword);
+        var updated = await db.Users
+            .Where(u => u.Id == user.Id && u.TokenVersion == user.TokenVersion)
+            .ExecuteUpdateAsync(set => set.SetProperty(u => u.PasswordHash, hash).SetProperty(u => u.TokenVersion, user.TokenVersion + 1), cancellationToken)
+            .ConfigureAwait(false);
+        if (updated == 0)
+        {
+            throw new ConflictException("auth.password_changed", "密码刚被修改过，请重新登录后再试。");
+        }
+
+        // 各个空间里缓存的权限带着旧的令牌版本，一并清掉，旧令牌在所有实例上立即失效。
+        var membershipIds = await db.Memberships.IgnoreQueryFilters().AsNoTracking()
+            .Where(m => m.UserId == user.Id).Select(m => m.Id)
+            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        AccessResolver.InvalidateAfterCommit(cache, postCommit, cluster, membershipIds);
+        user.TokenVersion++;
         return await IssueAsync(user, request.TenantId, cancellationToken).ConfigureAwait(false);
     }
 
@@ -192,7 +252,7 @@ internal sealed class AuthHandlers(
             throw new UnauthorizedException(tenantId is null ? "该账号还没有加入任何空间。" : "你不是该空间的成员。");
         }
 
-        var token = tokens.Issue(user.Id, membership.TenantId, membership.Id);
+        var token = tokens.Issue(user.Id, membership.TenantId, membership.Id, user.TokenVersion);
         return new AuthResponse(token.AccessToken, token.ExpiresAt, await BuildSessionAsync(user, membership, cancellationToken).ConfigureAwait(false));
     }
 
@@ -237,6 +297,8 @@ internal sealed class AuthHandlers(
             enabled,
             DisabledFeatures(enabled));
     }
+
+    private string DecoyHash() => _decoyHash ??= passwords.Hash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(18)));
 
     private List<string> DisabledFeatures(List<string> enabledModules)
         => [.. modules.AllFeatures.Where(f => !enabledModules.Contains(f.ModuleKey)).Select(f => f.Key)];

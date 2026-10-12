@@ -21,7 +21,7 @@ namespace AiNative.Application.Workflows;
 /// 再进入它所在的空间，以系统身份创建运行（步骤仍以工作流所有者的身份和权限执行）。
 /// </summary>
 /// <param name="Body">请求体：JSON 解析后的值、表单字段，或纯文本。</param>
-/// <param name="Headers">请求头，名称小写，已去掉 Authorization、Cookie 等凭证。</param>
+/// <param name="Headers">请求头，名称小写，已去掉 Authorization、Cookie 等凭证；其余敏感请求头只用于过滤条件，保存时打码。</param>
 public sealed record ReceiveWorkflowWebhookCommand(
     string Token,
     JsonElement? Body,
@@ -84,6 +84,13 @@ internal sealed class WorkflowWebhookHandler(
         {
             return new WebhookAcceptedDto(false, null);
         }
+
+        // 过滤条件可以核对 x-gitlab-token 这类校验头，但运行记录对所有能查看工作流的人可见，保存前打码。
+        var masked = request.Headers.ToDictionary(
+            h => h.Key,
+            h => SensitiveHeaders.IsSensitive(h.Key) ? HttpStepSecurity.Masked : h.Value,
+            StringComparer.Ordinal);
+        data = PlatformJson.ToElement(new { body = request.Body, query = request.Query, headers = masked, receivedAt = now });
 
         var since = now.AddMinutes(-1);
         var recent = await db.WorkflowRuns.CountAsync(r => r.WorkflowId == workflow.Id && r.TriggerKind == WorkflowTriggerKind.Webhook && r.CreatedAt > since, cancellationToken)

@@ -202,9 +202,12 @@ internal sealed class RunWorkflowAction(IRequestDispatcher dispatcher) : Platfor
 
     public override string Title => "运行工作流";
 
-    public override string Description => "立即运行一次工作流（停用的也可以手动运行）。运行在后台进行，返回运行 ID，之后可用 workflows.get_run 查看进度和每一步的结果。";
+    public override string Description => "立即运行一次工作流（停用的也可以手动运行）。运行在后台进行，返回运行 ID，之后可用 workflows.get_run 查看进度和每一步的结果。工作流以其所有者的身份和权限执行，所以智能体发起运行需要人工审批。";
 
     public override string RequiredFeature => Features.Workflows.Run;
+
+    // 工作流按所有者的权限执行，里面的步骤不再走智能体的审批策略；不审批的话智能体可以借工作流绕开审批和自己的权限范围。
+    public override ApprovalPolicy ApprovalPolicy => ApprovalPolicy.RequiredForAgents;
 
     protected override Task<WorkflowRunSummaryDto> ExecuteAsync(RunWorkflowInput input, ActionContext context, CancellationToken cancellationToken)
         => dispatcher.SendAsync(new StartWorkflowRunCommand(input.WorkflowId, input.Input), cancellationToken);

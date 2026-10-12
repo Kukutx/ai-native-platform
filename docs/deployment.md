@@ -38,7 +38,9 @@ openssl rand -base64 48   # 令牌签名密钥
 | --- | --- |
 | `Auth__SigningKey` | **必填**。登录令牌的签名密钥，至少 32 个字符。缺失、太短或沿用仓库里的开发密钥时拒绝启动。更换后所有成员需要重新登录（API 密钥不受影响）；没有设置 `Secrets__MasterKey` 时，「集成」里已保存的密钥也会解不开。 |
 | `Auth__AllowRegistration` | 是否允许自助注册新空间，默认 `true`。私有部署建好自己的空间后设为 `false`，之后由管理员在「设置 → 成员」里添加成员（可设置初始密码）。 |
-| `Auth__AccessTokenLifetime` | 登录有效期，默认 `7.00:00:00`（7 天）。 |
+| `Auth__AccessTokenLifetime` | 登录有效期，默认 `7.00:00:00`（7 天）。`POST /api/auth/refresh` 可换发新令牌；修改密码会让之前签发的令牌全部失效。 |
+| `Auth__RateLimitPerMinute` | 每个客户端 IP 每分钟最多调用登录、注册、修改密码的次数，默认 `20`，`0` 表示不限。部署在反向代理后面时要打开 `ASPNETCORE_FORWARDEDHEADERS_ENABLED`，否则所有人共用代理的 IP。 |
+| `Auth__LoginThrottle__MaxFailures` | 同一邮箱在 `Auth__LoginThrottle__Window`（默认 15 分钟）内连续输错密码达到这个次数（默认 `10`）后暂时拒绝登录，`0` 表示不限。 |
 | `ConnectionStrings__Postgres` | 数据库连接字符串。Compose 里已按 `POSTGRES_PASSWORD` 拼好。 |
 | `Database__MigrateOnStartup` | 启动时自动迁移数据库。开发环境默认开，其他环境默认关；示例 Compose 里打开。 |
 | `ANTHROPIC_API_KEY` | Claude 的密钥。不配置任何模型时使用内置演示模型。 |
@@ -77,7 +79,7 @@ Ai__DefaultModel=deepseek-chat
 
 需要转发的除了普通请求，还有 WebSocket（`/hubs/realtime`，实时刷新）和流式响应（对话回复、`/mcp`）。应用对流式响应带了 `X-Accel-Buffering: no`，nginx 不会缓冲它们。
 
-nginx 示例：
+nginx 示例（上传文件最大 20 MB，请求体上限要比它大；实时通道的登录令牌在查询串里，访问日志只记路径）：
 
 ```nginx
 map $http_upgrade $connection_upgrade {
@@ -85,15 +87,18 @@ map $http_upgrade $connection_upgrade {
     ''      close;
 }
 
+log_format ainative '$remote_addr - [$time_local] "$request_method $uri $server_protocol" $status $body_bytes_sent $request_time';
+
 server {
     listen 443 ssl;
     http2 on;
     server_name ai.example.com;
     ssl_certificate     /etc/ssl/ai.example.com/fullchain.pem;
     ssl_certificate_key /etc/ssl/ai.example.com/privkey.pem;
+    access_log /var/log/nginx/ai.example.com.log ainative;
 
-    # 知识库文档单篇最多 100 万字，请求体可达数 MB
-    client_max_body_size 10m;
+    # 知识库上传文件最大 20 MB、CRM 导入文件最大 10 MB，再留出表单编码的余量
+    client_max_body_size 25m;
 
     location / {
         proxy_pass http://127.0.0.1:8080;

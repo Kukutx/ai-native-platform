@@ -36,6 +36,13 @@ public sealed record SwitchTenantRequest
     public required Guid TenantId { get; init; }
 }
 
+public sealed record ChangePasswordRequest
+{
+    public required string CurrentPassword { get; init; }
+
+    public required string NewPassword { get; init; }
+}
+
 public sealed record UserDto(Guid Id, string Email, string DisplayName);
 
 /// <param name="TimeZone">空间时区（IANA 名称），"今天""本月"和按天统计都按它计算。</param>

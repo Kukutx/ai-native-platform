@@ -15,7 +15,7 @@ public sealed class TokenService(IOptions<AuthOptions> options, TimeProvider clo
     private readonly AuthOptions _options = options.Value;
     private readonly JsonWebTokenHandler _handler = new() { MapInboundClaims = false };
 
-    public IssuedToken Issue(Guid userId, Guid tenantId, Guid membershipId)
+    public IssuedToken Issue(Guid userId, Guid tenantId, Guid membershipId, int tokenVersion)
     {
         var now = clock.GetUtcNow();
         var expires = now.Add(_options.AccessTokenLifetime);
@@ -31,6 +31,7 @@ public sealed class TokenService(IOptions<AuthOptions> options, TimeProvider clo
                 new Claim(PlatformClaims.UserId, userId.ToString()),
                 new Claim(PlatformClaims.TenantId, tenantId.ToString()),
                 new Claim(PlatformClaims.MembershipId, membershipId.ToString()),
+                new Claim(PlatformClaims.TokenVersion, tokenVersion.ToString(System.Globalization.CultureInfo.InvariantCulture), ClaimValueTypes.Integer32),
             ]),
             SigningCredentials = new SigningCredentials(SigningKey(), SecurityAlgorithms.HmacSha256),
         });

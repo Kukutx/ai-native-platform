@@ -108,6 +108,7 @@ public static class DependencyInjection
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AuthOptions>, AuthOptionsValidator>();
         services.AddOptions<RegistrationOptions>().BindConfiguration(RegistrationOptions.SectionName);
+        services.AddOptions<LoginThrottleOptions>().BindConfiguration(LoginThrottleOptions.SectionName);
         services.AddSingleton<TokenService>();
         services.AddSingleton<ITokenService>(sp => sp.GetRequiredService<TokenService>());
         services.AddSingleton<IPasswordHasher, PlatformPasswordHasher>();

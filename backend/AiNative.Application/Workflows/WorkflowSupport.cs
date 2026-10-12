@@ -28,13 +28,14 @@ internal static class WorkflowMapping
         TimeZone = workflow.TimeZone,
     };
 
-    public static WorkflowDto ToDto(this Workflow workflow, Func<Actor, ActorDto> actors, WorkflowRunSummaryDto? lastRun, bool includeWebhookToken) => new(
+    /// <param name="canManage">调用方能否修改工作流：不能的只看到打码后的敏感请求头，也拿不到 Webhook 令牌。</param>
+    public static WorkflowDto ToDto(this Workflow workflow, Func<Actor, ActorDto> actors, WorkflowRunSummaryDto? lastRun, bool canManage) => new(
         workflow.Id,
         workflow.Name,
         workflow.Description,
         workflow.IsEnabled,
         TriggerOf(workflow),
-        workflow.Steps,
+        canManage ? workflow.Steps : HttpStepSecurity.MaskSensitiveHeaders(workflow.Steps),
         actors(workflow.Owner),
         workflow.Version,
         workflow.NextRunAt,
@@ -43,7 +44,7 @@ internal static class WorkflowMapping
         workflow.UpdatedAt)
     {
         // 拿到令牌就能触发工作流，只给能修改工作流的人看。
-        WebhookToken = includeWebhookToken ? workflow.WebhookToken : null,
+        WebhookToken = canManage ? workflow.WebhookToken : null,
     };
 
     public static WorkflowRunSummaryDto ToSummary(this WorkflowRun run, Func<Actor, ActorDto> actors) => new(
@@ -90,8 +91,8 @@ internal static class WorkflowMapping
             workflows.Select(w => w.Owner).Concat(lastRuns.Select(r => r.TriggeredBy)),
             cancellationToken).ConfigureAwait(false);
         var byWorkflow = lastRuns.ToDictionary(r => r.WorkflowId);
-        var includeWebhookToken = tenant.Can(Features.Workflows.Manage);
-        return [.. workflows.Select(w => w.ToDto(actors, byWorkflow.TryGetValue(w.Id, out var run) ? run.ToSummary(actors) : null, includeWebhookToken))];
+        var canManage = tenant.Can(Features.Workflows.Manage);
+        return [.. workflows.Select(w => w.ToDto(actors, byWorkflow.TryGetValue(w.Id, out var run) ? run.ToSummary(actors) : null, canManage))];
     }
 }
 
@@ -585,6 +586,11 @@ internal sealed partial class WorkflowDefinitionValidator(
                     if (headers.Count > MaxHeaders)
                     {
                         add($"{path}.headers", $"请求头不能超过 {MaxHeaders} 个。");
+                    }
+
+                    if (!string.IsNullOrEmpty(url) && headers.Values.Any(SecretTemplate.HasReferences) && HttpStepSecurity.LiteralOrigin(url) is null)
+                    {
+                        add($"{path}.url", "请求头引用了密钥时，地址的协议和主机要直接写明，不能由模板生成，例如 https://api.example.com/items/{{ input.id }}。");
                     }
 
                     JsonElement? requestBody = step.Body is { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) } bodyValue ? bodyValue : null;

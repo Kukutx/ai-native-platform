@@ -30,6 +30,7 @@ public static class DependencyInjection
         services.AddSingleton<IModuleCatalog, ModuleCatalog>();
         services.AddScoped<IModuleAccess, ModuleAccess>();
         services.AddScoped<IAccessResolver, AccessResolver>();
+        services.AddSingleton<LoginThrottle>();
         services.AddScoped<IApiKeyAuthenticator, ApiKeyAuthenticator>();
         services.AddSingleton<IClusterMessageHandler, AccessCacheInvalidationHandler>();
         services.AddSingleton<IClusterMessageHandler, ApiKeyCacheInvalidationHandler>();

@@ -24,20 +24,24 @@ public sealed class PrivateNetworkBlockedException(string message) : IOException
 /// 重定向和 DNS 指向内网的域名同样被挡住（检查的是实际要连的 IP）。
 /// 不走系统代理：经过代理时只能检查代理本身的地址，起不到防护作用。
 /// 不保存 Cookie：处理器被所有空间共用，自动保存的 Cookie 会按地址发给别的空间的请求。
+/// 重定向由 <see cref="SafeRedirectHandler"/> 处理：跳到别的主机时不带自定义请求头，避免把密钥头送给第三方。
 /// </summary>
 public static class OutboundHttp
 {
-    public static SocketsHttpHandler CreateHandler(bool allowPrivateNetwork, bool allowRedirects = true) => new()
+    public static HttpMessageHandler CreateHandler(bool allowPrivateNetwork, bool allowRedirects = true)
     {
-        UseProxy = false,
-        UseCookies = false,
-        AllowAutoRedirect = allowRedirects,
-        MaxAutomaticRedirections = 5,
-        AutomaticDecompression = DecompressionMethods.All,
-        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-        ConnectTimeout = TimeSpan.FromSeconds(15),
-        ConnectCallback = (context, cancellationToken) => ConnectAsync(context.DnsEndPoint, allowPrivateNetwork, cancellationToken),
-    };
+        var sockets = new SocketsHttpHandler
+        {
+            UseProxy = false,
+            UseCookies = false,
+            AllowAutoRedirect = false,
+            AutomaticDecompression = DecompressionMethods.All,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+            ConnectTimeout = TimeSpan.FromSeconds(15),
+            ConnectCallback = (context, cancellationToken) => ConnectAsync(context.DnsEndPoint, allowPrivateNetwork, cancellationToken),
+        };
+        return allowRedirects ? new SafeRedirectHandler(sockets) : sockets;
+    }
 
     /// <summary>
     /// 从 HttpClient 抛出的异常里找出被出站防护拒绝的原因。
