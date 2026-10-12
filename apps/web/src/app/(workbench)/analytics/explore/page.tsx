@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/app/page-header';
 import { DetailState, ErrorState } from '@/components/app/query-state';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -56,6 +57,8 @@ function ExploreLoader() {
     queryFn: ({ signal }) => api.analytics.getReport(reportId, signal),
     enabled: !!reportId,
   });
+  // 「载入最新」时递增，用缓存里的最新报表重新开始编辑；别人修改报表时不自动打断正在进行的调整。
+  const [revision, setRevision] = useState(0);
 
   if (reportId && report.isError) {
     return <DetailState id={reportId} query={report} subject='报表' back={{ href: '/analytics/reports', label: '报表' }} />;
@@ -115,13 +118,34 @@ function ExploreLoader() {
         currency: AUTO,
       };
 
-  return <Explorer key={saved ? `${saved.id}:${saved.updatedAt}` : 'new'} metrics={metrics} report={saved} initial={initial} />;
+  return (
+    <Explorer
+      key={saved ? `${saved.id}:${revision}` : 'new'}
+      metrics={metrics}
+      report={saved}
+      initial={initial}
+      onReload={() => setRevision((r) => r + 1)}
+    />
+  );
 }
 
-function Explorer({ metrics, report, initial }: { metrics: MetricDefinitionDto[]; report: AnalyticsReportDto | null; initial: ExploreState }) {
+function Explorer({
+  metrics,
+  report,
+  initial,
+  onReload,
+}: {
+  metrics: MetricDefinitionDto[];
+  report: AnalyticsReportDto | null;
+  initial: ExploreState;
+  onReload: () => void;
+}) {
   const router = useRouter();
   const { can } = useSession();
   const [state, setState] = useState(initial);
+  // 开始编辑时的报表版本：保存时提交它，别人在这期间改过报表会得到冲突提示，而不是被悄悄覆盖。
+  const [baseVersion, setBaseVersion] = useState(report?.updatedAt);
+  const outdated = !!report && !!baseVersion && report.updatedAt !== baseVersion;
   const [saving, setSaving] = useState<'update' | 'create' | null>(null);
   const metric = metrics.find((m) => m.key === state.metric) ?? metrics[0];
   const custom = state.range === CUSTOM;
@@ -175,6 +199,19 @@ function Explorer({ metrics, report, initial }: { metrics: MetricDefinitionDto[]
         }
       />
       <AnalyticsNav />
+      {outdated ? (
+        <Alert>
+          <Icons.info />
+          <AlertTitle>这张报表刚被其他人修改过</AlertTitle>
+          <AlertDescription className='flex flex-wrap items-center gap-x-4 gap-y-2'>
+            <span>当前显示的是你打开时的设置，载入最新会放弃你在这里的调整。</span>
+            <Button size='sm' variant='outline' onClick={onReload}>
+              <Icons.refresh />
+              载入最新
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <Card>
         <CardContent className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
           <div className='grid gap-2'>
@@ -349,6 +386,7 @@ function Explorer({ metrics, report, initial }: { metrics: MetricDefinitionDto[]
       <ReportDialog
         open={saving !== null}
         report={saving === 'update' ? report : null}
+        baseVersion={baseVersion}
         defaultName={report ? `${report.name}（副本）` : `${metric.name}${state.breakdown === NONE ? '' : `（按${metric.dimensions.find((d) => d.key === state.breakdown)?.name ?? ''}）`}`}
         config={{
           metric: metric.key,
@@ -359,7 +397,11 @@ function Explorer({ metrics, report, initial }: { metrics: MetricDefinitionDto[]
           chart: state.chart,
         }}
         onOpenChange={(open) => !open && setSaving(null)}
-        onSaved={(saved) => router.replace(`/analytics/explore?report=${saved.id}`)}
+        onSaved={(saved) => {
+          setBaseVersion(saved.updatedAt);
+          router.replace(`/analytics/explore?report=${saved.id}`);
+        }}
+        onLoadLatest={onReload}
       />
     </div>
   );

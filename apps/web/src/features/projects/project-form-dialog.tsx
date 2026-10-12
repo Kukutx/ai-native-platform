@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ProjectDto, ProjectStatus } from '@ainative/api-client';
+import { EditConflictAlert, isEditConflict, ReloadableForm, useEditVersion } from '@/components/app/edit-conflict';
 import { useSession } from '@/components/app/session-provider';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { projectStatus } from '@/lib/labels';
+import { queryKeys } from '@/lib/query-keys';
 import { ActorSelect, type ActorRef } from './actor-select';
 
 /** project 为 null 时新建，否则编辑。 */
@@ -29,14 +31,33 @@ export function ProjectFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-xl'>
-        {open ? <ProjectForm key={project?.id ?? 'new'} project={project ?? null} onClose={() => onOpenChange(false)} onSaved={onSaved} /> : null}
+        {open ? (
+          <ReloadableForm entity={project ?? null}>
+            {(current, reload, key) => <ProjectForm key={key} project={current} onReload={reload} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
+          </ReloadableForm>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function ProjectForm({ project, onClose, onSaved }: { project: ProjectDto | null; onClose: () => void; onSaved?: (projectId: string) => void }) {
+function ProjectForm({
+  project,
+  onReload,
+  onClose,
+  onSaved,
+}: {
+  project: ProjectDto | null;
+  onReload: (latest: ProjectDto) => void;
+  onClose: () => void;
+  onSaved?: (projectId: string) => void;
+}) {
   const queryClient = useQueryClient();
+  const edit = useEditVersion(project, async () => {
+    const id = project!.id;
+    const detail = await queryClient.fetchQuery({ queryKey: queryKeys.project(id), queryFn: ({ signal }) => api.projects.get(id, signal), staleTime: 0 });
+    return detail.project;
+  });
   const { session } = useSession();
   const [name, setName] = useState(project?.name ?? '');
   const [description, setDescription] = useState(project?.description ?? '');
@@ -62,7 +83,7 @@ function ProjectForm({ project, onClose, onSaved }: { project: ProjectDto | null
         leadAgentId: lead.agentId,
         startDate: startDate || undefined,
         targetDate: targetDate || undefined,
-        expectedUpdatedAt: project?.updatedAt,
+        expectedUpdatedAt: edit.expected(),
       };
       return project ? (await api.projects.update(project.id, request)).id : (await api.projects.create(request)).project.id;
     },
@@ -72,8 +93,12 @@ function ProjectForm({ project, onClose, onSaved }: { project: ProjectDto | null
       onSaved?.(id);
       onClose();
     },
-    // 冲突时刷新，下次打开就是最新内容。
-    onError: () => queryClient.invalidateQueries({ queryKey: ['project'] }),
+    meta: { handledError: isEditConflict },
+    // 冲突时保留表单里的修改，由用户选择载入最新或仍然覆盖；页面上的数据照常刷新。
+    onError: (error) => {
+      edit.onError(error);
+      void queryClient.invalidateQueries({ queryKey: ['project'] });
+    },
   });
 
   return (
@@ -132,6 +157,7 @@ function ProjectForm({ project, onClose, onSaved }: { project: ProjectDto | null
         </div>
       </div>
       {lead.agentId ? <p className='text-muted-foreground text-xs'>智能体负责人会被唤醒，按目标规划里程碑和任务；任务受阻或里程碑完成时也会通知它。</p> : null}
+      <EditConflictAlert edit={edit} subject='项目' onLoadLatest={onReload} onOverwrite={() => save.mutate()} disabled={save.isPending} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

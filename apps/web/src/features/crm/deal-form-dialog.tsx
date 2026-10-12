@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CrmDealDto } from '@ainative/api-client';
 import { CurrencySelect } from '@/components/app/currency-select';
+import { EditConflictAlert, isEditConflict, ReloadableForm, useEditVersion } from '@/components/app/edit-conflict';
 import { useSession } from '@/components/app/session-provider';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -41,7 +42,13 @@ export function DealFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='max-h-[90vh] overflow-y-auto sm:max-w-xl'>
-        {open ? <DealForm key={deal?.id ?? 'new'} deal={deal ?? null} defaults={defaults} onClose={() => onOpenChange(false)} onSaved={onSaved} /> : null}
+        {open ? (
+          <ReloadableForm entity={deal ?? null}>
+            {(current, reload, key) => (
+              <DealForm key={key} deal={current} defaults={defaults} onReload={reload} onClose={() => onOpenChange(false)} onSaved={onSaved} />
+            )}
+          </ReloadableForm>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
@@ -50,15 +57,22 @@ export function DealFormDialog({
 function DealForm({
   deal,
   defaults,
+  onReload,
   onClose,
   onSaved,
 }: {
   deal: CrmDealDto | null;
   defaults?: DealDefaults;
+  onReload: (latest: CrmDealDto) => void;
   onClose: () => void;
   onSaved?: (deal: CrmDealDto) => void;
 }) {
   const queryClient = useQueryClient();
+  const edit = useEditVersion(deal, async () => {
+    const id = deal!.id;
+    const detail = await queryClient.fetchQuery({ queryKey: queryKeys.crmDeal(id), queryFn: ({ signal }) => api.crm.deals.get(id, signal), staleTime: 0 });
+    return detail.deal;
+  });
   const { session } = useSession();
   const stages = useQuery({ queryKey: queryKeys.crmStages, queryFn: ({ signal }) => api.crm.stages.list(signal), enabled: !deal });
   const [title, setTitle] = useState(deal?.title ?? '');
@@ -88,7 +102,7 @@ function DealForm({
         description,
         ownerUserId: owner,
         customFields: custom.request(),
-        expectedUpdatedAt: deal?.updatedAt,
+        expectedUpdatedAt: edit.expected(),
       };
       return deal ? api.crm.deals.update(deal.id, request) : api.crm.deals.create(request);
     },
@@ -97,7 +111,12 @@ function DealForm({
       onSaved?.(saved);
       onClose();
     },
-    onError: () => queryClient.invalidateQueries({ queryKey: ['crm'] }),
+    meta: { handledError: isEditConflict },
+    // 冲突时保留表单里的修改，由用户选择载入最新或仍然覆盖；页面上的数据照常刷新。
+    onError: (error) => {
+      edit.onError(error);
+      void queryClient.invalidateQueries({ queryKey: ['crm'] });
+    },
   });
 
   return (
@@ -169,6 +188,7 @@ function DealForm({
         <Textarea id='deal-description' value={description} onChange={(e) => setDescription(e.target.value)} rows={4} placeholder='需求、竞争情况、关键决策人等' />
       </div>
       <CustomFieldInputs fields={custom.fields} values={custom.values} onChange={custom.onChange} />
+      <EditConflictAlert edit={edit} subject='商机' onLoadLatest={onReload} onOverwrite={() => save.mutate()} disabled={save.isPending} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消

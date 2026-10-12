@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ErpProductDto } from '@ainative/api-client';
 import { CurrencySelect } from '@/components/app/currency-select';
+import { EditConflictAlert, isEditConflict, ReloadableForm, useEditVersion } from '@/components/app/edit-conflict';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -29,14 +30,33 @@ export function ProductFormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-xl'>
-        {open ? <ProductForm key={product?.id ?? 'new'} product={product ?? null} onClose={() => onOpenChange(false)} onSaved={onSaved} /> : null}
+        {open ? (
+          <ReloadableForm entity={product ?? null}>
+            {(current, reload, key) => <ProductForm key={key} product={current} onReload={reload} onClose={() => onOpenChange(false)} onSaved={onSaved} />}
+          </ReloadableForm>
+        ) : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function ProductForm({ product, onClose, onSaved }: { product: ErpProductDto | null; onClose: () => void; onSaved?: (product: ErpProductDto) => void }) {
+function ProductForm({
+  product,
+  onReload,
+  onClose,
+  onSaved,
+}: {
+  product: ErpProductDto | null;
+  onReload: (latest: ErpProductDto) => void;
+  onClose: () => void;
+  onSaved?: (product: ErpProductDto) => void;
+}) {
   const queryClient = useQueryClient();
+  const edit = useEditVersion(product, async () => {
+    const id = product!.id;
+    const detail = await queryClient.fetchQuery({ queryKey: queryKeys.erpProduct(id), queryFn: ({ signal }) => api.erp.products.get(id, signal), staleTime: 0 });
+    return detail.product;
+  });
   const categories = useQuery({ queryKey: queryKeys.erpCategories, queryFn: ({ signal }) => api.erp.products.categories(signal) });
   const [form, setForm] = useState({
     sku: product?.sku ?? '',
@@ -61,7 +81,7 @@ function ProductForm({ product, onClose, onSaved }: { product: ErpProductDto | n
         currency,
         trackInventory,
         isActive,
-        expectedUpdatedAt: product?.updatedAt,
+        expectedUpdatedAt: edit.expected(),
       };
       return product ? api.erp.products.update(product.id, request) : api.erp.products.create(request);
     },
@@ -70,7 +90,12 @@ function ProductForm({ product, onClose, onSaved }: { product: ErpProductDto | n
       onSaved?.(saved);
       onClose();
     },
-    onError: () => queryClient.invalidateQueries({ queryKey: ['erp'] }),
+    meta: { handledError: isEditConflict },
+    // 冲突时保留表单里的修改，由用户选择载入最新或仍然覆盖；页面上的数据照常刷新。
+    onError: (error) => {
+      edit.onError(error);
+      void queryClient.invalidateQueries({ queryKey: ['erp'] });
+    },
   });
   const field = (key: keyof typeof form) => ({
     value: form[key],
@@ -151,6 +176,7 @@ function ProductForm({ product, onClose, onSaved }: { product: ErpProductDto | n
         <Label htmlFor='product-description'>说明</Label>
         <Textarea id='product-description' {...field('description')} rows={3} placeholder='规格、型号、注意事项等' />
       </div>
+      <EditConflictAlert edit={edit} subject='产品' onLoadLatest={onReload} onOverwrite={() => save.mutate()} disabled={save.isPending} />
       <DialogFooter>
         <Button type='button' variant='outline' onClick={onClose}>
           取消
