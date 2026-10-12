@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { queryKeys } from '@/lib/query-keys';
 
 const NONE = '__none__';
@@ -43,8 +44,8 @@ export function AgentFormDialog({
 function AgentForm({ agent, onDone }: { agent?: AgentDto; onDone: () => void }) {
   const queryClient = useQueryClient();
   const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
-  const models = useQuery({ queryKey: queryKeys.models, queryFn: ({ signal }) => api.models.catalog(signal), staleTime: Infinity });
-  const actions = useQuery({ queryKey: queryKeys.actions, queryFn: ({ signal }) => api.actions.list(signal), staleTime: Infinity });
+  const models = useQuery(catalogQueries.models());
+  const actions = useQuery(catalogQueries.actions());
 
   const [form, setForm] = useState<SaveAgentRequest>(() => ({
     name: agent?.name ?? '',

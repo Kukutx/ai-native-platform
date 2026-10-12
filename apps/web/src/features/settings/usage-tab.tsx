@@ -6,13 +6,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { formatTime, formatUsd } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
 export function UsageTab() {
   const { can } = useSession();
   const usage = useQuery({ queryKey: queryKeys.usage, queryFn: ({ signal }) => api.usage.summary(signal), enabled: can('platform.usage.view') });
-  const models = useQuery({ queryKey: queryKeys.models, queryFn: ({ signal }) => api.models.catalog(signal), enabled: can('agents.view') });
+  const models = useQuery({ ...catalogQueries.models(), enabled: can('agents.view') });
 
   return (
     <div className='space-y-6'>

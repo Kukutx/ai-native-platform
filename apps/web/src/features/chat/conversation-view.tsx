@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { api, streamChat } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { errorMessage } from '@/lib/errors';
 import { queryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
@@ -32,7 +33,7 @@ export function ConversationView({ conversationId, onCreated }: { conversationId
   const queryClient = useQueryClient();
   const { can } = useSession();
   const [activeId, setActiveId] = useState(conversationId);
-  const models = useQuery({ queryKey: queryKeys.models, queryFn: ({ signal }) => api.models.catalog(signal), enabled: can('agents.view') });
+  const models = useQuery({ ...catalogQueries.models(), enabled: can('agents.view') });
   const demo = models.data?.providers.find((p) => p.name === models.data.defaultProvider)?.kind === 'demo';
   const messages = useQuery({
     queryKey: queryKeys.messages(activeId ?? 'new'),

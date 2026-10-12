@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { localTimeZone } from '@/lib/dates';
 import { workflowTriggerKind } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
@@ -60,7 +61,7 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
     return queryClient.fetchQuery({ queryKey: queryKeys.workflow(id), queryFn: ({ signal }) => api.workflows.get(id, signal), staleTime: 0 });
   });
   const catalog = useQuery({ queryKey: queryKeys.workflowCatalog, queryFn: ({ signal }) => api.workflows.catalog(signal) });
-  const actions = useQuery({ queryKey: queryKeys.actions, queryFn: ({ signal }) => api.actions.list(signal) });
+  const actions = useQuery(catalogQueries.actions());
   const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
 
   const events = catalog.data?.events;

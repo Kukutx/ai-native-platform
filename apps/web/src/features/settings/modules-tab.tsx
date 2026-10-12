@@ -9,12 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { queryKeys } from '@/lib/query-keys';
 
 export function ModulesTab() {
   const { can } = useSession();
   const queryClient = useQueryClient();
-  const modules = useQuery({ queryKey: queryKeys.modules, queryFn: ({ signal }) => api.modules.list(signal) });
+  const modules = useQuery(catalogQueries.modules());
   const setEnabled = useMutation({
     mutationFn: ({ key, enabled }: { key: string; enabled: boolean }) => api.modules.setEnabled(key, { enabled }),
     onSuccess: async (saved) => {

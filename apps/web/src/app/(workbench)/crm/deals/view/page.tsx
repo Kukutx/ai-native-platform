@@ -21,6 +21,7 @@ import { isOverdue } from '@/features/crm/utils';
 import { DealOrders } from '@/features/erp/deal-orders';
 import { SalesOrderFormDialog } from '@/features/erp/sales-order-form-dialog';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { crmDealStatus, crmStageKind, formatAmount, formatDate, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
@@ -35,7 +36,7 @@ function DealDetail() {
   const [closing, setClosing] = useState<MoveRequest | null>(null);
   const [ordering, setOrdering] = useState(false);
   const detail = useQuery({ queryKey: queryKeys.crmDeal(id), queryFn: ({ signal }) => api.crm.deals.get(id, signal), enabled: !!id });
-  const stages = useQuery({ queryKey: queryKeys.crmStages, queryFn: ({ signal }) => api.crm.stages.list(signal) });
+  const stages = useQuery(catalogQueries.crmStages());
   const move = useMoveDeal();
   const remove = useMutation({
     mutationFn: () => api.crm.deals.delete(id),

@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { getRealtime } from '@/lib/api';
+import { loadRealtime } from '@/lib/api';
 import { invalidationMap } from '@/lib/query-keys';
 import { useSession } from './session-provider';
 
@@ -46,26 +46,42 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    const realtime = getRealtime();
-    const off = realtime.onChange((change) => {
-      for (const key of invalidationMap[change.entity]?.(change.id) ?? []) {
-        invalidate(key);
-      }
-    });
-    // 断线期间错过的变化不会补发，重新连上后把当前页面的数据全部重取一次。
-    const offResync = realtime.onResync(() => void queryClient.invalidateQueries());
-    realtime.start().catch(() => {
-      // 客户端会在后台按退避节奏重试；实时通道不可用时界面仍可手动刷新。
-    });
+    // 客户端脚本按需加载：加载完成前组件可能已经卸载（例如退出登录），这时不再连接。
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    loadRealtime()
+      .then((realtime) => {
+        if (disposed) {
+          return;
+        }
+
+        const off = realtime.onChange((change) => {
+          for (const key of invalidationMap[change.entity]?.(change.id) ?? []) {
+            invalidate(key);
+          }
+        });
+        // 断线期间错过的变化不会补发，重新连上后把当前页面的数据全部重取一次。
+        const offResync = realtime.onResync(() => void queryClient.invalidateQueries());
+        realtime.start().catch(() => {
+          // 客户端会在后台按退避节奏重试；实时通道不可用时界面仍可手动刷新。
+        });
+        cleanup = () => {
+          off();
+          offResync();
+          void realtime.stop();
+        };
+      })
+      .catch(() => {
+        // 脚本加载失败（网络中断、部署更新）：界面照常使用，只是不会自动刷新。
+      });
 
     return () => {
+      disposed = true;
       for (const timer of timers.values()) {
         clearTimeout(timer);
       }
 
-      off();
-      offResync();
-      void realtime.stop();
+      cleanup?.();
     };
   }, [token, queryClient]);
 

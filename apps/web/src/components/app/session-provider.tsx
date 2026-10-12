@@ -52,6 +52,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     staleTime: 60_000,
   });
 
+  // 动作目录按当前身份的权限过滤，而且不会自动过期（见 lib/catalogs）：会话里的权限变化时（例如管理员调整了角色）一并刷新。
+  const grants = session ? `${session.features.join(',')}|${session.disabledFeatures.join(',')}` : '';
+  useEffect(() => {
+    if (grants) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.actions });
+    }
+  }, [grants, queryClient]);
+
   const signIn = useCallback(
     (auth: AuthResponse) => {
       queryClient.clear();

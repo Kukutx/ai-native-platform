@@ -20,6 +20,7 @@ import { StepTree } from '@/features/workflows/step-tree';
 import { WebhookCard } from '@/features/workflows/webhook-card';
 import { WorkflowRunTable } from '@/features/workflows/workflow-run-table';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { formatTime, workflowTriggerKind } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
@@ -34,7 +35,7 @@ function WorkflowDetail() {
   const [page, setPage] = useState(1);
   const detail = useQuery({ queryKey: queryKeys.workflow(id), queryFn: ({ signal }) => api.workflows.get(id, signal), enabled: !!id });
   const catalog = useQuery({ queryKey: queryKeys.workflowCatalog, queryFn: ({ signal }) => api.workflows.catalog(signal) });
-  const actions = useQuery({ queryKey: queryKeys.actions, queryFn: ({ signal }) => api.actions.list(signal) });
+  const actions = useQuery(catalogQueries.actions());
   const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
   const runs = useQuery({
     queryKey: queryKeys.workflowRuns({ workflowId: id, page }),

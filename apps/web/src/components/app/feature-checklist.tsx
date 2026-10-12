@@ -2,25 +2,19 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { FeatureDto, ModuleDto } from '@ainative/api-client';
+import { isGranted, type FeatureDto, type ModuleDto } from '@ainative/api-client';
 import { InlineError } from '@/components/app/query-state';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { api } from '@/lib/api';
-import { queryKeys } from '@/lib/query-keys';
+import { catalogQueries } from '@/lib/catalogs';
 
 const ALL = '*';
 
-/** 与后端 FeatureMatcher 一致：精确匹配、前缀通配（"tasks.*"）或全部（"*"）。 */
-export function featureGranted(grants: readonly string[], feature: string) {
-  return grants.some((grant) => grant === ALL || grant === feature || (grant.endsWith('.*') && feature.startsWith(grant.slice(0, -1))));
-}
-
-/** 只由通配授予（不是逐项勾选的）。 */
+/** 只由通配授予（不是逐项勾选的）。匹配规则与后端 FeatureMatcher 一致（isGranted）。 */
 function grantedByWildcard(grants: readonly string[], feature: string) {
-  return featureGranted(
+  return isGranted(
     grants.filter((g) => g === ALL || g.endsWith('.*')),
     feature,
   );
@@ -28,7 +22,7 @@ function grantedByWildcard(grants: readonly string[], feature: string) {
 
 /** 通配权限覆盖的功能。 */
 function coveredBy(grant: string, features: readonly FeatureDto[]) {
-  return features.filter((f) => featureGranted([grant], f.key));
+  return features.filter((f) => isGranted([grant], f.key));
 }
 
 /** 模块里各功能键的前缀（例如智能体模块包含 agents、tasks、runs、approvals）。 */
@@ -41,7 +35,7 @@ function prefixesOf(module: ModuleDto) {
  * 同时提供把权限键（含通配）转成中文名称的方法。
  */
 export function useFeatureCatalog() {
-  const modules = useQuery({ queryKey: queryKeys.modules, queryFn: ({ signal }) => api.modules.list(signal) });
+  const modules = useQuery(catalogQueries.modules());
   const label = useMemo(() => {
     const list = modules.data ?? [];
     const features = list.flatMap((m) => m.features);
@@ -143,7 +137,7 @@ export function FeatureChecklist({ value, onChange, disabled }: { value: string[
                         type='checkbox'
                         className='accent-primary mt-0.5 size-4 shrink-0'
                         disabled={disabled || inherited}
-                        checked={featureGranted(value, f.key)}
+                        checked={isGranted(value, f.key)}
                         onChange={(e) => (e.target.checked ? add([f.key]) : remove([f.key]))}
                       />
                       <span className='min-w-0'>

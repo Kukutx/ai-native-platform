@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { queryKeys } from '@/lib/query-keys';
 import { CustomFieldInputs, useCustomFieldForm } from './custom-fields';
 import { OwnerSelect } from './owner-select';
@@ -74,7 +75,7 @@ function DealForm({
     return detail.deal;
   });
   const { session } = useSession();
-  const stages = useQuery({ queryKey: queryKeys.crmStages, queryFn: ({ signal }) => api.crm.stages.list(signal), enabled: !deal });
+  const stages = useQuery({ ...catalogQueries.crmStages(), enabled: !deal });
   const [title, setTitle] = useState(deal?.title ?? '');
   const [company, setCompany] = useState<PickedRecord | null>(
     deal?.companyId ? { id: deal.companyId, name: deal.companyName ?? '客户' } : (defaults?.company ?? null),
