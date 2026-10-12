@@ -3,12 +3,22 @@ import { FlatList, Platform, RefreshControl, StyleSheet, Text, View } from 'reac
 import { Stack } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ApprovalDto } from '@ainative/api-client';
+import { TabGuard } from '@/components/tab-guard';
 import { Button, Card, Chip, Empty, Field, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { approvalStatus, formatTime } from '@/lib/labels';
+import { useCan } from '@/lib/session';
 import { usePalette } from '@/lib/theme';
 
-export default function ApprovalsScreen() {
+export default function ApprovalsTab() {
+  return (
+    <TabGuard tab='approvals'>
+      <ApprovalsScreen />
+    </TabGuard>
+  );
+}
+
+function ApprovalsScreen() {
   const p = usePalette();
   const [pendingOnly, setPendingOnly] = useState(true);
   const status = pendingOnly ? 'pending' : undefined;
@@ -37,6 +47,7 @@ export default function ApprovalsScreen() {
 
 function ApprovalCard({ approval }: { approval: ApprovalDto }) {
   const p = usePalette();
+  const can = useCan();
   const queryClient = useQueryClient();
   const [note, setNote] = useState('');
   const decide = useMutation({
@@ -44,6 +55,7 @@ function ApprovalCard({ approval }: { approval: ApprovalDto }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['approvals'] }),
   });
   const pending = approval.status === 'pending';
+  const decidable = pending && can('approvals.decide');
 
   return (
     <Card>
@@ -56,7 +68,7 @@ function ApprovalCard({ approval }: { approval: ApprovalDto }) {
       </Muted>
       {approval.rationale ? <Text style={{ color: p.text, lineHeight: 21 }}>{approval.rationale}</Text> : null}
       <Text style={[styles.code, { color: p.muted, backgroundColor: p.bubble }]}>{JSON.stringify(approval.input, null, 2)}</Text>
-      {pending ? (
+      {decidable ? (
         <View style={styles.actions}>
           <Field label='审批意见（可选）' value={note} onChangeText={setNote} autoCapitalize='sentences' />
           <View style={styles.buttons}>
@@ -64,6 +76,8 @@ function ApprovalCard({ approval }: { approval: ApprovalDto }) {
             <Button title='驳回' variant='outline' onPress={() => decide.mutate(false)} disabled={decide.isPending} style={styles.flex} />
           </View>
         </View>
+      ) : pending ? (
+        <Muted>等待有审批权限的成员处理。</Muted>
       ) : (
         <>
           {approval.decisionNote ? <Muted>意见：{approval.decisionNote}</Muted> : null}

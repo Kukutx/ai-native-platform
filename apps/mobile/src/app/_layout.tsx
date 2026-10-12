@@ -2,11 +2,47 @@ import { useEffect, useState } from 'react';
 import { Alert, AppState, Platform, useColorScheme } from 'react-native';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { focusManager, MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { focusManager, MutationCache, onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as Network from 'expo-network';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { toProblem } from '@ainative/api-client';
 import { auth, useAuth } from '@/lib/auth';
 import { useRealtimeSync } from '@/lib/realtime';
+
+/**
+ * 只有明确没有网络（NONE）时才算离线。不看能否访问互联网：内网部署的服务器在没有外网的 Wi-Fi 下也要能用；
+ * 也不用 isConnected：安卓上识别不了的连接方式（USB 共享等）会报 UNKNOWN，isConnected 为 false，但其实连着网。
+ */
+function isOnline(state: Network.NetworkState) {
+  return state.type !== Network.NetworkStateType.NONE;
+}
+
+// 断网时暂停查询和变更，恢复连接后自动继续，而不是一路报错（Web 预览沿用浏览器的 online/offline 事件）。
+if (Platform.OS !== 'web') {
+  onlineManager.setEventListener((setOnline) => {
+    let changed = false;
+    const subscription = Network.addNetworkStateListener((state) => {
+      changed = true;
+      setOnline(isOnline(state));
+    });
+    Network.getNetworkStateAsync()
+      .then((state) => {
+        if (!changed) {
+          setOnline(isOnline(state));
+        }
+      })
+      .catch(() => {
+        // 取不到网络状态时按在线处理。
+      });
+    return () => subscription.remove();
+  });
+}
+
+/** 网络错误（status 0）和服务端错误（≥500）重试两次；4xx 是确定的结果，不重试。 */
+function shouldRetry(failureCount: number, error: unknown) {
+  const { status } = toProblem(error);
+  return (status === 0 || status >= 500) && failureCount < 2;
+}
 
 // 回到前台时让查询重新获取，相当于 Web 端的窗口聚焦刷新。
 function useAppStateFocus() {
@@ -31,7 +67,7 @@ export default function RootLayout() {
   const [queryClient] = useState(
     () =>
       new QueryClient({
-        defaultOptions: { queries: { staleTime: 15_000, retry: (count, error) => toProblem(error).status >= 500 && count < 2 } },
+        defaultOptions: { queries: { staleTime: 15_000, retry: shouldRetry } },
         mutationCache: new MutationCache({ onError: (error) => Alert.alert('操作失败', toProblem(error).title) }),
       }),
   );
@@ -77,6 +113,10 @@ export default function RootLayout() {
               <Stack.Screen name='projects/index' options={{ title: '项目' }} />
               <Stack.Screen name='projects/[id]' options={{ title: '项目' }} />
               <Stack.Screen name='analytics/index' options={{ title: '经营分析' }} />
+              <Stack.Screen name='agents/index' options={{ title: '智能体' }} />
+              <Stack.Screen name='agents/[id]' options={{ title: '智能体' }} />
+              <Stack.Screen name='runs/index' options={{ title: '执行记录' }} />
+              <Stack.Screen name='runs/[id]' options={{ title: '执行详情' }} />
             </Stack.Protected>
             <Stack.Protected guard={!token}>
               <Stack.Screen name='login' options={{ headerShown: false }} />

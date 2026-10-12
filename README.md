@@ -101,7 +101,7 @@ pnpm dev:desktop     # 启动 Web 开发服务器并打开桌面窗口
 pnpm build:desktop   # 静态导出 Web 并打包安装程序
 ```
 
-打包前用 `NEXT_PUBLIC_API_URL` 指定后端地址；后端的 `Cors:AllowedOrigins` 已包含 Tauri 的来源。
+打包前用 `NEXT_PUBLIC_API_URL` 指定后端地址（构建时写入，安装后不能修改）；后端的 `Cors:AllowedOrigins` 已包含 Tauri 的来源。外部链接用系统浏览器打开，CSP 与链接拦截的取舍见 [apps/desktop/README.md](apps/desktop/README.md)。
 
 ### 移动端
 
@@ -110,7 +110,7 @@ cp apps/mobile/.env.example apps/mobile/.env   # 真机调试时把地址改成�
 pnpm dev:mobile
 ```
 
-登录页可以临时修改服务器地址。对话使用 `expo/fetch` 读取流式响应，任务和审批通过 SignalR 实时刷新。
+登录页可以临时修改服务器地址。对话使用 `expo/fetch` 读取流式响应，任务和审批通过 SignalR 实时刷新。安卓正式版（release 构建）默认禁止明文 HTTP，分发安装包时服务器必须是 HTTPS。
 
 ### 生产部署
 

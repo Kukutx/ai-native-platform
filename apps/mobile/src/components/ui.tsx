@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View, type TextInputProps, type ViewStyle } from 'react-native';
+import type { Tone } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
 export function Button({
@@ -74,6 +75,17 @@ export function Muted({ children, style }: { children: ReactNode; style?: object
   return <Text style={[{ color: p.muted, fontSize: 13 }, style]}>{children}</Text>;
 }
 
+/** 带色点的状态：色点表示语气（成功、进行中、出错），文字保持可读。 */
+export function Status({ label, tone }: { label: string; tone: Tone }) {
+  const p = usePalette();
+  return (
+    <View style={styles.status} accessibilityLabel={`状态：${label}`}>
+      <View style={[styles.dot, { backgroundColor: p[tone] }]} />
+      <Text style={{ color: tone === 'muted' ? p.muted : p.text, fontSize: 13 }}>{label}</Text>
+    </View>
+  );
+}
+
 export function Empty({ title, hint }: { title: string; hint?: string }) {
   const p = usePalette();
   return (
@@ -94,4 +106,6 @@ const styles = StyleSheet.create({
   card: { borderWidth: 1, borderRadius: 14, padding: 14, gap: 6 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   empty: { alignItems: 'center', paddingVertical: 64, paddingHorizontal: 24 },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dot: { width: 8, height: 8, borderRadius: 4 },
 });

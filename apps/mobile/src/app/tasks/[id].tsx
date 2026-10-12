@@ -6,6 +6,7 @@ import type { WorkItemLinkDto, WorkItemStatus } from '@ainative/api-client';
 import { Button, Card, Chip, Field, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { formatDate, formatTime, priority, workItemStatus } from '@/lib/labels';
+import { useCan } from '@/lib/session';
 import { usePalette } from '@/lib/theme';
 
 const quickStatuses: WorkItemStatus[] = ['todo', 'in_progress', 'in_review', 'blocked', 'done'];
@@ -14,6 +15,7 @@ export default function TaskDetailScreen() {
   const p = usePalette();
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const can = useCan();
   const [comment, setComment] = useState('');
   const detail = useQuery({
     queryKey: ['work-item', id],
@@ -81,12 +83,19 @@ export default function TaskDetailScreen() {
             查看所属项目
           </Text>
         ) : null}
+        {item.checkoutRunId && can('runs.view') ? (
+          <Text style={{ color: p.text, textDecorationLine: 'underline' }} onPress={() => router.push({ pathname: '/runs/[id]', params: { id: item.checkoutRunId! } })}>
+            查看智能体的执行过程
+          </Text>
+        ) : null}
         {item.description ? <Text style={{ color: p.text, fontSize: 15, lineHeight: 22 }}>{item.description}</Text> : null}
-        <View style={styles.chips}>
-          {quickStatuses.map((status) => (
-            <Chip key={status} label={workItemStatus[status]} active={item.status === status} onPress={() => setStatus.mutate(status)} />
-          ))}
-        </View>
+        {can('tasks.manage') ? (
+          <View style={styles.chips}>
+            {quickStatuses.map((status) => (
+              <Chip key={status} label={workItemStatus[status]} active={item.status === status} onPress={() => setStatus.mutate(status)} />
+            ))}
+          </View>
+        ) : null}
         {subtasks.length ? (
           <Card>
             <Text style={[styles.section, { color: p.text }]}>子任务</Text>
@@ -99,7 +108,7 @@ export default function TaskDetailScreen() {
         ) : null}
         {dependencies.length ? <LinkCard title='前置任务' items={dependencies} /> : null}
         {dependents.length ? <LinkCard title='后续任务' items={dependents} /> : null}
-        <Text style={[styles.section, { color: p.text }]}>讨论</Text>
+        {comments.length || can('tasks.comment') ? <Text style={[styles.section, { color: p.text }]}>讨论</Text> : null}
         {comments.map((c) => (
           <Card key={c.id}>
             <Muted>
@@ -109,8 +118,12 @@ export default function TaskDetailScreen() {
             <Text style={{ color: p.text, fontSize: 15, lineHeight: 22 }}>{c.body}</Text>
           </Card>
         ))}
-        <Field label='留言' value={comment} onChangeText={setComment} multiline placeholder='留言会唤醒负责的智能体' autoCapitalize='sentences' />
-        <Button title='发送' onPress={() => addComment.mutate()} loading={addComment.isPending} disabled={!comment.trim()} />
+        {can('tasks.comment') ? (
+          <>
+            <Field label='留言' value={comment} onChangeText={setComment} multiline placeholder='留言会唤醒负责的智能体' autoCapitalize='sentences' />
+            <Button title='发送' onPress={() => addComment.mutate()} loading={addComment.isPending} disabled={!comment.trim()} />
+          </>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

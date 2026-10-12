@@ -3,6 +3,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View 
 import { router, Stack } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import type { KnowledgeHitDto } from '@ainative/api-client';
+import { TabGuard } from '@/components/tab-guard';
 import { Empty, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { usePalette } from '@/lib/theme';
@@ -11,7 +12,15 @@ function openDocument(id: string) {
   router.push({ pathname: '/knowledge/[id]', params: { id } });
 }
 
-export default function KnowledgeScreen() {
+export default function KnowledgeTab() {
+  return (
+    <TabGuard tab='knowledge'>
+      <KnowledgeScreen />
+    </TabGuard>
+  );
+}
+
+function KnowledgeScreen() {
   const p = usePalette();
   const [search, setSearch] = useState('');
   const query = useDeferredValue(search.trim());

@@ -6,12 +6,14 @@ import type { WorkItemPriority } from '@ainative/api-client';
 import { Button, Chip, Field } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { priority } from '@/lib/labels';
+import { useCan } from '@/lib/session';
 import { usePalette } from '@/lib/theme';
 
 export default function NewTaskScreen() {
   const p = usePalette();
   const queryClient = useQueryClient();
-  const agents = useQuery({ queryKey: ['agents'], queryFn: ({ signal }) => getApi().agents.list(signal) });
+  const can = useCan();
+  const agents = useQuery({ queryKey: ['agents'], queryFn: ({ signal }) => getApi().agents.list(signal), enabled: can('agents.view') });
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [level, setLevel] = useState<WorkItemPriority>('medium');
@@ -34,15 +36,19 @@ export default function NewTaskScreen() {
           <Chip key={key} label={priority[key]} active={level === key} onPress={() => setLevel(key)} />
         ))}
       </View>
-      <Text style={[styles.label, { color: p.text }]}>指派给智能体</Text>
-      <View style={styles.chips}>
-        <Chip label='暂不指派' active={!assignee} onPress={() => setAssignee(undefined)} />
-        {agents.data
-          ?.filter((a) => a.status !== 'terminated')
-          .map((a) => (
-            <Chip key={a.id} label={a.name} active={assignee === a.id} onPress={() => setAssignee(a.id)} />
-          ))}
-      </View>
+      {can('agents.view') ? (
+        <>
+          <Text style={[styles.label, { color: p.text }]}>指派给智能体</Text>
+          <View style={styles.chips}>
+            <Chip label='暂不指派' active={!assignee} onPress={() => setAssignee(undefined)} />
+            {agents.data
+              ?.filter((a) => a.status !== 'terminated')
+              .map((a) => (
+                <Chip key={a.id} label={a.name} active={assignee === a.id} onPress={() => setAssignee(a.id)} />
+              ))}
+          </View>
+        </>
+      ) : null}
       <Button title='创建' onPress={() => create.mutate()} loading={create.isPending} disabled={!title.trim()} style={styles.submit} />
     </ScrollView>
   );

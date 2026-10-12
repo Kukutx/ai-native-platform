@@ -8,6 +8,9 @@ import { auth, useAuth } from '@/lib/auth';
 import { localTimeZone } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
+/** 安卓的 release 构建默认禁止明文 HTTP（开发构建和 Expo Go 不受限制）。 */
+const cleartextBlocked = Platform.OS === 'android' && !__DEV__;
+
 export default function LoginScreen() {
   const p = usePalette();
   const { baseUrl } = useAuth();
@@ -61,6 +64,9 @@ export default function LoginScreen() {
               autoComplete='password'
             />
             <Field label='服务器地址' value={server} onChangeText={setServer} keyboardType='url' placeholder='http://192.168.1.10:5080' />
+            {cleartextBlocked && /^http:\/\//i.test(server.trim()) ? (
+              <Text style={{ color: p.warning, fontSize: 13, lineHeight: 19 }}>安卓正式版默认只允许 HTTPS 连接，http:// 开头的地址会连不上，请改用 https:// 地址。</Text>
+            ) : null}
             <Button
               title={mode === 'login' ? '登录' : '注册并进入'}
               onPress={() => submit.mutate()}

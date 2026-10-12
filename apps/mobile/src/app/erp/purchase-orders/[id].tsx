@@ -1,4 +1,4 @@
-import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sessionCan } from '@ainative/api-client';
@@ -6,6 +6,7 @@ import { LinkRow } from '@/components/crm';
 import { OrderLines } from '@/components/erp';
 import { Button, Card, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
+import { confirm } from '@/lib/confirm';
 import { erpPurchaseOrderStatus, formatDate, formatTime } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
@@ -30,10 +31,7 @@ export default function PurchaseOrderScreen() {
   const manage = sessionCan(session.data, 'erp.purchase');
   const started = order.status === 'partially_received' || order.status === 'received';
   const ask = (title: string, message: string, action: Transition) =>
-    Alert.alert(title, message, [
-      { text: '再想想', style: 'cancel' },
-      { text: '确定', onPress: () => transition.mutate(action) },
-    ]);
+    confirm({ title, message, cancelText: '再想想', onConfirm: () => transition.mutate(action) });
 
   return (
     <ScrollView style={{ backgroundColor: p.background }} contentContainerStyle={styles.container}>

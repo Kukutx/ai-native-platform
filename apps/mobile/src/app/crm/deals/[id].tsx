@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sessionCan, type CrmStageDto } from '@ainative/api-client';
@@ -7,6 +7,7 @@ import { ActivitySection, LinkRow } from '@/components/crm';
 import { DealOrders } from '@/components/erp';
 import { Card, Chip, Field, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
+import { confirm } from '@/lib/confirm';
 import { crmDealStatus, formatAmount, formatDate, formatTime } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
@@ -40,10 +41,11 @@ export default function DealDetailScreen() {
       return;
     }
 
-    Alert.alert(`${stage.kind === 'won' ? '赢单' : '输单'}：${deal.title}`, note.trim() ? `说明：${note.trim()}` : '可以先在上面写下原因，会记入跟进记录。', [
-      { text: '取消', style: 'cancel' },
-      { text: '确定', onPress: () => move.mutate(stage) },
-    ]);
+    confirm({
+      title: `${stage.kind === 'won' ? '赢单' : '输单'}：${deal.title}`,
+      message: note.trim() ? `说明：${note.trim()}` : '可以先在上面写下原因，会记入跟进记录。',
+      onConfirm: () => move.mutate(stage),
+    });
   };
 
   return (
