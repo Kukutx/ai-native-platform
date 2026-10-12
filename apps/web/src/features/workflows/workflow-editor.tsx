@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { toProblem, type SaveWorkflowRequest, type WorkflowDto, type WorkflowStep, type WorkflowStepKind, type WorkflowTriggerDto, type WorkflowTriggerKind } from '@ainative/api-client';
+import { toProblem, type SaveWorkflowRequest, type WorkflowDto, type WorkflowTriggerDto, type WorkflowTriggerKind } from '@ainative/api-client';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -15,10 +15,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
-import { workflowStepKind, workflowTriggerKind } from '@/lib/labels';
+import { workflowTriggerKind } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 import { cronPresets } from './describe';
-import { FieldError, StepCard, type DraftStep, type FieldErrors } from './step-card';
+import { freeKey, fromDraftSteps, toDraftStep, type DraftStep, type FieldErrors } from './draft';
+import { FieldError, StepList } from './step-card';
 
 interface Draft {
   name: string;
@@ -27,9 +28,6 @@ interface Draft {
   trigger: WorkflowTriggerDto;
   steps: DraftStep[];
 }
-
-let uidSeed = 0;
-const nextUid = () => `s${++uidSeed}`;
 
 function localTimeZone() {
   try {
@@ -49,22 +47,8 @@ function toDraft(workflow?: WorkflowDto): Draft {
     description: workflow.description,
     isEnabled: workflow.isEnabled,
     trigger: { ...workflow.trigger },
-    steps: workflow.steps.map((step) => ({
-      uid: nextUid(),
-      step: { ...step },
-      inputText: step.input === undefined || step.input === null ? '{}' : JSON.stringify(step.input, null, 2),
-    })),
+    steps: workflow.steps.map(toDraftStep),
   };
-}
-
-function freeKey(steps: DraftStep[]) {
-  const used = new Set(steps.map((s) => s.step.key));
-  let n = steps.length + 1;
-  while (used.has(`step_${n}`)) {
-    n++;
-  }
-
-  return `step_${n}`;
 }
 
 const triggerKinds = Object.keys(workflowTriggerKind) as WorkflowTriggerKind[];
@@ -81,21 +65,7 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
   const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
 
   const events = catalog.data?.events;
-  const steps = draft.steps.map((s) => s.step);
   const setTrigger = (patch: Partial<WorkflowTriggerDto>) => setDraft((d) => ({ ...d, trigger: { ...d.trigger, ...patch } }));
-  const setStep = (uid: string, next: DraftStep) => setDraft((d) => ({ ...d, steps: d.steps.map((s) => (s.uid === uid ? next : s)) }));
-  const addStep = (kind: WorkflowStepKind) =>
-    setDraft((d) => ({
-      ...d,
-      steps: [...d.steps, { uid: nextUid(), step: { key: freeKey(d.steps), name: '', kind }, inputText: '{}' }],
-    }));
-  const moveStep = (index: number, delta: -1 | 1) =>
-    setDraft((d) => {
-      const next = [...d.steps];
-      const [moved] = next.splice(index, 1);
-      next.splice(index + delta, 0, moved!);
-      return { ...d, steps: next };
-    });
 
   const save = useMutation({
     mutationFn: (request: SaveWorkflowRequest) => (workflow ? api.workflows.update(workflow.id, request) : api.workflows.create(request)),
@@ -117,18 +87,7 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
 
   const submit = () => {
     const local: FieldErrors = {};
-    const payload: WorkflowStep[] = draft.steps.map(({ step, inputText }, index) => {
-      if ((step.kind ?? 'action') !== 'action') {
-        return { ...step, input: undefined };
-      }
-
-      try {
-        return { ...step, input: inputText.trim() ? JSON.parse(inputText) : {} };
-      } catch {
-        local[`steps[${index}].input`] = ['不是合法的 JSON。'];
-        return step;
-      }
-    });
+    const payload = fromDraftSteps(draft.steps, 'steps', local);
     setErrors(local);
     if (Object.keys(local).length) {
       return;
@@ -139,7 +98,9 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
         ? { kind: 'event', eventType: draft.trigger.eventType, filter: draft.trigger.filter || undefined }
         : draft.trigger.kind === 'schedule'
           ? { kind: 'schedule', cron: draft.trigger.cron, timeZone: draft.trigger.timeZone || 'UTC' }
-          : { kind: 'manual' };
+          : draft.trigger.kind === 'webhook'
+            ? { kind: 'webhook', filter: draft.trigger.filter || undefined }
+            : { kind: 'manual' };
     save.mutate({
       name: draft.name,
       description: draft.description,
@@ -273,6 +234,25 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
             </div>
           ) : null}
 
+          {draft.trigger.kind === 'webhook' ? (
+            <>
+              <p className='text-muted-foreground text-sm'>
+                保存后在详情页复制专属地址，交给表单、代码仓库、支付回调等外部系统，用 POST 调用即可触发。请求体、查询参数和请求头分别是 trigger.body、trigger.query、trigger.headers。
+              </p>
+              <div className='grid gap-2'>
+                <Label htmlFor='wf-webhook-filter'>过滤条件</Label>
+                <Input
+                  id='wf-webhook-filter'
+                  className='font-mono'
+                  value={draft.trigger.filter ?? ''}
+                  onChange={(e) => setTrigger({ filter: e.target.value })}
+                  placeholder="可选，例如 trigger.body.action == 'opened'"
+                />
+                <FieldError errors={errors} path='trigger.filter' />
+              </div>
+            </>
+          ) : null}
+
           {(draft.trigger.kind ?? 'manual') === 'manual' ? (
             <p className='text-muted-foreground text-sm'>在列表或详情页点击“运行”启动，也可以让智能体在对话里运行它。</p>
           ) : null}
@@ -284,30 +264,15 @@ export function WorkflowEditor({ workflow }: { workflow?: WorkflowDto }) {
           <h2 className='text-lg font-semibold'>步骤</h2>
           <FieldError errors={errors} path='steps' />
         </div>
-        {draft.steps.map((s, index) => (
-          <StepCard
-            key={s.uid}
-            index={index}
-            draft={s}
-            steps={steps}
-            trigger={draft.trigger}
-            events={events}
-            actions={actions.data}
-            agents={agents.data}
-            errors={errors}
-            onChange={(next) => setStep(s.uid, next)}
-            onMove={(delta) => moveStep(index, delta)}
-            onRemove={() => setDraft((d) => ({ ...d, steps: d.steps.filter((x) => x.uid !== s.uid) }))}
-          />
-        ))}
-        <div className='flex flex-wrap gap-2'>
-          {(Object.keys(workflowStepKind) as WorkflowStepKind[]).map((kind) => (
-            <Button key={kind} type='button' variant='outline' size='sm' onClick={() => addStep(kind)}>
-              <Icons.add className='size-4' />
-              {workflowStepKind[kind].label}
-            </Button>
-          ))}
-        </div>
+        <StepList
+          drafts={draft.steps}
+          path='steps'
+          depth={0}
+          before={[]}
+          loop={false}
+          ctx={{ trigger: draft.trigger, events, actions: actions.data, agents: agents.data, errors, newKey: () => freeKey(draft.steps) }}
+          onChange={(steps: DraftStep[]) => setDraft((d) => ({ ...d, steps }))}
+        />
       </div>
 
       {ownerChanges ? (

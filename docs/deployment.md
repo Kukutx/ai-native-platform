@@ -47,6 +47,8 @@ openssl rand -base64 48   # 令牌签名密钥
 | `Ai__Embeddings__Provider` / `Ai__Embeddings__Model` | 知识库语义检索用的向量模型（协议须为 `openai`）。不配置时只用关键词与字面相似检索。 |
 | `Ai__Pricing__<模型>__InputPerMillion` / `__OutputPerMillion` | 自定义模型单价（美元 / 百万 token），用于预算和用量统计。 |
 | `Scheduler__MaxConcurrentRuns` | 同时执行的智能体数量上限，默认 4。 |
+| `Workflows__AllowPrivateNetworkRequests` | 是否允许工作流的「HTTP 请求」步骤访问内网和本机地址，默认 `false`。需要调用同一内网里的服务时再打开。 |
+| `Workflows__MaxEventRunsPerMinute` | 单个工作流每分钟最多被事件或 Webhook 触发的次数，默认 30。 |
 | `Cors__AllowedOrigins__N` | 允许跨域访问的来源。默认已包含桌面端（Tauri）的来源；镜像自带的 Web 页面同源，不需要配置。只有把 Web 单独部署到另一个域名时才需要加。 |
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | 信任反向代理传来的 `X-Forwarded-For` / `X-Forwarded-Proto`。示例 Compose 里已打开，此时应用端口只应通过反向代理访问。 |
 | `Serilog__MinimumLevel__Default` | 日志级别，默认 `Information`。日志写到标准输出，用 `docker compose logs` 查看。 |
@@ -65,6 +67,8 @@ Ai__DefaultModel=deepseek-chat
 ## HTTPS 与反向代理
 
 登录令牌和 API 密钥都放在请求头里，公网访问必须走 HTTPS。在应用前面放一个反向代理终止 TLS，同时把应用端口只绑定到本机：在 `.env` 里写 `APP_PORT=127.0.0.1:8080`。
+
+工作流的 Webhook 地址（`/api/hooks/workflows/…`）需要能从外部系统访问到，反向代理不要拦截这个路径。
 
 需要转发的除了普通请求，还有 WebSocket（`/hubs/realtime`，实时刷新）和流式响应（对话回复、`/mcp`）。应用对流式响应带了 `X-Accel-Buffering: no`，nginx 不会缓冲它们。
 

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { sessionCan } from '@ainative/api-client';
+import { sessionCan, type WorkflowStep } from '@ainative/api-client';
 import { Button, Card, Field, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
 import { formatTime, workflowRunStatus, workflowStepKind, workflowTriggerKind } from '@/lib/labels';
@@ -69,12 +69,7 @@ export default function WorkflowDetailScreen() {
 
         <Card>
           <Text style={[styles.section, { color: p.text }]}>步骤</Text>
-          {workflow.steps.map((step, index) => (
-            <Text key={step.key} style={{ color: p.text, lineHeight: 22 }}>
-              {index + 1}. {step.name}
-              <Text style={{ color: p.muted }}> · {workflowStepKind[step.kind ?? 'action']}</Text>
-            </Text>
-          ))}
+          <StepLines steps={workflow.steps} depth={0} />
         </Card>
 
         {sessionCan(session.data, 'workflows.run') ? (
@@ -123,6 +118,35 @@ export default function WorkflowDetailScreen() {
       </ScrollView>
     </KeyboardAvoidingView>
   );
+}
+
+/** 步骤定义，分支和遍历里的步骤缩进列在下面。 */
+function StepLines({ steps, depth }: { steps: WorkflowStep[]; depth: number }) {
+  const p = usePalette();
+  return steps.map((step, index) => (
+    <View key={step.key} style={{ marginLeft: depth * 14 }}>
+      <Text style={{ color: p.text, lineHeight: 22 }}>
+        {index + 1}. {step.name}
+        <Text style={{ color: p.muted }}> · {workflowStepKind[step.kind ?? 'action']}</Text>
+      </Text>
+      {step.kind === 'branch'
+        ? step.branches?.map((branch, b) => (
+            <View key={b} style={{ marginLeft: (depth + 1) * 14 }}>
+              <Muted>
+                {branch.name}：{branch.when || '其他情况'}
+              </Muted>
+              <StepLines steps={branch.steps ?? []} depth={1} />
+            </View>
+          ))
+        : null}
+      {step.kind === 'for_each' ? (
+        <View style={{ marginLeft: (depth + 1) * 14 }}>
+          <Muted>遍历 {step.items}</Muted>
+          <StepLines steps={step.steps ?? []} depth={1} />
+        </View>
+      ) : null}
+    </View>
+  ));
 }
 
 const styles = StyleSheet.create({

@@ -108,6 +108,7 @@ export const workflowTriggerKind: Record<WorkflowTriggerKind, string> = {
   manual: '手动运行',
   event: '事件触发',
   schedule: '定时运行',
+  webhook: 'Webhook',
 };
 
 export const workflowStepKind: Record<WorkflowStepKind, { label: string; hint: string }> = {
@@ -115,7 +116,13 @@ export const workflowStepKind: Record<WorkflowStepKind, { label: string; hint: s
   agent_task: { label: '派给智能体', hint: '建一个任务交给智能体，可以等它完成后再继续。' },
   llm: { label: '模型处理', hint: '让模型总结、分类或改写文本，内容是 JSON 时可以直接取字段。' },
   delay: { label: '等待', hint: '暂停一段时间再继续。' },
+  http: { label: 'HTTP 请求', hint: '调用外部接口，例如通知其他系统或查询外部数据。返回 JSON 时可以直接取字段，非 2xx 视为失败。' },
+  branch: { label: '条件分支', hint: '按顺序判断各分支的条件，只执行第一个成立的分支。最后一个分支不写条件时表示其他情况。' },
+  for_each: { label: '遍历列表', hint: '对列表里的每一项依次执行下面的步骤，用 item 引用当前项、index 引用序号。' },
 };
+
+/** 可以包含子步骤的步骤类型。 */
+export const workflowControlKinds: WorkflowStepKind[] = ['branch', 'for_each'];
 
 export const crmDealStatus: Record<CrmDealStatus, { label: string; tone: Tone }> = {
   open: { label: '进行中', tone: 'default' },

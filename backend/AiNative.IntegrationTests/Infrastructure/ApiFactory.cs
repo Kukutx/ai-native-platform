@@ -6,7 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace AiNative.IntegrationTests.Infrastructure;
 
-public sealed class ApiFactory(string connectionString) : WebApplicationFactory<ApiControllerBase>
+/// <param name="settings">测试类额外的配置，覆盖下面的默认值。</param>
+public sealed class ApiFactory(string connectionString, IReadOnlyDictionary<string, string>? settings = null) : WebApplicationFactory<ApiControllerBase>
 {
     public const string Provider = "scripted";
     public const string Model = "scripted-model";
@@ -35,6 +36,11 @@ public sealed class ApiFactory(string connectionString) : WebApplicationFactory<
         builder.UseSetting($"Ai:Providers:{Provider}:Models:0", Model);
         builder.UseSetting($"Ai:Pricing:{Model}:InputPerMillion", InputPricePerMillion.ToString(System.Globalization.CultureInfo.InvariantCulture));
         builder.UseSetting($"Ai:Pricing:{Model}:OutputPerMillion", "0");
+        foreach (var (key, value) in settings ?? new Dictionary<string, string>())
+        {
+            builder.UseSetting(key, value);
+        }
+
         builder.ConfigureServices(services => services.AddSingleton<IChatClientFactory>(new ScriptedChatClientFactory(Script)));
     }
 }

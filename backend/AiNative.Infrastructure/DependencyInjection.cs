@@ -120,6 +120,7 @@ public static class DependencyInjection
         services.AddOptions<WorkflowOptions>().BindConfiguration(WorkflowOptions.SectionName);
         services.AddSingleton<WorkflowSignal>();
         services.AddSingleton<IWorkflowSignal>(sp => sp.GetRequiredService<WorkflowSignal>());
+        services.AddSingleton<IWorkflowHttpClient, WorkflowHttpClient>();
         services.AddHostedService<WorkflowEngine>();
 
         return services;

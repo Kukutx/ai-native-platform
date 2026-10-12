@@ -2950,6 +2950,11 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("integer")
                         .HasColumnName("version");
 
+                    b.Property<string>("WebhookToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("webhook_token");
+
                     b.ComplexProperty(typeof(Dictionary<string, object>), "Owner", "AiNative.Domain.Workflows.Workflow.Owner#Actor", b1 =>
                         {
                             b1.IsRequired();
@@ -2971,6 +2976,11 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.HasIndex("NextRunAt")
                         .HasDatabaseName("ix_workflows_next_run_at")
                         .HasFilter("is_enabled AND trigger_kind = 'Schedule'");
+
+                    b.HasIndex("WebhookToken")
+                        .IsUnique()
+                        .HasDatabaseName("ix_workflows_webhook_token")
+                        .HasFilter("webhook_token IS NOT NULL");
 
                     b.HasIndex("TenantId", "EventType")
                         .HasDatabaseName("ix_workflows_tenant_id_event_type")
@@ -3177,6 +3187,12 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("output_json");
 
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("path");
+
                     b.Property<Guid>("RunId")
                         .HasColumnType("uuid")
                         .HasColumnName("run_id");
@@ -3211,9 +3227,9 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.HasIndex("TenantId")
                         .HasDatabaseName("ix_workflow_run_steps_tenant_id");
 
-                    b.HasIndex("RunId", "Index")
+                    b.HasIndex("RunId", "Path")
                         .IsUnique()
-                        .HasDatabaseName("ix_workflow_run_steps_run_id_index");
+                        .HasDatabaseName("ix_workflow_run_steps_run_id_path");
 
                     b.ToTable("workflow_run_steps", (string)null);
                 });

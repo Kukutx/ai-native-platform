@@ -39,6 +39,12 @@ public sealed class WorkflowsController : ApiControllerBase
     }
 
     /// <summary>
+    /// 换一个新的 Webhook 地址，旧地址立即失效。
+    /// </summary>
+    [HttpPost("{id:guid}/webhook-token")]
+    public Task<WorkflowDto> RegenerateWebhook(Guid id) => SendAsync(new RegenerateWorkflowWebhookCommand(id));
+
+    /// <summary>
     /// 手动运行一次。运行在后台进行，返回的运行记录通过实时通道持续更新。
     /// </summary>
     [HttpPost("{id:guid}/runs")]

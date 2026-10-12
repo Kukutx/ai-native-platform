@@ -37,6 +37,12 @@ public sealed record SetWorkflowEnabledCommand(Guid Id, bool Enabled) : ICommand
 [RequireFeature(Features.Workflows.Manage)]
 public sealed record DeleteWorkflowCommand(Guid Id) : ICommand<Unit>;
 
+/// <summary>
+/// 换一个新的 Webhook 地址，旧地址立即失效（地址泄露时使用）。
+/// </summary>
+[RequireFeature(Features.Workflows.Manage)]
+public sealed record RegenerateWorkflowWebhookCommand(Guid Id) : ICommand<WorkflowDto>;
+
 [RequireFeature(Features.Workflows.Run)]
 public sealed record StartWorkflowRunCommand(Guid WorkflowId, JsonElement? Input) : ICommand<WorkflowRunSummaryDto>;
 
@@ -66,6 +72,7 @@ internal sealed class WorkflowCommandHandlers(
     IRequestHandler<UpdateWorkflowCommand, WorkflowDto>,
     IRequestHandler<SetWorkflowEnabledCommand, WorkflowDto>,
     IRequestHandler<DeleteWorkflowCommand, Unit>,
+    IRequestHandler<RegenerateWorkflowWebhookCommand, WorkflowDto>,
     IRequestHandler<StartWorkflowRunCommand, WorkflowRunSummaryDto>,
     IRequestHandler<CancelWorkflowRunCommand, WorkflowRunSummaryDto>
 {
@@ -129,6 +136,20 @@ internal sealed class WorkflowCommandHandlers(
         db.Workflows.Remove(workflow);
         changes.Publish(RealtimeEntities.Workflow, workflow.Id, RealtimeChangeKind.Deleted);
         return Unit.Value;
+    }
+
+    public async Task<WorkflowDto> HandleAsync(RegenerateWorkflowWebhookCommand request, CancellationToken cancellationToken)
+    {
+        var workflow = await FindAsync(request.Id, cancellationToken).ConfigureAwait(false);
+        if (workflow.TriggerKind != WorkflowTriggerKind.Webhook)
+        {
+            throw new ConflictException("workflow.not_webhook", "这个工作流不是 Webhook 触发，没有 Webhook 地址。");
+        }
+
+        // 不改 UpdatedAt：它是编辑定义时的并发版本，换地址不影响正在编辑的人保存。
+        workflow.WebhookToken = WorkflowWebhooks.NewToken();
+        changes.Publish(RealtimeEntities.Workflow, workflow.Id, RealtimeChangeKind.Updated);
+        return await ToDtoAsync(workflow, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<WorkflowRunSummaryDto> HandleAsync(StartWorkflowRunCommand request, CancellationToken cancellationToken)
@@ -255,6 +276,9 @@ internal sealed class WorkflowCommandHandlers(
         workflow.TimeZone = trigger.TimeZone;
         workflow.Steps = steps;
         workflow.NextRunAt = WorkflowSchedule.NextRun(workflow, clock.GetUtcNow());
+
+        // 改成 Webhook 触发时生成地址，之后保存沿用同一个地址；改成别的触发方式时作废。
+        workflow.WebhookToken = trigger.Kind == WorkflowTriggerKind.Webhook ? workflow.WebhookToken ?? WorkflowWebhooks.NewToken() : null;
     }
 
     private Actor RequireOwner()
@@ -267,7 +291,7 @@ internal sealed class WorkflowCommandHandlers(
            ?? throw new NotFoundException("workflow", id);
 
     private async Task<WorkflowDto> ToDtoAsync(Workflow workflow, CancellationToken cancellationToken)
-        => (await WorkflowMapping.ToDtosAsync(db, [workflow], cancellationToken).ConfigureAwait(false))[0];
+        => (await WorkflowMapping.ToDtosAsync(db, tenant, [workflow], cancellationToken).ConfigureAwait(false))[0];
 }
 
 internal sealed class WorkflowQueryHandlers(IAppDbContext db, IModuleCatalog catalog, IModuleAccess modules, ITenantContext tenant) :
@@ -280,14 +304,14 @@ internal sealed class WorkflowQueryHandlers(IAppDbContext db, IModuleCatalog cat
     public async Task<IReadOnlyList<WorkflowDto>> HandleAsync(ListWorkflowsQuery request, CancellationToken cancellationToken)
     {
         var workflows = await db.Workflows.AsNoTracking().OrderBy(w => w.Name).ToListAsync(cancellationToken).ConfigureAwait(false);
-        return await WorkflowMapping.ToDtosAsync(db, workflows, cancellationToken).ConfigureAwait(false);
+        return await WorkflowMapping.ToDtosAsync(db, tenant, workflows, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<WorkflowDto> HandleAsync(GetWorkflowQuery request, CancellationToken cancellationToken)
     {
         var workflow = await db.Workflows.AsNoTracking().FirstOrDefaultAsync(w => w.Id == request.Id, cancellationToken).ConfigureAwait(false)
                        ?? throw new NotFoundException("workflow", request.Id);
-        return (await WorkflowMapping.ToDtosAsync(db, [workflow], cancellationToken).ConfigureAwait(false))[0];
+        return (await WorkflowMapping.ToDtosAsync(db, tenant, [workflow], cancellationToken).ConfigureAwait(false))[0];
     }
 
     public async Task<WorkflowCatalogDto> HandleAsync(GetWorkflowCatalogQuery request, CancellationToken cancellationToken)
@@ -327,8 +351,8 @@ internal sealed class WorkflowQueryHandlers(IAppDbContext db, IModuleCatalog cat
     {
         var run = await db.WorkflowRuns.AsNoTracking().FirstOrDefaultAsync(r => r.Id == request.RunId, cancellationToken).ConfigureAwait(false)
                   ?? throw new NotFoundException("workflow_run", request.RunId);
-        var steps = await db.WorkflowRunSteps.AsNoTracking().Where(s => s.RunId == run.Id).OrderBy(s => s.Index)
-            .ToListAsync(cancellationToken).ConfigureAwait(false);
+        var records = await db.WorkflowRunSteps.AsNoTracking().Where(s => s.RunId == run.Id).ToListAsync(cancellationToken).ConfigureAwait(false);
+        var steps = records.OrderBy(s => s.Path, StepPathComparer.Instance).ToList();
         var actors = await ActorNames.ResolveAsync(db, [run.TriggeredBy, run.Owner], cancellationToken).ConfigureAwait(false);
         return new WorkflowRunDto(
             run.ToSummary(actors),

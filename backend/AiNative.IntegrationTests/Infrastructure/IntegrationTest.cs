@@ -23,10 +23,15 @@ public abstract class IntegrationTest(PostgresFixture postgres) : IAsyncLifetime
 
     protected static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    /// <summary>
+    /// 本测试类的宿主额外配置。
+    /// </summary>
+    protected virtual IReadOnlyDictionary<string, string> Settings { get; } = new Dictionary<string, string>();
+
     public async ValueTask InitializeAsync()
     {
         _connectionString = await postgres.CreateDatabaseAsync();
-        Factory = new ApiFactory(_connectionString);
+        Factory = new ApiFactory(_connectionString, Settings);
         _ = Factory.Server;
     }
 

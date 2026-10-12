@@ -14,7 +14,7 @@ public sealed record WorkflowTriggerDto
     public string? EventType { get; init; }
 
     /// <summary>
-    /// 事件触发：过滤条件表达式，例如 trigger.to == 'done'。
+    /// 事件或 Webhook 触发：过滤条件表达式，为假时不运行，例如 trigger.to == 'done'、trigger.body.action == 'opened'。
     /// </summary>
     public string? Filter { get; init; }
 
@@ -41,7 +41,13 @@ public sealed record WorkflowDto(
     DateTimeOffset? NextRunAt,
     WorkflowRunSummaryDto? LastRun,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    /// <summary>
+    /// Webhook 触发：地址令牌，完整地址为 /api/hooks/workflows/{令牌}。只返回给有管理工作流权限的成员。
+    /// </summary>
+    public string? WebhookToken { get; init; }
+}
 
 public sealed record WorkflowRunSummaryDto(
     Guid Id,
@@ -58,8 +64,11 @@ public sealed record WorkflowRunSummaryDto(
     DateTimeOffset? StartedAt,
     DateTimeOffset? FinishedAt);
 
+/// <param name="Index">所属的顶层步骤序号。</param>
+/// <param name="Path">步骤在定义树里的位置：顶层是序号（"2"），子步骤是「父位置.分支序号或第几项.子步骤序号」（"2.1.0"）。</param>
 public sealed record WorkflowRunStepDto(
     int Index,
+    string Path,
     string StepKey,
     string Name,
     WorkflowStepKind Kind,
@@ -117,3 +126,7 @@ public sealed record StartWorkflowRunRequest
 public sealed record WorkflowEventDto(string Key, string Name, string ModuleKey, string Description);
 
 public sealed record WorkflowCatalogDto(IReadOnlyList<WorkflowEventDto> Events);
+
+/// <param name="Started">是否新建了运行；不满足过滤条件时为 false。</param>
+/// <param name="RunId">新建的运行。</param>
+public sealed record WebhookAcceptedDto(bool Started, Guid? RunId);

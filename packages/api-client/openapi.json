@@ -5003,6 +5003,39 @@
         }
       }
     },
+    "/api/workflows/{id}/webhook-token": {
+      "post": {
+        "tags": [
+          "Workflows"
+        ],
+        "summary": "换一个新的 Webhook 地址，旧地址立即失效。",
+        "operationId": "Workflows_RegenerateWebhook",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workflows/{id}/runs": {
       "post": {
         "tags": [
@@ -10535,6 +10568,10 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "webhookToken": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -10569,12 +10606,14 @@
         "x-enumNames": [
           "Manual",
           "Event",
-          "Schedule"
+          "Schedule",
+          "Webhook"
         ],
         "enum": [
           "manual",
           "event",
-          "schedule"
+          "schedule",
+          "webhook"
         ]
       },
       "WorkflowStep": {
@@ -10639,6 +10678,47 @@
             "type": "integer",
             "format": "int32",
             "nullable": true
+          },
+          "branches": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/WorkflowBranch"
+            }
+          },
+          "items": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStep"
+            }
+          },
+          "method": {
+            "type": "string",
+            "nullable": true
+          },
+          "url": {
+            "type": "string",
+            "nullable": true
+          },
+          "headers": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "body": {
+            "nullable": true
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },
@@ -10649,14 +10729,43 @@
           "Action",
           "AgentTask",
           "Llm",
-          "Delay"
+          "Delay",
+          "Branch",
+          "ForEach",
+          "Http"
         ],
         "enum": [
           "action",
           "agent_task",
           "llm",
-          "delay"
+          "delay",
+          "branch",
+          "for_each",
+          "http"
         ]
+      },
+      "WorkflowBranch": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "when": {
+            "type": "string",
+            "nullable": true
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkflowStep"
+            }
+          }
+        }
       },
       "WorkflowRunSummaryDto": {
         "type": "object",
@@ -10937,6 +11046,7 @@
         "additionalProperties": false,
         "required": [
           "index",
+          "path",
           "stepKey",
           "name",
           "kind",
@@ -10947,6 +11057,9 @@
           "index": {
             "type": "integer",
             "format": "int32"
+          },
+          "path": {
+            "type": "string"
           },
           "stepKey": {
             "type": "string"

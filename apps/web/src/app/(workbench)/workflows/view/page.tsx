@@ -13,9 +13,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { describeTrigger } from '@/features/workflows/describe';
 import { RunWorkflowButton } from '@/features/workflows/run-workflow-dialog';
+import { StepTree } from '@/features/workflows/step-tree';
+import { WebhookCard } from '@/features/workflows/webhook-card';
 import { WorkflowRunTable } from '@/features/workflows/workflow-run-table';
 import { api } from '@/lib/api';
-import { formatTime, workflowStepKind, workflowTriggerKind } from '@/lib/labels';
+import { formatTime, workflowTriggerKind } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
 const PAGE_SIZE = 20;
@@ -56,21 +58,6 @@ function WorkflowDetail() {
   const workflow = detail.data;
   const manage = can('workflows.manage');
   const pages = runs.data ? Math.max(1, Math.ceil(runs.data.total / PAGE_SIZE)) : 1;
-  const stepDetail = (step: (typeof workflow.steps)[number]) => {
-    switch (step.kind ?? 'action') {
-      case 'agent_task': {
-        const agent = agents.data?.find((a) => a.id === step.agentId);
-        return `${agent?.name ?? '智能体'}：${step.title ?? ''}${step.waitForCompletion ? '（等待完成）' : ''}`;
-      }
-      case 'llm':
-        return step.prompt ?? '';
-      case 'delay':
-        return `${step.delaySeconds ?? 0} 秒`;
-      default:
-        return actions.data?.find((a) => a.key === step.actionKey)?.title ?? step.actionKey ?? '';
-    }
-  };
-
   return (
     <div className='space-y-6 p-6'>
       <Link href='/workflows' className='text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm'>
@@ -113,23 +100,7 @@ function WorkflowDetail() {
             <CardTitle>步骤</CardTitle>
           </CardHeader>
           <CardContent>
-            <ol className='grid gap-3'>
-              {workflow.steps.map((step, index) => (
-                <li key={step.key} className='flex gap-3'>
-                  <Badge variant='outline' className='h-6 font-mono'>
-                    {index + 1}
-                  </Badge>
-                  <div className='min-w-0 flex-1'>
-                    <p className='font-medium'>
-                      {step.name}
-                      <span className='text-muted-foreground ml-2 text-xs font-normal'>{workflowStepKind[step.kind ?? 'action'].label}</span>
-                    </p>
-                    <p className='text-muted-foreground line-clamp-2 text-sm'>{stepDetail(step)}</p>
-                    {step.when ? <p className='text-muted-foreground font-mono text-xs'>条件：{step.when}</p> : null}
-                  </div>
-                </li>
-              ))}
-            </ol>
+            <StepTree steps={workflow.steps} actions={actions.data} agents={agents.data} />
           </CardContent>
         </Card>
         <Card>
@@ -146,6 +117,8 @@ function WorkflowDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {workflow.trigger.kind === 'webhook' ? <WebhookCard workflow={workflow} canManage={manage} /> : null}
 
       <Card>
         <CardHeader>

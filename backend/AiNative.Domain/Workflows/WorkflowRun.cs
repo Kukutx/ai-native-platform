@@ -102,7 +102,16 @@ public sealed class WorkflowRunStep : TenantEntity
 {
     public Guid RunId { get; set; }
 
+    /// <summary>
+    /// 所属的顶层步骤序号。
+    /// </summary>
     public int Index { get; set; }
+
+    /// <summary>
+    /// 步骤在定义树里的位置：顶层是序号（"2"）；分支或遍历里的子步骤是「父位置.分支序号或第几项.子步骤序号」（"2.1.0"）。
+    /// 同一个子步骤在遍历的每一项里各有一条记录。
+    /// </summary>
+    public required string Path { get; set; }
 
     public required string StepKey { get; set; }
 

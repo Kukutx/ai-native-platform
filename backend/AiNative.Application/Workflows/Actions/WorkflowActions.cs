@@ -131,13 +131,18 @@ internal static class WorkflowActionText
 {
     public const string DefinitionGuide =
         "trigger.kind 取值：manual（手动运行）；event（平台事件触发：eventType 填事件键，可先用 workflows.list_events 查看；filter 为可选的过滤条件，例如 trigger.to == 'done'）；" +
-        "schedule（定时：cron 为 5 段 cron「分 时 日 月 周」，例如 \"0 9 * * MON-FRI\"；timeZone 为 IANA 时区，例如 Asia/Shanghai）。" +
-        "steps 按顺序执行，每步需要唯一的 key（小写字母开头，字母数字下划线）和 name，kind 取值：" +
+        "schedule（定时：cron 为 5 段 cron「分 时 日 月 周」，例如 \"0 9 * * MON-FRI\"；timeZone 为 IANA 时区，例如 Asia/Shanghai）；" +
+        "webhook（外部系统 POST 到工作流专属地址时触发，保存后由成员在界面上复制地址；trigger.body 是请求体，trigger.query 是查询参数，trigger.headers 是小写的请求头；filter 可选）。" +
+        "steps 按顺序执行，每步需要在整个工作流里唯一的 key（小写字母开头，字母数字下划线）和 name，kind 取值：" +
         "action（执行平台动作：actionKey 为动作键，input 为输入对象）；" +
         "agent_task（派任务给智能体：agentId、title、instructions；waitForCompletion 为 true 时等它完成，输出里的 result 是智能体写在评论里的结论，可选 timeoutMinutes）；" +
         "llm（让模型处理文本：prompt，输出 text，内容是 JSON 时另有 json）；" +
-        "delay（等待 delaySeconds 秒）。" +
-        "title、instructions、prompt 以及 input 里的字符串值都可以写 {{ 表达式 }}：trigger.xxx 是触发数据，input.xxx 是手动运行参数，steps.<key>.output.xxx 是前面步骤的输出。" +
+        "delay（等待 delaySeconds 秒）；" +
+        "http（调用外部接口：method 为 GET/POST/PUT/PATCH/DELETE，url，可选 headers 对象和 body，timeoutSeconds 默认 30；输出 status、ok、contentType、body，返回 JSON 时 body 是解析后的对象；非 2xx 视为失败；默认不能访问内网地址）；" +
+        "branch（条件分支：branches 为数组，每项有 name、when 和 steps，按顺序执行第一个 when 成立的分支，最后一项可以不写 when 表示其他情况；输出 index 和 branch，没有分支成立时 index 为 -1）；" +
+        "for_each（遍历：items 为结果是列表的表达式，例如 steps.find.output.items；steps 是对每一项执行的子步骤，子步骤里用 item 引用当前项、index 引用序号；输出 count 和 results，results 是每一项最后一个子步骤的输出）。" +
+        "分支和遍历可以嵌套，最多 3 层，整个工作流最多 50 个步骤。" +
+        "title、instructions、prompt、url、headers 的值以及 input、body 里的字符串值都可以写 {{ 表达式 }}：trigger.xxx 是触发数据，input.xxx 是手动运行参数，steps.<key>.output.xxx 是前面步骤的输出。" +
         "when 为执行条件表达式（为假时跳过本步），支持 == != > >= < <= && || ! contains 和 length() lower() default() 等函数。continueOnError 为 true 时本步失败也继续。" +
         "工作流以保存者的身份和权限运行。";
 }

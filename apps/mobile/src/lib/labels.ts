@@ -93,6 +93,7 @@ export const workflowTriggerKind: Record<WorkflowTriggerKind, string> = {
   manual: '手动运行',
   event: '事件触发',
   schedule: '定时运行',
+  webhook: 'Webhook',
 };
 
 export const workflowStepKind: Record<WorkflowStepKind, string> = {
@@ -100,6 +101,9 @@ export const workflowStepKind: Record<WorkflowStepKind, string> = {
   agent_task: '派给智能体',
   llm: '模型处理',
   delay: '等待',
+  http: 'HTTP 请求',
+  branch: '条件分支',
+  for_each: '遍历列表',
 };
 
 export const crmDealStatus: Record<CrmDealStatus, string> = {

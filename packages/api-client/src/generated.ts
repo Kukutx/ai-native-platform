@@ -5754,6 +5754,46 @@ export class WorkflowsClient {
     }
 
     /**
+     * 换一个新的 Webhook 地址，旧地址立即失效。
+     */
+    regenerateWebhook(id: string, signal?: AbortSignal): Promise<WorkflowDto> {
+        let url_ = this.baseUrl + "/api/workflows/{id}/webhook-token";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processRegenerateWebhook(_response);
+        });
+    }
+
+    protected processRegenerateWebhook(response: Response): Promise<WorkflowDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as WorkflowDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<WorkflowDto>(null as any);
+    }
+
+    /**
      * 手动运行一次。运行在后台进行，返回的运行记录通过实时通道持续更新。
      */
     start(id: string, request: StartWorkflowRunRequest, signal?: AbortSignal): Promise<WorkflowRunSummaryDto> {
@@ -7342,6 +7382,7 @@ export interface WorkflowDto {
     lastRun?: WorkflowRunSummaryDto | undefined;
     createdAt: string;
     updatedAt: string;
+    webhookToken?: string | undefined;
 }
 
 export interface WorkflowTriggerDto {
@@ -7352,7 +7393,7 @@ export interface WorkflowTriggerDto {
     timeZone?: string | undefined;
 }
 
-export type WorkflowTriggerKind = "manual" | "event" | "schedule";
+export type WorkflowTriggerKind = "manual" | "event" | "schedule" | "webhook";
 
 export interface WorkflowStep {
     key: string;
@@ -7369,9 +7410,23 @@ export interface WorkflowStep {
     timeoutMinutes?: number | undefined;
     prompt?: string | undefined;
     delaySeconds?: number | undefined;
+    branches?: WorkflowBranch[] | undefined;
+    items?: string | undefined;
+    steps?: WorkflowStep[] | undefined;
+    method?: string | undefined;
+    url?: string | undefined;
+    headers?: { [key: string]: string; } | undefined;
+    body?: any | undefined;
+    timeoutSeconds?: number | undefined;
 }
 
-export type WorkflowStepKind = "action" | "agent_task" | "llm" | "delay";
+export type WorkflowStepKind = "action" | "agent_task" | "llm" | "delay" | "branch" | "for_each" | "http";
+
+export interface WorkflowBranch {
+    name: string;
+    when?: string | undefined;
+    steps?: WorkflowStep[];
+}
 
 export interface WorkflowRunSummaryDto {
     id: string;
@@ -7442,6 +7497,7 @@ export interface WorkflowRunDto {
 
 export interface WorkflowRunStepDto {
     index: number;
+    path: string;
     stepKey: string;
     name: string;
     kind: WorkflowStepKind;
