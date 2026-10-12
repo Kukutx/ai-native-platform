@@ -122,7 +122,7 @@ cp .env.example .env      # 填写数据库密码和令牌签名密钥
 docker compose up -d --build
 ```
 
-打开 http://服务器:8080 即可使用。HTTPS 反向代理、全部配置项、关闭自助注册、备份与升级见 [docs/deployment.md](docs/deployment.md)。
+打开 http://服务器:8080 即可使用。需要多个实例时加上 `-f docker-compose.cluster.yml`（两个副本加 nginx，实例之间只靠 PostgreSQL 协调，不需要 Redis）。HTTPS 反向代理、全部配置项、关闭自助注册、多实例、备份与升级见 [docs/deployment.md](docs/deployment.md)。
 
 ## 常用命令
 

@@ -18,6 +18,7 @@ using AiNative.Domain.Projects;
 using AiNative.Domain.Tenancy;
 using AiNative.Domain.Work;
 using AiNative.Domain.Workflows;
+using AiNative.Infrastructure.Cluster;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
@@ -64,6 +65,10 @@ public sealed class AppDbContext : DbContext, IAppDbContext
     public DbSet<WorkItemComment> WorkItemComments => Set<WorkItemComment>();
 
     public DbSet<WorkItemDependency> WorkItemDependencies => Set<WorkItemDependency>();
+
+    internal DbSet<ClusterInstance> ClusterInstances => Set<ClusterInstance>();
+
+    internal DbSet<ClusterMessage> ClusterMessages => Set<ClusterMessage>();
 
     public DbSet<Approval> Approvals => Set<Approval>();
 
@@ -399,6 +404,9 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.Property(x => x.DecisionNote).HasMaxLength(2000);
             b.ComplexProperty(x => x.RequestedBy);
             b.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
+
+            // 已批准但结果没写回的审批：调度器定期据此找出执行被中断的。
+            b.HasIndex(x => x.DecidedAt).HasFilter("status = 'Approved' AND result_json IS NULL AND execution_error IS NULL").HasDatabaseName("ix_approvals_unrecorded");
         });
 
         modelBuilder.Entity<CostEvent>(b =>
@@ -776,6 +784,15 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasOne<CrmCompany>().WithMany().HasForeignKey(x => x.SupplierId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<ErpWarehouse>().WithMany().HasForeignKey(x => x.WarehouseId).OnDelete(DeleteBehavior.Restrict);
         });
+
+        // 集群协调：在线实例与超长的广播消息，不属于任何空间。
+        modelBuilder.Entity<ClusterInstance>(b =>
+        {
+            b.Property(x => x.HostName).HasMaxLength(256);
+            b.HasIndex(x => x.LastSeenAt);
+        });
+
+        modelBuilder.Entity<ClusterMessage>(b => b.HasIndex(x => x.CreatedAt));
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().Where(t => typeof(ITenantScoped).IsAssignableFrom(t.ClrType)))
         {

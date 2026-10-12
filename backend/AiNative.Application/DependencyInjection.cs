@@ -31,6 +31,8 @@ public static class DependencyInjection
         services.AddScoped<IModuleAccess, ModuleAccess>();
         services.AddScoped<IAccessResolver, AccessResolver>();
         services.AddScoped<IApiKeyAuthenticator, ApiKeyAuthenticator>();
+        services.AddSingleton<IClusterMessageHandler, AccessCacheInvalidationHandler>();
+        services.AddSingleton<IClusterMessageHandler, ApiKeyCacheInvalidationHandler>();
         services.AddScoped<IActionInvoker, ActionInvoker>();
         services.AddScoped<IChangeFeed, ChangeFeed>();
         services.AddScoped<TenantCalendar>();

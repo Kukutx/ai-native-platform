@@ -14,6 +14,7 @@ using AiNative.Application.Workflows;
 using AiNative.Infrastructure.Agents;
 using AiNative.Infrastructure.Common;
 using AiNative.Infrastructure.Ai;
+using AiNative.Infrastructure.Cluster;
 using AiNative.Infrastructure.Dispatching;
 using AiNative.Infrastructure.Crm;
 using AiNative.Infrastructure.Erp;
@@ -77,6 +78,19 @@ public static class DependencyInjection
         services.AddSingleton<IDistributedLock>(new PostgresAdvisoryLock(connectionString));
         services.AddScoped<ITransactionLock, PostgresTransactionLock>();
 
+        // 集群协调：实例登记与广播最先启动、最后停止（后台服务按注册的逆序停止），
+        // 调度器停止时放回队列的运行还能通知到其他实例，注销也在调度器停下之后。
+        services.AddOptions<ClusterOptions>()
+            .BindConfiguration(ClusterOptions.SectionName)
+            .Validate(o => o.HeartbeatInterval > TimeSpan.Zero && o.InstanceTimeout >= o.HeartbeatInterval * 3, "Cluster:InstanceTimeout 至少要是 Cluster:HeartbeatInterval 的三倍。")
+            .ValidateOnStart();
+        services.AddSingleton<ClusterNode>();
+        services.AddSingleton<IClusterNode>(sp => sp.GetRequiredService<ClusterNode>());
+        services.AddSingleton(sp => ActivatorUtilities.CreateInstance<PostgresClusterBus>(sp, connectionString));
+        services.AddSingleton<IClusterBus>(sp => sp.GetRequiredService<PostgresClusterBus>());
+        services.AddHostedService(sp => sp.GetRequiredService<PostgresClusterBus>());
+        services.AddHostedService<ClusterMembership>();
+
         // 请求管道：权限 → 校验 → 日志 → 事务 → 处理器（按注册顺序由外到内）
         services.AddScoped<PostCommitActions>();
         services.AddScoped<IPostCommitActions>(sp => sp.GetRequiredService<PostCommitActions>());
@@ -125,7 +139,8 @@ public static class DependencyInjection
         services.AddOptions<AgentRunOptions>().BindConfiguration(AgentRunOptions.SectionName);
         services.AddOptions<SchedulerOptions>().BindConfiguration(SchedulerOptions.SectionName);
         services.AddSingleton<WakeupSignal>();
-        services.AddSingleton<IWakeupSignal>(sp => sp.GetRequiredService<WakeupSignal>());
+        services.AddSingleton<IWakeupSignal, BroadcastWakeupSignal>();
+        services.AddSingleton<IClusterMessageHandler>(sp => new SignalRelay(ClusterTopics.WakeupQueued, sp.GetRequiredService<WakeupSignal>()));
         services.AddScoped<IWakeupQueue, WakeupQueue>();
         services.AddScoped<IWorkItemNumbers, WorkItemNumbers>();
         services.AddScoped<ISequenceAllocator, SequenceAllocator>();
@@ -133,14 +148,17 @@ public static class DependencyInjection
         services.AddScoped<ICrmCustomFieldStore, CrmCustomFieldStore>();
         services.AddScoped<IWorkItemCheckout, WorkItemCheckout>();
         services.AddScoped<IWorkItemGraph, WorkItemGraph>();
+        services.AddSingleton<AgentRunRecovery>();
         services.AddHostedService<HeartbeatScheduler>();
 
         // 工作流引擎：定时触发、领取并执行运行
         services.AddOptions<WorkflowOptions>().BindConfiguration(WorkflowOptions.SectionName);
         services.AddSingleton<WorkflowSignal>();
-        services.AddSingleton<IWorkflowSignal>(sp => sp.GetRequiredService<WorkflowSignal>());
+        services.AddSingleton<IWorkflowSignal, BroadcastWorkflowSignal>();
+        services.AddSingleton<IClusterMessageHandler>(sp => new SignalRelay(ClusterTopics.WorkflowQueued, sp.GetRequiredService<WorkflowSignal>()));
         services.AddOptions<OutboundNetworkOptions>().BindConfiguration(OutboundNetworkOptions.SectionName);
         services.AddSingleton<IWorkflowHttpClient, WorkflowHttpClient>();
+        services.AddSingleton<WorkflowRunRecovery>();
         services.AddHostedService<WorkflowEngine>();
 
         // 集成：空间密钥加密、外部 MCP 服务

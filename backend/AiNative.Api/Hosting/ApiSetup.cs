@@ -2,6 +2,7 @@ using AiNative.Api.Errors;
 using AiNative.Api.Mcp;
 using AiNative.Api.Realtime;
 using AiNative.Api.Security;
+using AiNative.Application.Abstractions;
 using AiNative.Application.Common;
 using AiNative.Application.Realtime;
 using AiNative.Infrastructure;
@@ -14,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 using NSwag;
 using NSwag.Generation.Processors.Security;
 using Serilog;
@@ -54,7 +56,10 @@ internal static class ApiSetup
         services.AddSignalR(options => options.AddFilter<TenantHubFilter>())
             .AddJsonProtocol(options => PlatformJson.Apply(options.PayloadSerializerOptions));
         services.AddSingleton<TenantHubFilter>();
-        services.AddSingleton<IRealtimeNotifier, SignalRRealtimeNotifier>();
+        services.AddSingleton<SignalRRealtimeNotifier>();
+        services.AddSingleton<IRealtimeNotifier, ClusteredRealtimeNotifier>();
+        services.AddSingleton<IClusterMessageHandler, RealtimeChangeRelay>();
+        services.AddSingleton<IClusterMessageHandler, RealtimeRunEventRelay>();
         services.AddPlatformMcp();
 
         var origins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -147,15 +152,32 @@ internal static class ApiSetup
         await using var scope = app.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // 数据库本身不存在时先建库（例如连接的是一台全新的 PostgreSQL 实例）。
+        // 数据库本身不存在时先建库（例如连接的是一台全新的 PostgreSQL 实例）。多个实例同时启动时只有一个建得成，其余忽略。
         var creator = db.GetService<IRelationalDatabaseCreator>();
         if (!await creator.ExistsAsync().ConfigureAwait(false))
         {
-            await creator.CreateAsync().ConfigureAwait(false);
+            try
+            {
+                await creator.CreateAsync().ConfigureAwait(false);
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.DuplicateDatabase)
+            {
+            }
         }
 
-        // 再建好迁移历史表：空数据库上 EF 会先查询这张表，失败后才去创建，留下一条看着像故障的错误日志。
-        await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync().ConfigureAwait(false);
-        await db.Database.MigrateAsync().ConfigureAwait(false);
+        // 多个实例同时启动时排队迁移：后到的等前一个迁移完，再发现已经没有待执行的迁移。
+        var locks = app.Services.GetRequiredService<IDistributedLock>();
+        IAsyncDisposable? migrationLock;
+        while ((migrationLock = await locks.TryAcquireAsync("database:migrate").ConfigureAwait(false)) is null)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(500)).ConfigureAwait(false);
+        }
+
+        await using (migrationLock)
+        {
+            // 再建好迁移历史表：空数据库上 EF 会先查询这张表，失败后才去创建，留下一条看着像故障的错误日志。
+            await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync().ConfigureAwait(false);
+            await db.Database.MigrateAsync().ConfigureAwait(false);
+        }
     }
 }

@@ -126,7 +126,7 @@ ai.example.com {
 
 ## 数据库
 
-- **迁移**：示例 Compose 打开了 `Database__MigrateOnStartup`，升级后启动时自动执行；EF Core 迁移时会加数据库锁，多个实例同时启动也只执行一次。想在发布流程里单独迁移，关掉这个开关，在源码目录生成幂等脚本后用 psql 执行：
+- **迁移**：示例 Compose 打开了 `Database__MigrateOnStartup`，升级后启动时自动执行；多个实例同时启动时在数据库锁下排队，只执行一次。想在发布流程里单独迁移，关掉这个开关，在源码目录生成幂等脚本后用 psql 执行：
 
   ```bash
   cd backend
@@ -162,9 +162,29 @@ docker compose up -d --build
 - `/health/live`：进程存活。镜像自带的 Docker 健康检查用它。
 - `/health/ready`：能连上数据库，适合负载均衡或 Kubernetes 的就绪探针。
 
+## 多实例部署
+
+应用可以同时运行多个实例，提高可用性、分担智能体和工作流的执行。实例之间只通过 PostgreSQL 协调，不需要 Redis；负载均衡用普通轮询即可，不需要会话保持（客户端的实时通道是一条 WebSocket 长连接）。
+
+仓库带了一个示例：在单实例 Compose 的基础上把应用扩到两个副本，前面放 nginx。
+
+```bash
+cd deploy
+docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d --build
+```
+
+副本数用 `APP_REPLICAS` 调整（写进 `.env`）。对外端口仍是 `APP_PORT`，由 nginx 监听；公网访问同样要在前面终止 HTTPS（或者直接在 `deploy/nginx.cluster.conf` 里配置证书）。用自己的负载均衡时注意三点：转发 WebSocket（`/hubs/realtime`）、关闭流式响应的缓冲、读超时留足（示例是 1 小时）。
+
+行为说明：
+
+- 每个实例都执行智能体和工作流，谁有空谁领取；新工作入队时广播通知所有实例。只想让某些实例承担接口流量，给它们设置 `Scheduler__Enabled=false`、`Workflows__Enabled=false`。
+- 实例正常停止（滚动升级、缩容）时：工作流运行交还给其他实例接着执行；正在执行的智能体运行会被取消，智能体下次被唤醒时继续。
+- 实例崩溃或与数据库失联：超过 `Cluster__InstanceTimeout`（默认 60 秒）后，存活的实例接手它留下的工作——智能体运行标记失败并重新排队唤醒，工作流运行从中断的步骤继续，批准后没写回结果的审批标记为结果未知。失联的实例自己在半个超时后就会停下手里的运行，不会与接手的实例重复执行。
+- 报到间隔是 `Cluster__HeartbeatInterval`（默认 10 秒），超时至少要是它的三倍。
+- 每个实例占用一条常驻的数据库连接用于接收广播，规划 PostgreSQL 的 `max_connections` 时算上。
+
 ## 当前限制
 
-- **只运行一个应用实例**：智能体调度、工作流引擎和实时推送目前在进程内协调，多实例部署会重复调度、实时消息也只到达本实例的连接。多实例支持在计划中。
 - 应用本身不存文件，容器可以随时重建；需要持久化的只有数据库卷。
 
 ## 上线检查清单

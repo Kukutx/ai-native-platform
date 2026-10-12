@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
 using AiNative.Application.Common;
@@ -72,6 +73,7 @@ internal sealed class ApiKeyHandlers(
     IModuleCatalog catalog,
     IMemoryCache cache,
     IPostCommitActions postCommit,
+    IClusterBus cluster,
     TimeProvider clock) :
     IRequestHandler<ListApiKeysQuery, IReadOnlyList<ApiKeyDto>>,
     IRequestHandler<CreateApiKeyCommand, CreatedApiKeyDto>,
@@ -113,10 +115,11 @@ internal sealed class ApiKeyHandlers(
                   ?? throw new NotFoundException("api_key", request.Id);
         key.Revoke(clock.GetUtcNow());
 
-        // 本实例立即失效；其他实例的缓存最多再保留 ApiKeyAuthenticator.CacheDuration。
+        // 本实例立即失效，并广播给其他实例（广播丢失时最多再保留 ApiKeyAuthenticator.CacheDuration）。
         postCommit.Enqueue(_ =>
         {
             cache.Remove(ApiKeyAuthenticator.CacheKey(key.Prefix));
+            cluster.Publish(ClusterTopics.ApiKeyCacheInvalidated, key.Prefix);
             return Task.CompletedTask;
         });
         return ToDto(key);
@@ -198,4 +201,22 @@ internal sealed class ApiKeyAuthenticator(
         => scopes.Count == 0
             ? granted
             : [.. catalog.AllFeatures.Select(f => f.Key).Where(k => FeatureMatcher.IsGranted(granted, k) && FeatureMatcher.IsGranted(scopes, k))];
+}
+
+/// <summary>
+/// 其他实例上吊销了 API 密钥后，清掉本实例对应的缓存。
+/// </summary>
+internal sealed class ApiKeyCacheInvalidationHandler(IMemoryCache cache) : IClusterMessageHandler
+{
+    public string Topic => ClusterTopics.ApiKeyCacheInvalidated;
+
+    public Task HandleAsync(JsonElement payload, CancellationToken cancellationToken)
+    {
+        if (payload.GetString() is { } prefix)
+        {
+            cache.Remove(ApiKeyAuthenticator.CacheKey(prefix));
+        }
+
+        return Task.CompletedTask;
+    }
 }

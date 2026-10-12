@@ -95,7 +95,7 @@ internal sealed class WorkflowExecutor(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // 服务停止：运行保持 Running，重启后放回队列，从当前步骤继续（未提交的步骤整体重做）。
+            // 服务停止或实例租约失效：运行保持 Running，由引擎放回队列，从当前步骤继续（未提交的步骤整体重做）。
         }
         catch (WorkflowRunException ex)
         {

@@ -1,12 +1,11 @@
 using System.Collections.Concurrent;
+using AiNative.Application.Abstractions;
 using AiNative.Application.Agents;
 using AiNative.Application.Agents.Runtime;
-using AiNative.Application.Governance;
 using AiNative.Application.Tenancy;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Common;
-using AiNative.Domain.Governance;
-using AiNative.Application.Realtime;
+using AiNative.Infrastructure.Cluster;
 using AiNative.Infrastructure.Dispatching;
 using AiNative.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -18,27 +17,27 @@ using Microsoft.Extensions.Options;
 namespace AiNative.Infrastructure.Agents;
 
 /// <summary>
-/// 心跳调度器：领取排队中的唤醒、创建运行记录并在独立作用域里执行；同时负责定时心跳和重启后的恢复。
-/// 领取用 FOR UPDATE SKIP LOCKED，多个调度循环不会抢到同一条；但重启恢复假定单实例部署，
-/// 多实例需要再引入实例租约。
+/// 心跳调度器：领取排队中的唤醒、创建运行记录并在独立作用域里执行；同时负责定时心跳和接手没人管的运行。
+/// 可以多实例部署：领取用 FOR UPDATE SKIP LOCKED，多个实例不会抢到同一条；运行记下执行实例，
+/// 实例失联后由存活的实例收尾（见 <see cref="AgentRunRecovery"/>）。
 /// </summary>
 internal sealed class HeartbeatScheduler(
     IServiceScopeFactory scopes,
     ITenantScopeFactory tenantScopes,
     WakeupSignal signal,
+    ClusterNode node,
+    AgentRunRecovery recovery,
+    IDistributedLock locks,
     IOptions<SchedulerOptions> options,
+    IOptions<ClusterOptions> cluster,
     TimeProvider clock,
     ILogger<HeartbeatScheduler> logger) : BackgroundService
 {
-    private const string InterruptedError = "服务重启，执行被中断。";
-    private const string ApprovalInterruptedError = "批准后执行过程中服务中断，结果未知。请先核实动作是否已经生效，需要时重新申请。";
-
-    // 审批动作通常几秒内完成；超过这个时间仍没有写回结果，视为执行被中断。
-    private static readonly TimeSpan ApprovalExecutionGrace = TimeSpan.FromMinutes(10);
-
     private readonly SchedulerOptions _options = options.Value;
+    private readonly TimeSpan _recoveryInterval = cluster.Value.HeartbeatInterval;
     private readonly ConcurrentDictionary<Guid, Task> _running = new();
     private DateTimeOffset _nextTimerSweep = DateTimeOffset.MinValue;
+    private DateTimeOffset _nextRecovery = DateTimeOffset.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -48,38 +47,29 @@ internal sealed class HeartbeatScheduler(
             return;
         }
 
-        try
-        {
-            await RecoverInterruptedRunsAsync(stoppingToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogError(ex, "Failed to recover interrupted runs");
-        }
-
-        try
-        {
-            // 启动时（单实例假定下）所有没写回结果的已批准审批都已中断，不必等宽限期。
-            await RecoverInterruptedApprovalsAsync(clock.GetUtcNow(), stoppingToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogError(ex, "Failed to recover interrupted approvals");
-        }
-
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var now = clock.GetUtcNow();
-                if (now >= _nextTimerSweep)
+                // 登记之前（或租约失效后）不领取：其他实例会把这期间领取的运行当成没人管的收回。
+                if (node.IsRegistered)
                 {
-                    _nextTimerSweep = now + _options.TimerSweepInterval;
-                    await EnqueueTimerWakeupsAsync(now, stoppingToken).ConfigureAwait(false);
-                    await RecoverInterruptedApprovalsAsync(now - ApprovalExecutionGrace, stoppingToken).ConfigureAwait(false);
+                    var now = clock.GetUtcNow();
+                    if (now >= _nextRecovery)
+                    {
+                        _nextRecovery = now + _recoveryInterval;
+                        await recovery.RecoverAsync([.. _running.Keys], stoppingToken).ConfigureAwait(false);
+                    }
+
+                    if (now >= _nextTimerSweep)
+                    {
+                        _nextTimerSweep = now + _options.TimerSweepInterval;
+                        await EnqueueTimerWakeupsAsync(now, stoppingToken).ConfigureAwait(false);
+                    }
+
+                    await ClaimAndDispatchAsync(stoppingToken).ConfigureAwait(false);
                 }
 
-                await ClaimAndDispatchAsync(stoppingToken).ConfigureAwait(false);
                 await signal.WaitAsync(_options.PollInterval, stoppingToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -97,133 +87,15 @@ internal sealed class HeartbeatScheduler(
         await Task.WhenAll(_running.Values).ConfigureAwait(false);
     }
 
-    private async Task RecoverInterruptedRunsAsync(CancellationToken cancellationToken)
-    {
-        await using var scope = scopes.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var now = clock.GetUtcNow();
-        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-
-        var interrupted = await db.HeartbeatRuns.IgnoreQueryFilters()
-            .Where(r => r.Status == RunStatus.Queued || r.Status == RunStatus.Running)
-            .Select(r => r.Id)
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        if (interrupted.Count > 0)
-        {
-            await db.HeartbeatRuns.IgnoreQueryFilters()
-                .Where(r => interrupted.Contains(r.Id))
-                .ExecuteUpdateAsync(
-                    s => s.SetProperty(r => r.Status, RunStatus.Failed)
-                        .SetProperty(r => r.Error, InterruptedError)
-                        .SetProperty(r => r.FinishedAt, now)
-                        .SetProperty(r => r.UpdatedAt, now),
-                    cancellationToken)
-                .ConfigureAwait(false);
-            await db.WorkItems.IgnoreQueryFilters()
-                .Where(w => w.CheckoutRunId != null && interrupted.Contains(w.CheckoutRunId.Value))
-                .ExecuteUpdateAsync(
-                    s => s.SetProperty(w => w.CheckoutRunId, (Guid?)null)
-                        .SetProperty(w => w.ExecutionLockedAt, (DateTimeOffset?)null),
-                    cancellationToken)
-                .ConfigureAwait(false);
-            logger.LogWarning("Marked {Count} interrupted runs as failed", interrupted.Count);
-        }
-
-        await db.Agents.IgnoreQueryFilters()
-            .Where(a => a.Status == AgentStatus.Running)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.Status, AgentStatus.Idle).SetProperty(a => a.UpdatedAt, now), cancellationToken)
-            .ConfigureAwait(false);
-
-        // 被中断的唤醒放回队列重新执行（同一智能体已有排队请求的则标记失败，原因不会丢：任务仍在待办里）。
-        await db.WakeupRequests.IgnoreQueryFilters()
-            .Where(w => w.Status == WakeupStatus.Claimed
-                && !db.WakeupRequests.IgnoreQueryFilters().Any(q => q.AgentId == w.AgentId && q.Status == WakeupStatus.Queued))
-            .ExecuteUpdateAsync(
-                s => s.SetProperty(w => w.Status, WakeupStatus.Queued)
-                    .SetProperty(w => w.RunId, (Guid?)null)
-                    .SetProperty(w => w.ClaimedAt, (DateTimeOffset?)null)
-                    .SetProperty(w => w.UpdatedAt, now),
-                cancellationToken)
-            .ConfigureAwait(false);
-        await db.WakeupRequests.IgnoreQueryFilters()
-            .Where(w => w.Status == WakeupStatus.Claimed)
-            .ExecuteUpdateAsync(
-                s => s.SetProperty(w => w.Status, WakeupStatus.Failed)
-                    .SetProperty(w => w.FinishedAt, now)
-                    .SetProperty(w => w.UpdatedAt, now),
-                cancellationToken)
-            .ConfigureAwait(false);
-
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    /// <summary>
-    /// 审批结论已落定但执行结果没有写回（进程崩溃、写回失败）：结论不能重做，动作也不能盲目重跑（可能已经生效），
-    /// 所以标记为结果未知，并唤醒申请的智能体去核实。
-    /// </summary>
-    private async Task RecoverInterruptedApprovalsAsync(DateTimeOffset decidedBefore, CancellationToken cancellationToken)
-    {
-        List<(Guid Id, Guid TenantId)> stuck;
-        await using (var scope = scopes.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var rows = await db.Approvals.IgnoreQueryFilters().AsNoTracking()
-                .Where(a => a.Status == ApprovalStatus.Approved && a.ResultJson == null && a.ExecutionError == null && a.DecidedAt < decidedBefore)
-                .Select(a => new { a.Id, a.TenantId })
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-            stuck = [.. rows.Select(r => (r.Id, r.TenantId))];
-        }
-
-        foreach (var (approvalId, tenantId) in stuck)
-        {
-            await tenantScopes.RunAsync(tenantId, Actor.System, [], sp => UnitOfWork.RunAsync(sp, async () =>
-            {
-                var db = sp.GetRequiredService<AppDbContext>();
-                var now = clock.GetUtcNow();
-                var marked = await db.Approvals
-                    .Where(a => a.Id == approvalId && a.ResultJson == null && a.ExecutionError == null)
-                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.ExecutionError, ApprovalInterruptedError).SetProperty(a => a.UpdatedAt, now), cancellationToken)
-                    .ConfigureAwait(false);
-                if (marked == 0)
-                {
-                    return false;
-                }
-
-                var approval = await db.Approvals.AsNoTracking().FirstAsync(a => a.Id == approvalId, cancellationToken).ConfigureAwait(false);
-
-                // 工作流发起的审批：恢复那次运行（它会把这一步记为失败），不唤醒智能体。
-                await ApprovalEvents.PublishDecidedAsync(sp, approval.Id, cancellationToken).ConfigureAwait(false);
-                if (approval.WorkflowRunId is null
-                    && approval.RequestedBy is { Kind: ActorKind.Agent, Id: { } agentId }
-                    && await db.Agents.AnyAsync(a => a.Id == agentId && a.Status != AgentStatus.Terminated, cancellationToken).ConfigureAwait(false))
-                {
-                    await sp.GetRequiredService<IWakeupQueue>().EnqueueAsync(
-                        agentId,
-                        new WakeupItem
-                        {
-                            Source = WakeupSource.Approval,
-                            Reason = $"你申请的 {approval.ActionKey} 已批准，但执行过程中服务中断，结果未知。请核实是否已经生效，需要时重新申请。",
-                            ApprovalId = approval.Id,
-                            WorkItemId = approval.WorkItemId,
-                            RequestedAt = now,
-                        },
-                        Actor.System,
-                        $"approval:{approval.Id}:interrupted",
-                        cancellationToken).ConfigureAwait(false);
-                }
-
-                sp.GetRequiredService<IChangeFeed>().Publish(RealtimeEntities.Approval, approval.Id, RealtimeChangeKind.Updated);
-                logger.LogWarning("Approval {ApprovalId} was approved but its execution result was never recorded", approval.Id);
-                return true;
-            }, cancellationToken)).ConfigureAwait(false);
-        }
-    }
-
     private async Task EnqueueTimerWakeupsAsync(DateTimeOffset now, CancellationToken cancellationToken)
     {
+        // 多个实例同时扫描会给同一个智能体各入队一次（合并成一条唤醒里的两个原因），只让一个实例扫。
+        await using var sweep = await locks.TryAcquireAsync("scheduler:timer-sweep", cancellationToken).ConfigureAwait(false);
+        if (sweep is null)
+        {
+            return;
+        }
+
         List<(Guid Id, Guid TenantId)> due;
         await using (var scope = scopes.CreateAsyncScope())
         {
@@ -305,6 +177,7 @@ internal sealed class HeartbeatScheduler(
                     AgentId = wakeup.AgentId,
                     WakeupRequestId = wakeup.Id,
                     Status = RunStatus.Queued,
+                    ExecutorId = node.InstanceId,
                 };
                 db.HeartbeatRuns.Add(run);
                 wakeup.RunId = run.Id;
@@ -324,17 +197,19 @@ internal sealed class HeartbeatScheduler(
     private void Dispatch(Guid tenantId, Guid runId, CancellationToken stoppingToken)
     {
         // 先登记再启动，避免运行瞬间结束时登记晚于移除。
-        var work = new Task<Task>(() => ExecuteRunAsync(tenantId, runId, stoppingToken));
+        var work = new Task<Task>(() => ExecuteRunAsync(tenantId, runId, stoppingToken, node.LeaseToken));
         _running[runId] = work.Unwrap();
         work.Start(TaskScheduler.Default);
     }
 
-    private async Task ExecuteRunAsync(Guid tenantId, Guid runId, CancellationToken stoppingToken)
+    private async Task ExecuteRunAsync(Guid tenantId, Guid runId, CancellationToken stoppingToken, CancellationToken leaseToken)
     {
         try
         {
+            // 租约失效时停下：其他实例可能已判定本实例失联，正要接手这次运行。
+            using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, leaseToken);
             await using var scope = scopes.CreateAsyncScope();
-            await scope.ServiceProvider.GetRequiredService<IAgentRuntime>().ExecuteAsync(tenantId, runId, stoppingToken).ConfigureAwait(false);
+            await scope.ServiceProvider.GetRequiredService<IAgentRuntime>().ExecuteAsync(tenantId, runId, cancellation.Token).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

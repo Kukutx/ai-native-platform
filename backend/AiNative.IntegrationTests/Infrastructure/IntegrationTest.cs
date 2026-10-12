@@ -42,15 +42,27 @@ public abstract class IntegrationTest(PostgresFixture postgres) : IAsyncLifetime
         GC.SuppressFinalize(this);
     }
 
-    protected HttpClient Client(string? token = null)
+    protected HttpClient Client(string? token = null) => ClientOf(Factory, token);
+
+    protected static HttpClient ClientOf(ApiFactory factory, string? token = null)
     {
-        var client = Factory.CreateClient();
+        var client = factory.CreateClient();
         if (token is not null)
         {
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         }
 
         return client;
+    }
+
+    /// <summary>
+    /// 再起一个连接同一数据库的宿主，模拟多实例部署。由调用方释放。
+    /// </summary>
+    protected ApiFactory StartPeer(IReadOnlyDictionary<string, string>? settings = null)
+    {
+        var peer = new ApiFactory(_connectionString, settings ?? Settings);
+        _ = peer.Server;
+        return peer;
     }
 
     protected async Task<AuthResponse> RegisterAsync(string email = "owner@example.com", string tenantName = "测试空间")
