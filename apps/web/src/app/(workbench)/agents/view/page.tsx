@@ -5,13 +5,15 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { DetailState } from '@/components/app/query-state';
 import { useConfirm } from '@/components/app/confirm-provider';
 import { EmptyState } from '@/components/app/empty-state';
+import { useFeatureCatalog } from '@/components/app/feature-checklist';
+import { ValueRow } from '@/components/app/info-row';
 import { PageHeader } from '@/components/app/page-header';
+import { DetailState } from '@/components/app/query-state';
+import { RawKeyTooltip } from '@/components/app/raw-key';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
-import { ValueRow } from '@/components/app/info-row';
 import { Icons } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,7 @@ function AgentDetail() {
   const confirm = useConfirm();
   const [editing, setEditing] = useState(false);
   const [reason, setReason] = useState('');
+  const { label } = useFeatureCatalog();
   const agent = useQuery({ queryKey: queryKeys.agent(id), queryFn: ({ signal }) => api.agents.get(id, signal), enabled: !!id });
   const runs = useQuery({ queryKey: queryKeys.runs(id), queryFn: ({ signal }) => api.runs.list(id, 1, 20, signal), enabled: !!id });
   const tasks = useQuery({
@@ -47,8 +50,14 @@ function AgentDetail() {
       void refresh();
     },
   });
-  const pause = useMutation({ mutationFn: (paused: boolean) => (paused ? api.agents.pause(id) : api.agents.resume(id)), onSuccess: refresh });
-  const terminate = useMutation({ mutationFn: () => api.agents.terminate(id), onSuccess: refresh });
+  const pause = useMutation({
+    mutationFn: (paused: boolean) => (paused ? api.agents.pause(id) : api.agents.resume(id)),
+    onSuccess: (_, paused) => {
+      toast.success(paused ? '已暂停' : '已恢复');
+      void refresh();
+    },
+  });
+  const terminate = useMutation({ mutationFn: () => api.agents.terminate(id), meta: { successMessage: '已终止' }, onSuccess: refresh });
 
   if (!agent.data) {
     return <DetailState id={id} query={agent} subject='智能体' back={{ href: '/agents', label: '智能体' }} />;
@@ -73,7 +82,8 @@ function AgentDetail() {
                 <Icons.edit />
                 编辑
               </Button>
-              <Button variant='outline' onClick={() => pause.mutate(a.status !== 'paused')}>
+              <Button variant='outline' disabled={pause.isPending} onClick={() => pause.mutate(a.status !== 'paused')}>
+                {pause.isPending ? <Icons.spinner className='animate-spin' /> : null}
                 {a.status === 'paused' ? '恢复' : '暂停'}
               </Button>
               <Button
@@ -102,12 +112,19 @@ function AgentDetail() {
             <p className='whitespace-pre-wrap'>{a.instructions || '（未填写）'}</p>
             {a.pauseReason ? <p className='text-muted-foreground'>暂停原因：{a.pauseReason}</p> : null}
             {a.lastError ? <p className='text-destructive'>最近错误：{a.lastError}</p> : null}
-            <div className='flex flex-wrap gap-1'>
-              {a.permissions.map((p) => (
-                <Badge key={p} variant='outline' className='font-mono'>
-                  {p}
-                </Badge>
-              ))}
+            <div className='space-y-2'>
+              <p className='text-muted-foreground text-xs'>权限</p>
+              <div className='flex flex-wrap gap-1'>
+                {a.permissions.length ? (
+                  a.permissions.map((p) => (
+                    <RawKeyTooltip key={p} value={p}>
+                      <Badge variant='outline'>{label(p)}</Badge>
+                    </RawKeyTooltip>
+                  ))
+                ) : (
+                  <span className='text-muted-foreground'>没有授予任何权限</span>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -128,7 +145,7 @@ function AgentDetail() {
                   wake.mutate();
                 }}
               >
-                <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder='唤醒原因（可选）' />
+                <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder='唤醒原因（可选）' aria-label='唤醒原因' />
                 <Button type='submit' disabled={wake.isPending}>
                   唤醒
                 </Button>

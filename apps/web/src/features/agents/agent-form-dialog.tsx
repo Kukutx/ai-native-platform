@@ -4,24 +4,17 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { AgentDto, SaveAgentRequest } from '@ainative/api-client';
+import { FeatureChecklist } from '@/components/app/feature-checklist';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
-
-/** 智能体可被授予的权限（与后端 Features 常量一致）。 */
-const agentPermissions = [
-  { key: 'agents.view', label: '查看团队' },
-  { key: 'agents.wake', label: '唤醒同事' },
-  { key: 'agents.manage', label: '招聘与管理智能体' },
-  { key: 'tasks.view', label: '查看任务' },
-  { key: 'tasks.manage', label: '创建与管理任务' },
-  { key: 'tasks.comment', label: '评论任务' },
-];
 
 const NONE = '__none__';
 
@@ -50,8 +43,8 @@ export function AgentFormDialog({
 function AgentForm({ agent, onDone }: { agent?: AgentDto; onDone: () => void }) {
   const queryClient = useQueryClient();
   const agents = useQuery({ queryKey: queryKeys.agents, queryFn: ({ signal }) => api.agents.list(signal) });
-  const models = useQuery({ queryKey: queryKeys.models, queryFn: ({ signal }) => api.models.catalog(signal) });
-  const actions = useQuery({ queryKey: queryKeys.actions, queryFn: ({ signal }) => api.actions.list(signal) });
+  const models = useQuery({ queryKey: queryKeys.models, queryFn: ({ signal }) => api.models.catalog(signal), staleTime: Infinity });
+  const actions = useQuery({ queryKey: queryKeys.actions, queryFn: ({ signal }) => api.actions.list(signal), staleTime: Infinity });
 
   const [form, setForm] = useState<SaveAgentRequest>(() => ({
     name: agent?.name ?? '',
@@ -60,16 +53,19 @@ function AgentForm({ agent, onDone }: { agent?: AgentDto; onDone: () => void }) 
     reportsToId: agent?.reportsToId,
     modelProvider: agent?.modelProvider,
     model: agent?.model,
-    permissions: agent?.permissions ?? ['agents.view', 'agents.wake', 'tasks.view', 'tasks.manage', 'tasks.comment'],
+    permissions: agent?.permissions ?? [],
     approvalRequiredActions: agent?.approvalRequiredActions ?? [],
     heartbeatIntervalSeconds: agent?.heartbeatIntervalSeconds ?? 0,
     monthlyBudgetUsd: agent?.monthlyBudgetUsd ?? 10,
   }));
+  // 新建时默认不提交权限，由后端使用为智能体设定的默认权限；打开「自定义权限」后才只授予勾选的权限。
+  // 编辑时始终提交（后端收到空值会重置为默认权限）。
+  const [customPermissions, setCustomPermissions] = useState(!!agent);
   const set = <K extends keyof SaveAgentRequest>(key: K, value: SaveAgentRequest[K]) => setForm((f) => ({ ...f, [key]: value }));
-  const toggle = (key: 'permissions' | 'approvalRequiredActions', value: string) =>
+  const toggleApproval = (value: string) =>
     setForm((f) => {
-      const current = f[key] ?? [];
-      return { ...f, [key]: current.includes(value) ? current.filter((v) => v !== value) : [...current, value] };
+      const current = f.approvalRequiredActions ?? [];
+      return { ...f, approvalRequiredActions: current.includes(value) ? current.filter((v) => v !== value) : [...current, value] };
     });
 
   const save = useMutation({
@@ -90,7 +86,7 @@ function AgentForm({ agent, onDone }: { agent?: AgentDto; onDone: () => void }) 
       className='grid gap-4'
       onSubmit={(event) => {
         event.preventDefault();
-        save.mutate(form);
+        save.mutate({ ...form, permissions: customPermissions ? (form.permissions ?? []) : undefined });
       }}
     >
       <div className='grid gap-4 sm:grid-cols-2'>
@@ -186,19 +182,25 @@ function AgentForm({ agent, onDone }: { agent?: AgentDto; onDone: () => void }) 
       </div>
       <fieldset className='grid gap-2'>
         <legend className='mb-2 text-sm font-medium'>权限</legend>
-        <div className='grid gap-2 sm:grid-cols-2'>
-          {agentPermissions.map((p) => (
-            <label key={p.key} className='flex items-center gap-2 text-sm'>
-              <input type='checkbox' className='accent-primary size-4' checked={form.permissions?.includes(p.key) ?? false} onChange={() => toggle('permissions', p.key)} />
-              {p.label}
-              <span className='text-muted-foreground font-mono text-xs'>{p.key}</span>
-            </label>
-          ))}
-        </div>
+        {agent ? null : (
+          <div className='flex items-start gap-3 rounded-md border p-3'>
+            <Switch id='agent-custom-permissions' checked={customPermissions} onCheckedChange={setCustomPermissions} className='mt-0.5' />
+            <div className='grid gap-1'>
+              <Label htmlFor='agent-custom-permissions'>自定义权限</Label>
+              <p className='text-muted-foreground text-xs'>
+                {customPermissions
+                  ? '只授予下面勾选的权限。'
+                  : '使用平台为智能体设定的默认权限（团队协作、任务、知识库与记忆等常用能力）。招聘后可以在详情页查看，随时调整。'}
+              </p>
+            </div>
+          </div>
+        )}
+        {customPermissions ? <FeatureChecklist value={form.permissions ?? []} onChange={(permissions) => set('permissions', permissions)} /> : null}
       </fieldset>
       <fieldset className='grid gap-2'>
         <legend className='mb-1 text-sm font-medium'>需要人工审批的动作</legend>
         <p className='text-muted-foreground mb-1 text-xs'>招聘智能体始终需要审批；这里可以额外要求其他动作也先经过你同意。</p>
+        {actions.isPending ? <Skeleton className='h-16' /> : null}
         <div className='grid gap-2 sm:grid-cols-2'>
           {actions.data
             ?.filter((a) => a.isMutation && !a.requiresApprovalForAgents)
@@ -208,7 +210,7 @@ function AgentForm({ agent, onDone }: { agent?: AgentDto; onDone: () => void }) 
                   type='checkbox'
                   className='accent-primary size-4'
                   checked={form.approvalRequiredActions?.includes(a.key) ?? false}
-                  onChange={() => toggle('approvalRequiredActions', a.key)}
+                  onChange={() => toggleApproval(a.key)}
                 />
                 {a.title}
               </label>
