@@ -13,7 +13,7 @@ export default function TasksScreen() {
   const [openOnly, setOpenOnly] = useState(true);
   const tasks = useQuery({
     queryKey: ['work-items', { openOnly }],
-    queryFn: ({ signal }) => getApi().workItems.list(undefined, undefined, undefined, undefined, openOnly, 1, 100, signal),
+    queryFn: ({ signal }) => getApi().workItems.list(undefined, undefined, undefined, undefined, openOnly, 1, 100, undefined, undefined, signal),
   });
   const agents = useQuery({ queryKey: ['agents'], queryFn: ({ signal }) => getApi().agents.list(signal) });
   const agentNames = new Map(agents.data?.map((a) => [a.id, a.name]));

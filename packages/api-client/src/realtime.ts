@@ -24,7 +24,8 @@ export interface RealtimeChange {
     | 'erp_warehouse'
     | 'erp_stock'
     | 'erp_sales_order'
-    | 'erp_purchase_order';
+    | 'erp_purchase_order'
+    | 'project';
   id: string;
   kind: 'created' | 'updated' | 'deleted';
 }

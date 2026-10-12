@@ -97,6 +97,8 @@ public sealed class AuthAndTenancyTests(PostgresFixture postgres) : IntegrationT
         var owner = await RegisterAsync();
         using var client = Client(owner.AccessToken);
 
+        // 项目管理依赖智能体团队，要先停用它
+        await PutAsync<ModuleDto>(client, "/api/modules/projects", new SetModuleEnabledRequest { Enabled = false });
         await PutAsync<ModuleDto>(client, "/api/modules/agents", new SetModuleEnabledRequest { Enabled = false });
         var blocked = await client.GetAsync(new Uri("/api/agents", UriKind.Relative), Ct);
         var core = await client.PutAsJsonAsync("/api/modules/platform", new SetModuleEnabledRequest { Enabled = false }, PlatformJson.Options, Ct);
@@ -112,6 +114,7 @@ public sealed class AuthAndTenancyTests(PostgresFixture postgres) : IntegrationT
         using var client = Client(owner.AccessToken);
 
         owner.Session.DisabledFeatures.Should().NotContain("agents.view");
+        await PutAsync<ModuleDto>(client, "/api/modules/projects", new SetModuleEnabledRequest { Enabled = false });
         await PutAsync<ModuleDto>(client, "/api/modules/agents", new SetModuleEnabledRequest { Enabled = false });
         var session = await GetAsync<SessionDto>(client, "/api/auth/session");
 

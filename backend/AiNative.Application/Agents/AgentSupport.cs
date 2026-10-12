@@ -21,6 +21,7 @@ public static class AgentDefaults
         Features.Tasks.Comment,
         Features.Knowledge.View,
         Features.Memory.Use,
+        Projects.ProjectFeatures.View,
     ];
 }
 

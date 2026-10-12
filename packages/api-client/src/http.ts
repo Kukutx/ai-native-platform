@@ -23,6 +23,7 @@ import {
   ModelsClient,
   ModulesClient,
   OrganizationsClient,
+  ProjectsClient,
   RolesClient,
   RunsClient,
   UsageClient,
@@ -87,6 +88,7 @@ export function createApi(config: ApiConfig) {
     usage: new UsageClient(baseUrl, http),
     models: new ModelsClient(baseUrl, http),
     workflows: new WorkflowsClient(baseUrl, http),
+    projects: new ProjectsClient(baseUrl, http),
     crm: {
       companies: new CrmCompaniesClient(baseUrl, http),
       contacts: new CrmContactsClient(baseUrl, http),

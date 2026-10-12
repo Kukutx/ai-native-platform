@@ -31,6 +31,20 @@ export default function MeScreen() {
           <Muted>当前空间：{session.data.tenant.name}</Muted>
         </Card>
       ) : null}
+      {sessionCan(session.data, 'projects.view') ? (
+        <Pressable onPress={() => router.push('/projects')} accessibilityRole='button'>
+          <Card>
+            <View style={styles.entry}>
+              <Ionicons name='flag-outline' size={20} color={p.text} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: p.text, fontWeight: '600' }}>项目</Text>
+                <Muted>项目进度、里程碑和成员</Muted>
+              </View>
+              <Ionicons name='chevron-forward' size={18} color={p.muted} />
+            </View>
+          </Card>
+        </Pressable>
+      ) : null}
       {sessionCan(session.data, 'erp.view') ? (
         <Pressable onPress={() => router.push('/erp')} accessibilityRole='button'>
           <Card>

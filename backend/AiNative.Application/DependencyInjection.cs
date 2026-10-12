@@ -38,6 +38,10 @@ public static class DependencyInjection
         services.AddScoped<Crm.CrmRecords>();
         services.AddScoped<Erp.ErpRecords>();
         services.AddScoped<Erp.Actions.ErpRefs>();
+        services.AddScoped<Projects.ProjectRecords>();
+        services.AddScoped<Projects.ProjectPlacement>();
+        services.AddScoped<Projects.ProjectWorkflow>();
+        services.AddScoped<Projects.Actions.ProjectRefs>();
         services.AddScoped<AgentPromptBuilder>();
         services.AddScoped<IAgentRuntime, AgentRuntime>();
         services.AddScoped<IChatService, ChatService>();

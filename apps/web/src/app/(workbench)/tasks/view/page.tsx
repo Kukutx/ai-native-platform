@@ -10,10 +10,12 @@ import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { ProjectPlacementFields } from '@/features/tasks/project-placement-fields';
 import { TaskCreateDialog } from '@/features/tasks/task-create-dialog';
 import { api } from '@/lib/api';
 import { formatTime, priority, workItemStatus } from '@/lib/labels';
@@ -44,6 +46,9 @@ function TaskDetail() {
         priority: item.priority,
         assigneeAgentId: item.assigneeAgentId,
         assigneeUserId: item.assigneeUserId,
+        projectId: item.projectId,
+        milestoneId: item.milestoneId,
+        dueDate: item.dueDate,
         // 基于这份数据修改：期间被别人或智能体改过时后端返回 409，而不是用旧值覆盖。
         expectedUpdatedAt: item.updatedAt,
         ...patch,
@@ -188,6 +193,26 @@ function TaskDetail() {
                     ))}
                 </SelectContent>
               </Select>
+            </Field>
+            <ProjectPlacementFields
+              value={{ projectId: item.projectId, milestoneId: item.milestoneId }}
+              disabled={!editable || update.isPending}
+              onChange={(placement) => update.mutate({ projectId: placement.projectId, milestoneId: placement.milestoneId })}
+            />
+            {item.projectId ? (
+              <Link href={`/projects/view?id=${item.projectId}`} className='text-muted-foreground -mt-2 inline-flex items-center gap-1 text-xs hover:underline'>
+                <Icons.project className='size-3' />
+                打开项目
+              </Link>
+            ) : null}
+            <Field label='截止日期'>
+              <Input
+                type='date'
+                key={item.dueDate ?? 'none'}
+                defaultValue={item.dueDate ?? ''}
+                disabled={!editable}
+                onBlur={(e) => (e.target.value || undefined) !== (item.dueDate ?? undefined) && update.mutate({ dueDate: e.target.value || undefined })}
+              />
             </Field>
             <div className='text-muted-foreground space-y-1 pt-2'>
               <p>创建人：{item.createdBy.name ?? '系统'}</p>

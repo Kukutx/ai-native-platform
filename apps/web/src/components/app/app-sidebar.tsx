@@ -33,6 +33,7 @@ const navigation = [
   { href: '/chat', label: '对话', icon: Icons.chat, feature: 'chat.use' },
   { href: '/agents', label: '智能体', icon: Icons.teams, feature: 'agents.view' },
   { href: '/tasks', label: '任务', icon: Icons.checks, feature: 'tasks.view' },
+  { href: '/projects', label: '项目', icon: Icons.project, feature: 'projects.view' },
   { href: '/crm', label: '客户', icon: Icons.crm, feature: 'crm.view' },
   { href: '/erp', label: '进销存', icon: Icons.product, feature: 'erp.view' },
   { href: '/knowledge', label: '知识库', icon: Icons.knowledge, feature: 'knowledge.view' },

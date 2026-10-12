@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { WorkItemStatus } from '@ainative/api-client';
 import { Button, Card, Chip, Field, Muted } from '@/components/ui';
 import { getApi } from '@/lib/api';
-import { formatTime, priority, workItemStatus } from '@/lib/labels';
+import { formatDate, formatTime, priority, workItemStatus } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
 const quickStatuses: WorkItemStatus[] = ['todo', 'in_progress', 'in_review', 'blocked', 'done'];
@@ -33,6 +33,9 @@ export default function TaskDetailScreen() {
         priority: item.priority,
         assigneeAgentId: item.assigneeAgentId,
         assigneeUserId: item.assigneeUserId,
+        projectId: item.projectId,
+        milestoneId: item.milestoneId,
+        dueDate: item.dueDate,
         // 基于这份数据修改：期间被别人或智能体改过时后端返回 409，而不是用旧值覆盖。
         expectedUpdatedAt: item.updatedAt,
       });
@@ -62,7 +65,13 @@ export default function TaskDetailScreen() {
         <Muted>
           {workItemStatus[item.status]} · 优先级 {priority[item.priority]}
           {item.checkoutRunId ? ' · 智能体执行中' : ''}
+          {item.dueDate ? ` · ${formatDate(item.dueDate)} 截止` : ''}
         </Muted>
+        {item.projectId ? (
+          <Text style={{ color: p.text, textDecorationLine: 'underline' }} onPress={() => router.push({ pathname: '/projects/[id]', params: { id: item.projectId! } })}>
+            查看所属项目
+          </Text>
+        ) : null}
         {item.description ? <Text style={{ color: p.text, fontSize: 15, lineHeight: 22 }}>{item.description}</Text> : null}
         <View style={styles.chips}>
           {quickStatuses.map((status) => (

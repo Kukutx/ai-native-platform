@@ -12,6 +12,9 @@ public sealed record WorkItemDto(
     WorkItemStatus Status,
     WorkItemPriority Priority,
     Guid? ParentId,
+    Guid? ProjectId,
+    Guid? MilestoneId,
+    DateOnly? DueDate,
     Guid? AssigneeAgentId,
     Guid? AssigneeUserId,
     Guid? CheckoutRunId,
@@ -38,6 +41,18 @@ public sealed record CreateWorkItemRequest
 
     public Guid? ParentId { get; init; }
 
+    /// <summary>
+    /// 所属项目。省略且填了上级任务时沿用上级任务的项目和里程碑。
+    /// </summary>
+    public Guid? ProjectId { get; init; }
+
+    /// <summary>
+    /// 所属里程碑；只填它时项目取里程碑所在的项目。
+    /// </summary>
+    public Guid? MilestoneId { get; init; }
+
+    public DateOnly? DueDate { get; init; }
+
     public Guid? AssigneeAgentId { get; init; }
 
     public Guid? AssigneeUserId { get; init; }
@@ -52,6 +67,15 @@ public sealed record UpdateWorkItemRequest
     public required WorkItemStatus Status { get; init; }
 
     public required WorkItemPriority Priority { get; init; }
+
+    /// <summary>
+    /// 所属项目与里程碑，与其他字段一样整体提交：留空表示不属于任何项目。
+    /// </summary>
+    public Guid? ProjectId { get; init; }
+
+    public Guid? MilestoneId { get; init; }
+
+    public DateOnly? DueDate { get; init; }
 
     public Guid? AssigneeAgentId { get; init; }
 

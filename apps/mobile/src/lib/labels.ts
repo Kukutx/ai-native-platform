@@ -5,6 +5,8 @@ import type {
   ErpPurchaseOrderStatus,
   ErpSalesOrderStatus,
   ErpStockMovementKind,
+  ProjectProgressDto,
+  ProjectStatus,
   WorkItemPriority,
   WorkItemStatus,
   WorkflowRunStatus,
@@ -22,6 +24,29 @@ export const workItemStatus: Record<WorkItemStatus, string> = {
   done: '已完成',
   cancelled: '已取消',
 };
+
+export const projectStatus: Record<ProjectStatus, string> = {
+  planned: '计划中',
+  active: '进行中',
+  on_hold: '暂停',
+  completed: '已完成',
+  cancelled: '已取消',
+};
+
+/** 进度一句话：「3/5 已完成 · 60%」，有受阻或逾期时附在后面。 */
+export function formatProgress(progress: ProjectProgressDto) {
+  if (!progress.total) {
+    return '还没有任务';
+  }
+
+  return [
+    `${progress.done}/${progress.total} 已完成 · ${progress.percent}%`,
+    progress.blocked ? `受阻 ${progress.blocked}` : '',
+    progress.overdue ? `逾期 ${progress.overdue}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 export const priority: Record<WorkItemPriority, string> = {
   low: '低',

@@ -11,6 +11,8 @@ using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using NSwag;
 using NSwag.Generation.Processors.Security;
 using Serilog;
@@ -84,8 +86,10 @@ internal static class ApiSetup
 
     public static WebApplication UsePlatformApi(this WebApplication app)
     {
-        app.UseExceptionHandler();
+        // 请求日志放在异常处理外层，记录的是转换后的真实状态码：客户端中途取消记为 499，业务错误按 4xx 记，
+        // 不会被当成 500 错误刷屏。真正的 500 由异常处理器连同堆栈记录。
         app.UseSerilogRequestLogging();
+        app.UseExceptionHandler();
         app.UseCors(CorsPolicy);
 
         // 接口文档公开可读（兜底授权策略对没有终结点的请求同样生效，所以放在授权之前）。
@@ -118,6 +122,10 @@ internal static class ApiSetup
         }
 
         await using var scope = app.Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync().ConfigureAwait(false);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // 先建好迁移历史表：空数据库上 EF 会先查询这张表，失败后才去创建，留下一条看着像故障的错误日志。
+        await db.GetService<IHistoryRepository>().CreateIfNotExistsAsync().ConfigureAwait(false);
+        await db.Database.MigrateAsync().ConfigureAwait(false);
     }
 }

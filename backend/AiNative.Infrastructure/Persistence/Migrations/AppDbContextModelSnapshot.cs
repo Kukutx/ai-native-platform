@@ -2246,6 +2246,219 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.ToTable("tenant_modules", (string)null);
                 });
 
+            modelBuilder.Entity("AiNative.Domain.Projects.Project", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("character varying(10000)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid?>("LeadAgentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lead_agent_id");
+
+                    b.Property<Guid?>("LeadUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lead_user_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<DateOnly?>("StartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("start_date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("status");
+
+                    b.Property<DateOnly?>("TargetDate")
+                        .HasColumnType("date")
+                        .HasColumnName("target_date");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Projects.Project.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_projects");
+
+                    b.HasIndex("LeadAgentId")
+                        .HasDatabaseName("ix_projects_lead_agent_id");
+
+                    b.HasIndex("LeadUserId")
+                        .HasDatabaseName("ix_projects_lead_user_id");
+
+                    b.HasIndex("Name")
+                        .HasDatabaseName("ix_projects_name");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Name"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Name"), new[] { "gin_trgm_ops" });
+
+                    b.HasIndex("TenantId", "Status")
+                        .HasDatabaseName("ix_projects_tenant_id_status");
+
+                    b.ToTable("projects", (string)null);
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Projects.ProjectMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AgentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("agent_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<string>("Responsibility")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("responsibility");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_project_members");
+
+                    b.HasIndex("AgentId")
+                        .HasDatabaseName("ix_project_members_agent_id");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_project_members_tenant_id");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_project_members_user_id");
+
+                    b.HasIndex("ProjectId", "AgentId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_project_members_project_id_agent_id")
+                        .HasFilter("agent_id IS NOT NULL");
+
+                    b.HasIndex("ProjectId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_project_members_project_id_user_id")
+                        .HasFilter("user_id IS NOT NULL");
+
+                    b.ToTable("project_members", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_project_members_one_member", "(user_id IS NULL) <> (agent_id IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Projects.ProjectMilestone", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("description");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_project_milestones");
+
+                    b.HasIndex("TenantId")
+                        .HasDatabaseName("ix_project_milestones_tenant_id");
+
+                    b.HasIndex("ProjectId", "DueDate")
+                        .HasDatabaseName("ix_project_milestones_project_id_due_date");
+
+                    b.ToTable("project_milestones", (string)null);
+                });
+
             modelBuilder.Entity("AiNative.Domain.Tenancy.Organization", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2391,9 +2604,17 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
                     b.Property<DateTimeOffset?>("ExecutionLockedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("execution_locked_at");
+
+                    b.Property<Guid?>("MilestoneId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("milestone_id");
 
                     b.Property<int>("Number")
                         .HasColumnType("integer")
@@ -2408,6 +2629,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)")
                         .HasColumnName("priority");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("project_id");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -2453,8 +2678,14 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.HasIndex("CheckoutRunId")
                         .HasDatabaseName("ix_work_items_checkout_run_id");
 
+                    b.HasIndex("MilestoneId")
+                        .HasDatabaseName("ix_work_items_milestone_id");
+
                     b.HasIndex("ParentId")
                         .HasDatabaseName("ix_work_items_parent_id");
+
+                    b.HasIndex("ProjectId", "Status")
+                        .HasDatabaseName("ix_work_items_project_id_status");
 
                     b.HasIndex("TenantId", "Number")
                         .IsUnique()
@@ -3390,6 +3621,60 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_tenant_modules_tenants_tenant_id");
                 });
 
+            modelBuilder.Entity("AiNative.Domain.Projects.Project", b =>
+                {
+                    b.HasOne("AiNative.Domain.Agents.Agent", null)
+                        .WithMany()
+                        .HasForeignKey("LeadAgentId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_projects_agents_lead_agent_id");
+
+                    b.HasOne("AiNative.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("LeadUserId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_projects_users_lead_user_id");
+
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_projects_tenants_tenant_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Projects.ProjectMember", b =>
+                {
+                    b.HasOne("AiNative.Domain.Agents.Agent", null)
+                        .WithMany()
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_project_members_agents_agent_id");
+
+                    b.HasOne("AiNative.Domain.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_project_members_projects_project_id");
+
+                    b.HasOne("AiNative.Domain.Identity.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_project_members_users_user_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Projects.ProjectMilestone", b =>
+                {
+                    b.HasOne("AiNative.Domain.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_project_milestones_projects_project_id");
+                });
+
             modelBuilder.Entity("AiNative.Domain.Tenancy.Organization", b =>
                 {
                     b.HasOne("AiNative.Domain.Tenancy.Organization", null)
@@ -3424,11 +3709,23 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_work_items_agents_assignee_agent_id");
 
+                    b.HasOne("AiNative.Domain.Projects.ProjectMilestone", null)
+                        .WithMany()
+                        .HasForeignKey("MilestoneId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_work_items_project_milestones_milestone_id");
+
                     b.HasOne("AiNative.Domain.Work.WorkItem", null)
                         .WithMany()
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.SetNull)
                         .HasConstraintName("fk_work_items_work_items_parent_id");
+
+                    b.HasOne("AiNative.Domain.Projects.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_work_items_projects_project_id");
 
                     b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
                         .WithMany()
