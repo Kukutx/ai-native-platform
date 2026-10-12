@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import type { CrmDealDto, CrmPipelineStageDto, CrmStageDto } from '@ainative/api-client';
@@ -20,22 +20,37 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CrmNav } from '@/features/crm/crm-nav';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
+import { DealList } from '@/features/crm/deal-list';
 import { FieldSettingsDialog } from '@/features/crm/field-settings-dialog';
 import { CloseDealDialog, useMoveDeal, type MoveRequest } from '@/features/crm/move-deal';
 import { StageSettingsDialog } from '@/features/crm/stage-settings-dialog';
 import { isOverdue } from '@/features/crm/utils';
+import { useUrlState } from '@/hooks/use-url-state';
 import { api } from '@/lib/api';
+import { catalogQueries } from '@/lib/catalogs';
 import { formatAmount, formatDate, formatTotals } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 
 const DRAG_TYPE = 'application/x-crm-deal';
 
-export default function CrmBoardPage() {
+export default function CrmDealsPage() {
+  return (
+    <Suspense>
+      <CrmDeals />
+    </Suspense>
+  );
+}
+
+/** 商机：看板和列表两种视图，「我负责的」两边共用；视图和筛选条件记在地址里。 */
+function CrmDeals() {
   const { can, session } = useSession();
-  const [mine, setMine] = useState(false);
+  const [filters, setFilters] = useUrlState({ view: 'board', mine: false, q: '', stage: '', status: '', page: 1 });
+  const view = filters.view === 'list' ? 'list' : 'board';
+  const mine = filters.mine;
   const [creating, setCreating] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState(false);
   const [configuringFields, setConfiguringFields] = useState(false);
@@ -43,7 +58,9 @@ export default function CrmBoardPage() {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const ownerUserId = mine ? session?.user.id : undefined;
   const pipelineKey = queryKeys.crmPipeline(ownerUserId);
-  const pipeline = useQuery({ queryKey: pipelineKey, queryFn: ({ signal }) => api.crm.deals.pipeline(ownerUserId, signal) });
+  const pipeline = useQuery({ queryKey: pipelineKey, queryFn: ({ signal }) => api.crm.deals.pipeline(ownerUserId, signal), enabled: view === 'board' });
+  // 阶段设置需要阶段列表：看板从销售漏斗里取，列表视图从阶段目录取。
+  const stageCatalog = useQuery({ ...catalogQueries.crmStages(), enabled: view === 'list' });
   const move = useMoveDeal(pipelineKey);
   const manage = can('crm.manage');
 
@@ -60,17 +77,33 @@ export default function CrmBoardPage() {
     }
   };
   const findDeal = (id: string) => pipeline.data?.stages.flatMap((s) => s.deals).find((d) => d.id === id);
-  const stages = pipeline.data?.stages.map((s) => s.stage) ?? [];
+  const stages = pipeline.data?.stages.map((s) => s.stage) ?? stageCatalog.data ?? [];
 
   return (
     <div className='flex min-h-0 flex-1 flex-col gap-6 p-6'>
       <PageHeader
         title='客户'
-        description='销售看板：拖动商机卡片推进阶段，阶段变化会自动记入跟进记录，也可以触发自动化。'
+        description={
+          view === 'board'
+            ? '销售看板：拖动商机卡片推进阶段，阶段变化会自动记入跟进记录，也可以触发自动化。'
+            : '全部商机，最近更新的排在前面；可以按阶段、状态筛选。'
+        }
         actions={
           <>
-            <Select value={mine ? 'mine' : 'all'} onValueChange={(v) => setMine(v === 'mine')}>
-              <SelectTrigger className='w-32'>
+            <Tabs value={view} onValueChange={(next) => setFilters({ view: next, page: 1 })}>
+              <TabsList aria-label='视图'>
+                <TabsTrigger value='board'>
+                  <Icons.board />
+                  看板
+                </TabsTrigger>
+                <TabsTrigger value='list'>
+                  <Icons.list />
+                  列表
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Select value={mine ? 'mine' : 'all'} onValueChange={(v) => setFilters({ mine: v === 'mine', page: 1 })}>
+              <SelectTrigger className='w-32' aria-label='负责人'>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -80,7 +113,7 @@ export default function CrmBoardPage() {
             </Select>
             {can('crm.configure') ? (
               <>
-                <Button variant='outline' onClick={() => setConfiguring(true)} disabled={!pipeline.data}>
+                <Button variant='outline' onClick={() => setConfiguring(true)} disabled={!stages.length}>
                   <Icons.settings />
                   阶段设置
                 </Button>
@@ -100,7 +133,9 @@ export default function CrmBoardPage() {
         }
       />
       <CrmNav />
-      {pipeline.isPending ? (
+      {view === 'list' ? (
+        <DealList filters={filters} onChange={setFilters} ownerUserId={ownerUserId} />
+      ) : pipeline.isPending ? (
         <Skeleton className='h-64 w-full' />
       ) : pipeline.isError && !pipeline.data ? (
         <ErrorState query={pipeline} />

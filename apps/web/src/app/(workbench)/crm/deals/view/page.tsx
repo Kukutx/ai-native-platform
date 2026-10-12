@@ -47,7 +47,7 @@ function DealDetail() {
   });
 
   if (!detail.data) {
-    return <DetailState id={id} query={detail} subject='商机' back={{ href: '/crm', label: '销售看板' }} />;
+    return <DetailState id={id} query={detail} subject='商机' back={{ href: '/crm', label: '商机' }} />;
   }
 
   const { deal } = detail.data;
@@ -68,7 +68,7 @@ function DealDetail() {
     <div className='space-y-6 p-6'>
       <Link href='/crm' className='text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm'>
         <Icons.chevronLeft className='size-4' />
-        销售看板
+        商机
       </Link>
       <div className='flex flex-wrap items-start justify-between gap-4'>
         <div className='space-y-2'>
