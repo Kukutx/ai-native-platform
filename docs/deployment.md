@@ -44,11 +44,24 @@ openssl rand -base64 48   # 令牌签名密钥
 | `ConnectionStrings__Postgres` | 数据库连接字符串。Compose 里已按 `POSTGRES_PASSWORD` 拼好。 |
 | `Database__MigrateOnStartup` | 启动时自动迁移数据库。开发环境默认开，其他环境默认关；示例 Compose 里打开。 |
 | `ANTHROPIC_API_KEY` | Claude 的密钥。不配置任何模型时使用内置演示模型。 |
-| `Ai__Providers__<名称>__Kind` / `__BaseUrl` / `__ApiKey` / `__Models__0` | 增加模型供应商。`Kind` 为 `anthropic` 或 `openai`（OpenAI 及兼容端点，如 DeepSeek、通义、Ollama、vLLM）。 |
+| `Ai__Providers__<名称>__Kind` / `__BaseUrl` / `__ApiKey` / `__Models__0` | 增加模型供应商。`Kind` 为 `anthropic` 或 `openai`（OpenAI 及兼容端点，如 DeepSeek、通义、Ollama、vLLM）。`anthropic` 也可以设 `BaseUrl`，经由企业网关或代理访问 Claude（例如 `Ai__Providers__anthropic__BaseUrl`）。容器里连宿主机上的 Ollama 见下文。 |
 | `Ai__DefaultProvider` / `Ai__DefaultModel` | 新智能体和对话的默认模型。 |
 | `Ai__Embeddings__Provider` / `Ai__Embeddings__Model` | 知识库语义检索用的向量模型（协议须为 `openai`）。不配置时只用关键词与字面相似检索。 |
+| `Ai__Embeddings__RequestDimensions` | 请求时要求模型输出的维度，只有部分模型支持（例如 OpenAI `text-embedding-3` 系列），默认不传。无论模型输出多少维，入库前都统一到 1024 维。 |
+| `Ai__Embeddings__BatchSize` | 每次请求向量化的片段数，默认 64。服务对单次请求的条数有限制时调小。 |
+| `Ai__Embeddings__MaxDistance` | 向量检索的相关性门槛（余弦距离，0 最相似），默认 `0.8`。不同模型的距离分布不同，检索结果里不相关的内容偏多时调小。 |
 | `Ai__Pricing__<模型>__InputPerMillion` / `__OutputPerMillion` | 自定义模型单价（美元 / 百万 token），用于预算和用量统计。内置了 Claude 各模型的单价；其他模型不配单价时花费按 0 记，月度预算对它不起作用，启动日志会逐个提醒。免费的本地模型把单价配成 0 即可消除提醒。 |
-| `Scheduler__MaxConcurrentRuns` | 同时执行的智能体数量上限，默认 4。 |
+| `Scheduler__MaxConcurrentRuns` | 每个实例同时执行的智能体数量上限，默认 4。 |
+| `Scheduler__Enabled` / `Workflows__Enabled` | 本实例是否执行智能体 / 工作流，默认都是 `true`。多实例部署时可以让部分实例只承担接口流量。 |
+| `Scheduler__PollInterval` | 没有唤醒信号时的兜底轮询间隔，默认 `00:00:10`。 |
+| `Agents__MaxStepsPerRun` | 智能体一轮执行里最多与模型往返的次数，默认 16。 |
+| `Agents__MaxOutputTokens` | 智能体每次调用模型的最大输出 token，默认 16000。 |
+| `Agents__RunTimeout` | 一轮执行的最长时间，超时按「超时」结束，默认 `00:20:00`。 |
+| `Agents__CheckoutLease` | 任务领取锁的有效期，执行崩溃没能释放时，过期后可被其他执行接手，默认 `00:30:00`。 |
+| `Workflows__MaxConcurrentRuns` | 每个实例同时执行的工作流运行数量上限，默认 8。 |
+| `Workflows__MaxLoopItems` | 「遍历」步骤一次最多处理的列表项数，超出时该步骤失败，默认 100。 |
+| `Workflows__LlmTimeout` / `Workflows__LlmMaxOutputTokens` | 工作流「模型」步骤单次调用的超时和最大输出 token，默认 `00:03:00`、8000。 |
+| `Workflows__MaxTriggerDepth` | 工作流步骤引发的事件再触发工作流的最大层数，防止互相触发形成循环，默认 3。 |
 | `OutboundNetwork__AllowPrivateNetworkRequests` | 是否允许工作流的「HTTP 请求」步骤和接入的外部 MCP 服务访问内网和本机地址，默认 `false`。需要调用同一内网里的服务时再打开。（旧名 `Workflows__AllowPrivateNetworkRequests` 已不再生效。） |
 | `Workflows__MaxEventRunsPerMinute` | 单个工作流每分钟最多被事件或 Webhook 触发的次数，默认 30。 |
 | `Secrets__MasterKey` | 加密「集成 → 密钥」的主密钥，32 字节随机数的 Base64，用 `openssl rand -base64 32` 生成。不设置时由 `Auth__SigningKey` 派生，能用，但之后再更换签名密钥会让已保存的密钥全部解不开，所以生产环境建议设置。主密钥不进数据库，请和数据库备份分开保存。 |
@@ -59,6 +72,8 @@ openssl rand -base64 48   # 令牌签名密钥
 | `Cors__AllowedOrigins__N` | 允许跨域访问的来源。默认已包含桌面端（Tauri）的来源；镜像自带的 Web 页面同源，不需要配置。只有把 Web 单独部署到另一个域名时才需要加。 |
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | 信任反向代理传来的 `X-Forwarded-For` / `X-Forwarded-Proto`。示例 Compose 里已打开，此时应用端口只应通过反向代理访问。 |
 | `Serilog__MinimumLevel__Default` | 日志级别，默认 `Information`。日志写到标准输出，用 `docker compose logs` 查看。 |
+
+### 接入其他模型
 
 接入 OpenAI 兼容端点的例子（写进 `deploy/.env`）：
 
@@ -73,6 +88,21 @@ Ai__DefaultModel=deepseek-chat
 Ai__Pricing__deepseek-chat__InputPerMillion=<输入单价>
 Ai__Pricing__deepseek-chat__OutputPerMillion=<输出单价>
 ```
+
+连宿主机上运行的 Ollama 时，容器里的 `localhost` 指的是容器自己，要写成 `host.docker.internal`：
+
+```bash
+Ai__Providers__ollama__Kind=openai
+Ai__Providers__ollama__BaseUrl=http://host.docker.internal:11434/v1
+Ai__Providers__ollama__Models__0=qwen3
+Ai__DefaultProvider=ollama
+Ai__DefaultModel=qwen3
+# 本地模型免费，单价配成 0（不配会在启动日志里提醒预算不起作用）
+Ai__Pricing__qwen3__InputPerMillion=0
+Ai__Pricing__qwen3__OutputPerMillion=0
+```
+
+Docker Desktop（Windows、macOS）自带 `host.docker.internal`；Linux 上要在 `docker-compose.yml` 的 `app` 服务里打开已经写好的 `extra_hosts` 注释。Ollama 默认只监听 `127.0.0.1`，还要设置环境变量 `OLLAMA_HOST=0.0.0.0` 让它接受来自容器的连接（只在内网或有防火墙时这样做）。
 
 ## HTTPS 与反向代理
 
