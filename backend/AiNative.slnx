@@ -1,0 +1,10 @@
+<Solution>
+  <Project Path="AiNative.Api/AiNative.Api.csproj" />
+  <Project Path="AiNative.Application/AiNative.Application.csproj" />
+  <Project Path="AiNative.Contracts/AiNative.Contracts.csproj" />
+  <Project Path="AiNative.Domain/AiNative.Domain.csproj" />
+  <Project Path="AiNative.Infrastructure/AiNative.Infrastructure.csproj" />
+  <Project Path="AiNative.IntegrationTests/AiNative.IntegrationTests.csproj" />
+  <Project Path="AiNative.OpenApi.Export/AiNative.OpenApi.Export.csproj" />
+  <Project Path="AiNative.UnitTests/AiNative.UnitTests.csproj" />
+</Solution>
