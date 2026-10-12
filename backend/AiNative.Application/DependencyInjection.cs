@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<TenantCalendar>();
 
         services.AddScoped<WorkItemWorkflow>();
+        services.AddScoped<WorkItemDependencyRules>();
         services.AddScoped<Crm.CrmRecords>();
         services.AddScoped<Crm.CrmCustomFields>();
         services.AddScoped<Erp.ErpRecords>();

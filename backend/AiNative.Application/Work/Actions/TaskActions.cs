@@ -76,7 +76,7 @@ internal sealed class GetTaskAction(IRequestDispatcher dispatcher) : PlatformAct
 
     public override string Title => "查看任务详情";
 
-    public override string Description => "查看任务详情，包括描述、子任务和全部评论。";
+    public override string Description => "查看任务详情，包括描述、子任务、全部评论，以及前置任务（dependencies，都关闭后才能开始）和后续任务（dependents）。";
 
     public override string RequiredFeature => Features.Tasks.View;
 
@@ -109,8 +109,14 @@ public sealed class CreateTaskInput
     [Description("放进哪个里程碑（里程碑 ID，可用 projects.get 查到）；只填它时项目自动取里程碑所在的项目")]
     public Guid? MilestoneId { get; init; }
 
+    [Description("计划开始日期，格式 yyyy-MM-dd；不能晚于截止日期")]
+    public DateOnly? StartDate { get; init; }
+
     [Description("截止日期，格式 yyyy-MM-dd")]
     public DateOnly? DueDate { get; init; }
+
+    [Description("前置任务 ID 列表：它们都关闭（完成或取消）后这个任务才能开始。指派给智能体时，对方要等前置任务都关闭后才会被唤醒")]
+    public IReadOnlyList<Guid> DependsOn { get; init; } = [];
 }
 
 internal sealed class CreateTaskAction(IRequestDispatcher dispatcher) : PlatformAction<CreateTaskInput, WorkItemDto>
@@ -121,7 +127,7 @@ internal sealed class CreateTaskAction(IRequestDispatcher dispatcher) : Platform
 
     public override string Title => "创建任务";
 
-    public override string Description => "创建任务或子任务，可直接指派给某个智能体（被指派者会自动被唤醒），可放进项目和里程碑并设定截止日期。用于拆解工作、委派给下属。";
+    public override string Description => "创建任务或子任务，可直接指派给某个智能体（被指派者会自动被唤醒），可放进项目和里程碑、设定开始和截止日期、指定前置任务。用于拆解工作、委派给下属；规划有先后顺序的工作时用 dependsOn 串起来。";
 
     public override string RequiredFeature => Features.Tasks.Manage;
 
@@ -136,7 +142,9 @@ internal sealed class CreateTaskAction(IRequestDispatcher dispatcher) : Platform
                 AssigneeAgentId = input.AssigneeAgentId,
                 ProjectId = input.ProjectId,
                 MilestoneId = input.MilestoneId,
+                StartDate = input.StartDate,
                 DueDate = input.DueDate,
+                DependsOn = input.DependsOn,
             }),
             cancellationToken);
 }
@@ -155,14 +163,23 @@ public sealed class ScheduleTaskInput
     [Description("为 true 时把任务移出项目（同时移出里程碑）")]
     public bool RemoveFromProject { get; init; }
 
+    [Description("新的开始日期，格式 yyyy-MM-dd；不改就省略")]
+    public DateOnly? StartDate { get; init; }
+
+    [Description("为 true 时清除开始日期")]
+    public bool ClearStartDate { get; init; }
+
     [Description("新的截止日期，格式 yyyy-MM-dd；不改就省略")]
     public DateOnly? DueDate { get; init; }
 
     [Description("为 true 时清除截止日期")]
     public bool ClearDueDate { get; init; }
+
+    [Description("为 true 时顺延后续任务：开始日期早于本任务截止日期的未关闭后续任务连同它们的后续任务一起往后挪，只往后不往前。任务延期时用它保持排期不冲突")]
+    public bool ShiftDependents { get; init; }
 }
 
-internal sealed class ScheduleTaskAction(IRequestDispatcher dispatcher, IAppDbContext db) : PlatformAction<ScheduleTaskInput, WorkItemDto>
+internal sealed class ScheduleTaskAction(IRequestDispatcher dispatcher, IAppDbContext db) : PlatformAction<ScheduleTaskInput, ScheduleWorkItemResultDto>
 {
     public override string Key => "tasks.schedule";
 
@@ -170,11 +187,11 @@ internal sealed class ScheduleTaskAction(IRequestDispatcher dispatcher, IAppDbCo
 
     public override string Title => "安排任务";
 
-    public override string Description => "调整已有任务所属的项目、里程碑和截止日期，只需填写要改的部分。规划项目时用它把任务归入里程碑。";
+    public override string Description => "调整已有任务所属的项目、里程碑和开始、截止日期，只需填写要改的部分；shiftDependents 为 true 时顺延因此冲突的后续任务。返回调整后的任务（item）和被顺延的任务（shifted）。规划项目时用它把任务归入里程碑、排开时间。";
 
     public override string RequiredFeature => Features.Tasks.Manage;
 
-    protected override async Task<WorkItemDto> ExecuteAsync(ScheduleTaskInput input, ActionContext context, CancellationToken cancellationToken)
+    protected override async Task<ScheduleWorkItemResultDto> ExecuteAsync(ScheduleTaskInput input, ActionContext context, CancellationToken cancellationToken)
     {
         // 直接查库读取当前内容，只要求本动作声明的权限。
         var item = await db.WorkItems.AsNoTracking().FirstOrDefaultAsync(w => w.Id == input.TaskId, cancellationToken).ConfigureAwait(false)
@@ -184,24 +201,89 @@ internal sealed class ScheduleTaskAction(IRequestDispatcher dispatcher, IAppDbCo
             : input.ProjectId is not null || input.MilestoneId is not null
                 ? (input.ProjectId, input.MilestoneId)
                 : (item.ProjectId, item.MilestoneId);
-        return await dispatcher.SendAsync(
-            new UpdateWorkItemCommand(item.Id, new UpdateWorkItemRequest
-            {
-                Title = item.Title,
-                Description = item.Description,
-                Status = item.Status,
-                Priority = item.Priority,
-                ProjectId = projectId,
-                MilestoneId = milestoneId,
-                DueDate = input.ClearDueDate ? null : input.DueDate ?? item.DueDate,
-                AssigneeAgentId = item.AssigneeAgentId,
-                AssigneeUserId = item.AssigneeUserId,
+        var startDate = input.ClearStartDate ? null : input.StartDate ?? item.StartDate;
+        var dueDate = input.ClearDueDate ? null : input.DueDate ?? item.DueDate;
 
-                // 基于读到的版本修改，期间被别人改过就返回冲突，不会覆盖别人的修改。
-                ExpectedUpdatedAt = item.UpdatedAt,
+        // 基于读到的版本修改，期间被别人改过就返回冲突，不会覆盖别人的修改。
+        DateTimeOffset? expected = item.UpdatedAt;
+        if (projectId != item.ProjectId || milestoneId != item.MilestoneId)
+        {
+            var moved = await dispatcher.SendAsync(
+                new UpdateWorkItemCommand(item.Id, new UpdateWorkItemRequest
+                {
+                    Title = item.Title,
+                    Description = item.Description,
+                    Status = item.Status,
+                    Priority = item.Priority,
+                    ProjectId = projectId,
+                    MilestoneId = milestoneId,
+                    StartDate = startDate,
+                    DueDate = dueDate,
+                    AssigneeAgentId = item.AssigneeAgentId,
+                    AssigneeUserId = item.AssigneeUserId,
+                    ExpectedUpdatedAt = expected,
+                }),
+                cancellationToken).ConfigureAwait(false);
+            if (!input.ShiftDependents)
+            {
+                return new ScheduleWorkItemResultDto(moved, []);
+            }
+
+            // 同一事务里刚检查并改过，接着顺延不用再比对版本。
+            expected = null;
+        }
+
+        return await dispatcher.SendAsync(
+            new ScheduleWorkItemCommand(item.Id, new ScheduleWorkItemRequest
+            {
+                StartDate = startDate,
+                DueDate = dueDate,
+                ShiftDependents = input.ShiftDependents,
+                ExpectedUpdatedAt = expected,
             }),
             cancellationToken).ConfigureAwait(false);
     }
+}
+
+public sealed class TaskDependencyInput
+{
+    [Description("要等待的任务（后续任务）ID")]
+    public required Guid TaskId { get; init; }
+
+    [Description("前置任务 ID：它关闭（完成或取消）后 taskId 才能开始")]
+    public required Guid DependsOnTaskId { get; init; }
+}
+
+internal sealed class AddTaskDependencyAction(IRequestDispatcher dispatcher) : PlatformAction<TaskDependencyInput, WorkItemLinkDto>
+{
+    public override string Key => "tasks.add_dependency";
+
+    public override string ModuleKey => AgentsModuleKeys.Agents;
+
+    public override string Title => "添加前置任务";
+
+    public override string Description => "让一个任务等另一个任务关闭（完成或取消）后才能开始。前置任务未关闭时负责的智能体领取不到后续任务，前置任务都关闭后它会被唤醒。不能形成循环。返回前置任务的摘要。";
+
+    public override string RequiredFeature => Features.Tasks.Manage;
+
+    protected override Task<WorkItemLinkDto> ExecuteAsync(TaskDependencyInput input, ActionContext context, CancellationToken cancellationToken)
+        => dispatcher.SendAsync(new AddWorkItemDependencyCommand(input.TaskId, input.DependsOnTaskId), cancellationToken);
+}
+
+internal sealed class RemoveTaskDependencyAction(IRequestDispatcher dispatcher) : PlatformAction<TaskDependencyInput, WorkItemLinkDto>
+{
+    public override string Key => "tasks.remove_dependency";
+
+    public override string ModuleKey => AgentsModuleKeys.Agents;
+
+    public override string Title => "去掉前置任务";
+
+    public override string Description => "去掉一条前置任务关系。任务因此不再等待任何前置任务时，负责的智能体会被唤醒。返回被去掉的前置任务的摘要。";
+
+    public override string RequiredFeature => Features.Tasks.Manage;
+
+    protected override Task<WorkItemLinkDto> ExecuteAsync(TaskDependencyInput input, ActionContext context, CancellationToken cancellationToken)
+        => dispatcher.SendAsync(new RemoveWorkItemDependencyCommand(input.TaskId, input.DependsOnTaskId), cancellationToken);
 }
 
 public sealed class UpdateTaskStatusInput

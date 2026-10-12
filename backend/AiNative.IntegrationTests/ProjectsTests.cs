@@ -215,7 +215,7 @@ public sealed class ProjectsTests(PostgresFixture postgres) : IntegrationTest(po
         var planner = await PostAsync<RoleDto>(ownerClient, "/api/roles", new SaveRoleRequest { Key = "planner", Name = "排期", Features = ["tasks.manage"] });
         using var plannerClient = Client(await AddMemberAsync(ownerClient, "planner@example.com", planner.Id));
         var taskId = task.GetProperty("id").GetGuid();
-        var rescheduled = await InvokeAsync(plannerClient, "tasks.schedule", new { taskId, dueDate = Today.AddDays(4) });
+        var rescheduled = (await InvokeAsync(plannerClient, "tasks.schedule", new { taskId, dueDate = Today.AddDays(4) })).GetProperty("item");
         rescheduled.GetProperty("dueDate").GetString().Should().Be(Today.AddDays(4).ToString("yyyy-MM-dd"));
         rescheduled.GetProperty("milestoneId").GetGuid().Should().Be(venueId);
 
@@ -292,6 +292,7 @@ public sealed class ProjectsTests(PostgresFixture postgres) : IntegrationTest(po
         Priority = item.Priority,
         ProjectId = item.ProjectId,
         MilestoneId = item.MilestoneId,
+        StartDate = item.StartDate,
         DueDate = item.DueDate,
         AssigneeAgentId = item.AssigneeAgentId,
         AssigneeUserId = item.AssigneeUserId,

@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 namespace AiNative.Infrastructure.Work;
 
 /// <summary>
-/// 任务领取：一条条件更新完成"只有负责人、未关闭、未被其他执行持有（或持有已过期）才能领取"，
+/// 任务领取：一条条件更新完成"只有负责人、未关闭、前置任务都已关闭、未被其他执行持有（或持有已过期）才能领取"，
 /// 领取时把待办推进到进行中。
 /// </summary>
 internal sealed class WorkItemCheckout(AppDbContext db, IChangeFeed changes, IOptions<AgentRunOptions> options, TimeProvider clock) : IWorkItemCheckout
@@ -23,7 +23,9 @@ internal sealed class WorkItemCheckout(AppDbContext db, IChangeFeed changes, IOp
                 && w.AssigneeAgentId == agentId
                 && w.Status != WorkItemStatus.Done
                 && w.Status != WorkItemStatus.Cancelled
-                && (w.CheckoutRunId == null || w.CheckoutRunId == runId || w.ExecutionLockedAt < staleBefore))
+                && (w.CheckoutRunId == null || w.CheckoutRunId == runId || w.ExecutionLockedAt < staleBefore)
+                && !db.WorkItemDependencies.Any(d => d.WorkItemId == w.Id
+                    && db.WorkItems.Any(p => p.Id == d.DependsOnId && p.Status != WorkItemStatus.Done && p.Status != WorkItemStatus.Cancelled)))
             .ExecuteUpdateAsync(
                 s => s.SetProperty(w => w.CheckoutRunId, runId)
                     .SetProperty(w => w.ExecutionLockedAt, now)

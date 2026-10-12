@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { UpdateWorkItemRequest, WorkItemDto } from '@ainative/api-client';
+import type { UpdateWorkItemRequest, WorkItemDto, WorkItemLinkDto } from '@ainative/api-client';
 import { useSession } from '@/components/app/session-provider';
 import { StatusBadge } from '@/components/app/status-badge';
 import { Icons } from '@/components/icons';
@@ -17,8 +17,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { ProjectPlacementFields } from '@/features/tasks/project-placement-fields';
 import { TaskCreateDialog } from '@/features/tasks/task-create-dialog';
+import { TaskPicker } from '@/features/tasks/task-picker';
 import { api } from '@/lib/api';
-import { formatTime, priority, workItemStatus } from '@/lib/labels';
+import { formatDate, formatTime, priority, workItemStatus } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
 const UNASSIGNED = '__none__';
@@ -48,6 +49,7 @@ function TaskDetail() {
         assigneeUserId: item.assigneeUserId,
         projectId: item.projectId,
         milestoneId: item.milestoneId,
+        startDate: item.startDate,
         dueDate: item.dueDate,
         // 基于这份数据修改：期间被别人或智能体改过时后端返回 409，而不是用旧值覆盖。
         expectedUpdatedAt: item.updatedAt,
@@ -55,6 +57,12 @@ function TaskDetail() {
       });
     },
     // 失败（包括冲突）也刷新，界面回到最新内容。
+    onSettled: refresh,
+  });
+  const dependency = useMutation({
+    mutationFn: async ({ dependsOnId, remove }: { dependsOnId: string; remove?: boolean }) => {
+      await (remove ? api.workItems.removeDependency(id, dependsOnId) : api.workItems.addDependency(id, { dependsOnId }));
+    },
     onSettled: refresh,
   });
   const addComment = useMutation({
@@ -69,8 +77,9 @@ function TaskDetail() {
     return <Skeleton className='m-6 h-40' />;
   }
 
-  const { item, comments, subtasks } = detail.data;
+  const { item, comments, subtasks, dependencies, dependents } = detail.data;
   const editable = can('tasks.manage');
+  const waiting = dependencies.filter((d) => d.status !== 'done' && d.status !== 'cancelled');
 
   return (
     <div className='space-y-6 p-6'>
@@ -84,6 +93,12 @@ function TaskDetail() {
             <p className='text-muted-foreground font-mono text-sm'>{item.key}</p>
             <h1 className='text-2xl font-semibold tracking-tight'>{item.title}</h1>
           </div>
+          {waiting.length > 0 && item.status !== 'done' && item.status !== 'cancelled' ? (
+            <p className='flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm'>
+              <Icons.hourglass className='size-4 shrink-0 text-amber-600 dark:text-amber-500' />
+              等待 {waiting.map((d) => d.key).join('、')} 关闭后才能开始，负责的智能体在此之前不会领取这个任务。
+            </p>
+          ) : null}
           <Card>
             <CardContent className='text-sm whitespace-pre-wrap'>{item.description || '（没有描述）'}</CardContent>
           </Card>
@@ -97,8 +112,40 @@ function TaskDetail() {
                 </Button>
               ) : null}
             </CardHeader>
-            <CardContent>
-              {subtasks.length ? <SubtaskList items={subtasks} /> : <p className='text-muted-foreground text-sm'>没有子任务。</p>}
+            <CardContent>{subtasks.length ? <SubtaskList items={subtasks} /> : <p className='text-muted-foreground text-sm'>没有子任务。</p>}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>依赖</CardTitle>
+            </CardHeader>
+            <CardContent className='space-y-4 text-sm'>
+              <div className='space-y-2'>
+                <p className='text-muted-foreground text-xs'>前置任务：都关闭（完成或取消）后才能开始</p>
+                {dependencies.length ? (
+                  <LinkList
+                    items={dependencies}
+                    onRemove={editable ? (d) => dependency.mutate({ dependsOnId: d.id, remove: true }) : undefined}
+                    disabled={dependency.isPending}
+                  />
+                ) : (
+                  <p className='text-muted-foreground'>没有前置任务。</p>
+                )}
+                {editable ? (
+                  <TaskPicker
+                    exclude={[item.id, ...dependencies.map((d) => d.id), ...dependents.map((d) => d.id)]}
+                    projectId={item.projectId}
+                    placeholder={item.projectId ? '添加前置任务：搜索项目里的任务' : '添加前置任务：搜索任务'}
+                    disabled={dependency.isPending}
+                    onPick={(task) => dependency.mutate({ dependsOnId: task.id })}
+                  />
+                ) : null}
+              </div>
+              {dependents.length ? (
+                <div className='space-y-2'>
+                  <p className='text-muted-foreground text-xs'>后续任务：在等这个任务</p>
+                  <LinkList items={dependents} />
+                </div>
+              ) : null}
             </CardContent>
           </Card>
           <Card>
@@ -205,15 +252,30 @@ function TaskDetail() {
                 打开项目
               </Link>
             ) : null}
-            <Field label='截止日期'>
-              <Input
-                type='date'
-                key={item.dueDate ?? 'none'}
-                defaultValue={item.dueDate ?? ''}
-                disabled={!editable}
-                onBlur={(e) => (e.target.value || undefined) !== (item.dueDate ?? undefined) && update.mutate({ dueDate: e.target.value || undefined })}
-              />
-            </Field>
+            <div className='grid grid-cols-2 gap-3'>
+              <Field label='开始日期'>
+                <Input
+                  type='date'
+                  key={item.startDate ?? 'none'}
+                  defaultValue={item.startDate ?? ''}
+                  max={item.dueDate}
+                  disabled={!editable}
+                  aria-label='开始日期'
+                  onBlur={(e) => (e.target.value || undefined) !== (item.startDate ?? undefined) && update.mutate({ startDate: e.target.value || undefined })}
+                />
+              </Field>
+              <Field label='截止日期'>
+                <Input
+                  type='date'
+                  key={item.dueDate ?? 'none'}
+                  defaultValue={item.dueDate ?? ''}
+                  min={item.startDate}
+                  disabled={!editable}
+                  aria-label='截止日期'
+                  onBlur={(e) => (e.target.value || undefined) !== (item.dueDate ?? undefined) && update.mutate({ dueDate: e.target.value || undefined })}
+                />
+              </Field>
+            </div>
             <div className='text-muted-foreground space-y-1 pt-2'>
               <p>创建人：{item.createdBy.name ?? '系统'}</p>
               <p>创建于：{formatTime(item.createdAt)}</p>
@@ -245,6 +307,28 @@ function SubtaskList({ items }: { items: WorkItemDto[] }) {
             {task.title}
           </Link>
           <StatusBadge meta={workItemStatus[task.status]} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function LinkList({ items, onRemove, disabled }: { items: WorkItemLinkDto[]; onRemove?: (item: WorkItemLinkDto) => void; disabled?: boolean }) {
+  return (
+    <ul className='divide-y'>
+      {items.map((task) => (
+        <li key={task.id} className='flex items-center gap-3 py-2'>
+          <span className='text-muted-foreground font-mono text-xs'>{task.key}</span>
+          <Link href={`/tasks/view?id=${task.id}`} className='min-w-0 flex-1 truncate hover:underline'>
+            {task.title}
+          </Link>
+          {task.dueDate ? <span className='text-muted-foreground text-xs tabular-nums'>{formatDate(task.dueDate)}</span> : null}
+          <StatusBadge meta={workItemStatus[task.status]} />
+          {onRemove ? (
+            <Button size='icon' variant='ghost' className='size-7' aria-label={`去掉前置任务 ${task.key}`} disabled={disabled} onClick={() => onRemove(task)}>
+              <Icons.close className='size-4' />
+            </Button>
+          ) : null}
         </li>
       ))}
     </ul>

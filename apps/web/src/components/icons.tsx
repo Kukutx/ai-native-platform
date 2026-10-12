@@ -57,11 +57,13 @@ import {
   IconFolder,
   IconGripVertical,
   IconHelpCircle,
+  IconHourglass,
   IconInfoCircle,
   IconItalic,
   IconKey,
   IconLayoutDashboard,
   IconLayoutSidebar,
+  IconLink,
   IconLoader2,
   IconLock,
   IconLogin,
@@ -265,6 +267,8 @@ export const Icons = {
   forms: IconClipboardText,
   slash: IconSlash,
   calendar: IconCalendar,
+  hourglass: IconHourglass,
+  link: IconLink,
   galleryVerticalEnd: IconStack2,
   moreHorizontal: IconDots
 };

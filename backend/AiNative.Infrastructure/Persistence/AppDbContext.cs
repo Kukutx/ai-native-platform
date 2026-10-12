@@ -63,6 +63,8 @@ public sealed class AppDbContext : DbContext, IAppDbContext
 
     public DbSet<WorkItemComment> WorkItemComments => Set<WorkItemComment>();
 
+    public DbSet<WorkItemDependency> WorkItemDependencies => Set<WorkItemDependency>();
+
     public DbSet<Approval> Approvals => Set<Approval>();
 
     public DbSet<CostEvent> CostEvents => Set<CostEvent>();
@@ -368,6 +370,17 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             JsonList(b.Property(x => x.Tools));
             b.HasIndex(x => new { x.TenantId, x.Key }).IsUnique();
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WorkItemDependency>(b =>
+        {
+            // 同一对任务只有一条依赖；按前置任务查后续任务（关闭时唤醒、顺延）走第二个索引。
+            b.HasIndex(x => new { x.WorkItemId, x.DependsOnId }).IsUnique();
+            b.HasIndex(x => x.DependsOnId);
+            b.ToTable(t => t.HasCheckConstraint("ck_work_item_dependencies_not_self", "work_item_id <> depends_on_id"));
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<WorkItem>().WithMany().HasForeignKey(x => x.WorkItemId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne<WorkItem>().WithMany().HasForeignKey(x => x.DependsOnId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<WorkItemComment>(b =>

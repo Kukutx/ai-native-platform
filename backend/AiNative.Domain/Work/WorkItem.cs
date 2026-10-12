@@ -46,7 +46,12 @@ public sealed class WorkItem : TenantEntity
 
     public Guid? MilestoneId { get; private set; }
 
-    public DateOnly? DueDate { get; set; }
+    /// <summary>
+    /// 计划开始日期，与截止日期一起决定甘特图上的时间条。两者都有时开始不能晚于截止。
+    /// </summary>
+    public DateOnly? StartDate { get; private set; }
+
+    public DateOnly? DueDate { get; private set; }
 
     public Guid? AssigneeAgentId { get; set; }
 
@@ -71,6 +76,17 @@ public sealed class WorkItem : TenantEntity
 
         ProjectId = projectId;
         MilestoneId = milestoneId;
+    }
+
+    public void Reschedule(DateOnly? startDate, DateOnly? dueDate)
+    {
+        if (startDate > dueDate)
+        {
+            throw new DomainException("work_item.start_after_due", "开始日期不能晚于截止日期。");
+        }
+
+        StartDate = startDate;
+        DueDate = dueDate;
     }
 
     public void ChangeStatus(WorkItemStatus status, DateTimeOffset now)

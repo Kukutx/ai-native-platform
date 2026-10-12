@@ -24,6 +24,12 @@ public sealed class ProjectsController : ApiControllerBase
     [HttpGet("{id:guid}")]
     public Task<ProjectDetailDto> Get(Guid id) => SendAsync(new GetProjectQuery(id));
 
+    /// <summary>
+    /// 项目排期（甘特图数据）：任务起止日期、项目内的依赖、排期冲突和关键路径。需要同时有项目和任务的查看权限。
+    /// </summary>
+    [HttpGet("{id:guid}/schedule")]
+    public Task<ProjectScheduleDto> Schedule(Guid id) => SendAsync(new GetProjectScheduleQuery(id));
+
     [HttpPost]
     public Task<ProjectDetailDto> Create(SaveProjectRequest request) => SendAsync(new CreateProjectCommand(request));
 

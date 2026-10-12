@@ -1,5 +1,6 @@
 using AiNative.Contracts.Common;
 using AiNative.Domain.Projects;
+using AiNative.Domain.Work;
 
 namespace AiNative.Contracts.Projects;
 
@@ -94,3 +95,52 @@ public sealed record UpdateProjectMemberRequest
 {
     public string Responsibility { get; init; } = string.Empty;
 }
+
+/// <summary>
+/// 甘特图上的一个任务。只有截止日期时按一天的时间条显示；开始和截止都没有的算未排期。
+/// </summary>
+/// <param name="Assignee">负责人：成员或智能体。</param>
+/// <param name="WaitingOn">还没关闭的前置任务数（包括其他项目里的前置任务）。</param>
+/// <param name="Critical">在关键路径上：它晚一天，项目里最晚的截止日期就跟着晚一天。只算未关闭、有日期的任务。</param>
+/// <param name="UpdatedAt">最后修改时间，调整日期时作为并发检查的依据。</param>
+public sealed record ScheduledTaskDto(
+    Guid Id,
+    string Key,
+    string Title,
+    WorkItemStatus Status,
+    WorkItemPriority Priority,
+    Guid? MilestoneId,
+    Guid? ParentId,
+    ActorDto? Assignee,
+    DateOnly? StartDate,
+    DateOnly? DueDate,
+    DateTimeOffset? CompletedAt,
+    bool IsOverdue,
+    int WaitingOn,
+    bool Critical,
+    DateTimeOffset UpdatedAt);
+
+/// <summary>
+/// 项目内的一条依赖：<see cref="ToId"/> 要等 <see cref="FromId"/> 关闭后才能开始。
+/// </summary>
+/// <param name="Conflict">排期冲突：两个任务都未关闭、都有日期，后续任务的开始日期早于前置任务的截止日期（同一天不算冲突）。</param>
+public sealed record ScheduleLinkDto(Guid FromId, Guid ToId, bool Conflict);
+
+/// <summary>
+/// 项目排期（甘特图数据）。任务按里程碑顺序、再按开始日期排列；已取消的任务不列出。
+/// </summary>
+/// <param name="Start">时间轴起点：项目开始日期、任务日期和里程碑截止日期里最早的一个。</param>
+/// <param name="End">时间轴终点：项目目标日期、任务日期和里程碑截止日期里最晚的一个。</param>
+/// <param name="Conflicts">排期冲突的依赖条数。</param>
+/// <param name="Unscheduled">开始和截止日期都没有的任务数。</param>
+/// <param name="Truncated">任务太多只返回了一部分。</param>
+public sealed record ProjectScheduleDto(
+    ProjectDto Project,
+    IReadOnlyList<ProjectMilestoneDto> Milestones,
+    IReadOnlyList<ScheduledTaskDto> Tasks,
+    IReadOnlyList<ScheduleLinkDto> Links,
+    DateOnly? Start,
+    DateOnly? End,
+    int Conflicts,
+    int Unscheduled,
+    bool Truncated);

@@ -68,6 +68,25 @@ internal sealed class GetProjectAction(IRequestDispatcher dispatcher, ProjectRef
             .ConfigureAwait(false);
 }
 
+internal sealed class GetProjectScheduleAction(IRequestDispatcher dispatcher, ProjectRefs refs) : PlatformAction<GetProjectInput, ProjectScheduleDto>
+{
+    public override string Key => "projects.get_schedule";
+
+    public override string ModuleKey => ProjectsModule.ModuleKey;
+
+    public override string Title => "查看项目排期";
+
+    public override string Description => "查看项目排期（甘特图数据）：每个任务的开始和截止日期、负责人、还在等几个前置任务（waitingOn）、是否在关键路径上（critical），以及项目内的依赖（links，conflict 为 true 表示后续任务开始得比前置任务截止还早）。规划或检查项目进度时使用；发现冲突可以用 tasks.schedule 加 shiftDependents 顺延后续任务。";
+
+    public override string RequiredFeature => ProjectFeatures.View;
+
+    public override bool IsMutation => false;
+
+    protected override async Task<ProjectScheduleDto> ExecuteAsync(GetProjectInput input, ActionContext context, CancellationToken cancellationToken)
+        => await dispatcher.SendAsync(new GetProjectScheduleQuery(await refs.ProjectIdAsync(input.Project, cancellationToken).ConfigureAwait(false)), cancellationToken)
+            .ConfigureAwait(false);
+}
+
 public sealed class ProjectMilestoneInput
 {
     [Description("里程碑名称，例如「完成设计稿」")]

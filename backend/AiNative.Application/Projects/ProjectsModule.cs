@@ -36,7 +36,7 @@ internal sealed class ProjectsModule : IPlatformModule
 
     public string Name => "项目管理";
 
-    public string Description => "项目、里程碑与成员：任务归入项目和里程碑，进度、阻塞和逾期实时统计；负责人可以是智能体，项目里的任务被阻塞或里程碑的任务全部完成时会唤醒它。";
+    public string Description => "项目、里程碑与成员：任务归入项目和里程碑，进度、阻塞和逾期实时统计；甘特图按任务的起止日期和前后依赖排期，标出冲突和关键路径；负责人可以是智能体，项目里的任务被阻塞或里程碑的任务全部完成时会唤醒它。";
 
     public bool IsCore => false;
 
