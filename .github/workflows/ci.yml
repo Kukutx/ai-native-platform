@@ -40,7 +40,7 @@ jobs:
           global-json-file: global.json
       # 没有 packages.lock.json，按集中版本文件、项目文件和工具清单的内容做缓存键。
       - name: 缓存 NuGet 包
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.nuget/packages
           key: nuget-${{ runner.os }}-${{ hashFiles('backend/Directory.Packages.props', '**/*.csproj', 'backend/.config/dotnet-tools.json') }}
