@@ -13,6 +13,7 @@ export interface ChatStreamEvent {
 
 /**
  * 通过 Server-Sent Events 发送消息并逐个产出事件。Web 直接可用；Expo 需在 ApiConfig.fetch 传入 expo/fetch。
+ * 个别无法解析的事件会被跳过，不会中断整轮对话。
  */
 export async function* streamChat(
   config: ApiConfig,
@@ -40,30 +41,73 @@ export async function* streamChat(
     return;
   }
 
-  const reader = response.body.getReader();
+  for await (const data of readSseData(response.body)) {
+    const event = parseEvent(data);
+    if (event) {
+      yield event;
+    }
+  }
+}
+
+/**
+ * 从 SSE 字节流中逐个取出事件的 data 字段（同一事件的多行 data 按规范以换行拼接）。
+ * 流结束时最后一个没有以空行收尾的事件也会产出；注释、event、id 等其他字段忽略。
+ * 调用方提前结束遍历时取消底层的流，释放连接。
+ */
+export async function* readSseData(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) {
-      break;
-    }
+  let finished = false;
+  try {
+    while (!finished) {
+      const { value, done } = await reader.read();
+      finished = done;
+      buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+      // 行尾可以是 \r\n、\n 或单独的 \r。末尾的 \r 可能和下一块开头的 \n 是一对，留到下一块再处理。
+      buffer = buffer.replace(done ? /\r\n?/g : /\r\n|\r(?!$)/g, '\n');
 
-    buffer += decoder.decode(value, { stream: true });
-    let boundary = buffer.indexOf('\n\n');
-    while (boundary >= 0) {
-      const frame = buffer.slice(0, boundary);
-      buffer = buffer.slice(boundary + 2);
-      const data = frame
-        .split('\n')
-        .filter((line) => line.startsWith('data:'))
-        .map((line) => line.slice(5).trimStart())
-        .join('\n');
-      if (data) {
-        yield JSON.parse(data) as ChatStreamEvent;
+      let boundary = buffer.indexOf('\n\n');
+      while (boundary >= 0) {
+        const data = frameData(buffer.slice(0, boundary));
+        buffer = buffer.slice(boundary + 2);
+        if (data !== undefined) {
+          yield data;
+        }
+
+        boundary = buffer.indexOf('\n\n');
       }
-
-      boundary = buffer.indexOf('\n\n');
     }
+
+    const last = frameData(buffer);
+    if (last !== undefined) {
+      yield last;
+    }
+  } finally {
+    if (!finished) {
+      await reader.cancel().catch(() => undefined);
+    }
+
+    reader.releaseLock();
+  }
+}
+
+/** 一个事件块里的 data 字段；没有 data 行时返回 undefined。 */
+function frameData(frame: string) {
+  const lines = frame
+    .split('\n')
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => (line.startsWith('data: ') ? line.slice(6) : line.slice(5)));
+  return lines.length > 0 ? lines.join('\n') : undefined;
+}
+
+function parseEvent(data: string): ChatStreamEvent | undefined {
+  try {
+    const event = JSON.parse(data) as unknown;
+    return typeof event === 'object' && event !== null && typeof (event as { type?: unknown }).type === 'string'
+      ? (event as ChatStreamEvent)
+      : undefined;
+  } catch {
+    return undefined;
   }
 }

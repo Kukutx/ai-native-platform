@@ -1,0 +1,9 @@
+{
+  // 单元测试在 Node 里运行，单独带上 Node 的类型；客户端源码本身（tsconfig.json）不引用 Node API。
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": []
+}

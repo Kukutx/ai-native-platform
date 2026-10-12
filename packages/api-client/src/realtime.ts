@@ -2,7 +2,11 @@ import { HttpTransportType, HubConnection, HubConnectionBuilder, HubConnectionSt
 import type { RunEventDto } from './generated';
 import type { ChatStreamEvent } from './stream';
 
-/** 实体变化通知：客户端据此让对应查询失效重取。 */
+/**
+ * 实体变化通知：客户端据此让对应查询失效重取。
+ * entity 与后端各模块的实时实体常量一一对应（RealtimeEntities、CrmRealtime、ErpRealtime、ProjectRealtime、
+ * AnalyticsRealtime、IntegrationRealtime、TenantRealtime），后端新增实体时在这里补上。
+ */
 export interface RealtimeChange {
   entity:
     | 'agent'
@@ -20,13 +24,17 @@ export interface RealtimeChange {
     | 'crm_deal'
     | 'crm_activity'
     | 'crm_stage'
+    | 'crm_field'
     | 'erp_product'
     | 'erp_warehouse'
     | 'erp_stock'
     | 'erp_sales_order'
     | 'erp_purchase_order'
+    | 'erp_stock_document'
     | 'project'
     | 'analytics_report'
+    | 'mcp_server'
+    | 'tenant_secret'
     | 'tenant';
   id: string;
   kind: 'created' | 'updated' | 'deleted';
@@ -53,6 +61,8 @@ export class RealtimeClient {
   /** 最后一次 start/stop 调用表达的意图，决定排队中的切换要不要执行。 */
   private wanted = false;
   private hasConnected = false;
+  /** 有过连接失败：这期间的变化没有推送过来，之后第一次连上（哪怕是第一次连上）也要通知重取。 */
+  private missedChanges = false;
   private retryAttempt = 0;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -92,6 +102,7 @@ export class RealtimeClient {
       try {
         await this.connection.start();
       } catch (error) {
+        this.missedChanges = true;
         this.scheduleRetry();
         throw error;
       }
@@ -111,7 +122,8 @@ export class RealtimeClient {
   }
 
   /**
-   * 断线期间错过的变化不会补发：重新连上（不含第一次连接）时调用，客户端应让当前查询全部重取。
+   * 断线期间错过的变化不会补发：重新连上时调用，客户端应让当前查询全部重取。
+   * 第一次就连上时不调用；第一次连接失败、之后重试连上时同样会调用，补上连不上期间错过的变化。
    */
   onResync(handler: () => void) {
     this.resyncHandlers.add(handler);
@@ -151,11 +163,12 @@ export class RealtimeClient {
 
   private async afterConnected() {
     this.retryAttempt = 0;
-    if (this.hasConnected) {
+    if (this.hasConnected || this.missedChanges) {
       this.resyncHandlers.forEach((handler) => handler());
     }
 
     this.hasConnected = true;
+    this.missedChanges = false;
     // 重连后服务端分组已丢失，重新加入正在查看的运行。
     await Promise.allSettled([...this.runs.keys()].map((id) => this.connection.invoke('SubscribeRun', id)));
   }
