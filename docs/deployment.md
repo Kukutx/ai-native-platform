@@ -47,7 +47,7 @@ openssl rand -base64 48   # 令牌签名密钥
 | `Ai__Providers__<名称>__Kind` / `__BaseUrl` / `__ApiKey` / `__Models__0` | 增加模型供应商。`Kind` 为 `anthropic` 或 `openai`（OpenAI 及兼容端点，如 DeepSeek、通义、Ollama、vLLM）。 |
 | `Ai__DefaultProvider` / `Ai__DefaultModel` | 新智能体和对话的默认模型。 |
 | `Ai__Embeddings__Provider` / `Ai__Embeddings__Model` | 知识库语义检索用的向量模型（协议须为 `openai`）。不配置时只用关键词与字面相似检索。 |
-| `Ai__Pricing__<模型>__InputPerMillion` / `__OutputPerMillion` | 自定义模型单价（美元 / 百万 token），用于预算和用量统计。 |
+| `Ai__Pricing__<模型>__InputPerMillion` / `__OutputPerMillion` | 自定义模型单价（美元 / 百万 token），用于预算和用量统计。内置了 Claude 各模型的单价；其他模型不配单价时花费按 0 记，月度预算对它不起作用，启动日志会逐个提醒。免费的本地模型把单价配成 0 即可消除提醒。 |
 | `Scheduler__MaxConcurrentRuns` | 同时执行的智能体数量上限，默认 4。 |
 | `OutboundNetwork__AllowPrivateNetworkRequests` | 是否允许工作流的「HTTP 请求」步骤和接入的外部 MCP 服务访问内网和本机地址，默认 `false`。需要调用同一内网里的服务时再打开。（旧名 `Workflows__AllowPrivateNetworkRequests` 已不再生效。） |
 | `Workflows__MaxEventRunsPerMinute` | 单个工作流每分钟最多被事件或 Webhook 触发的次数，默认 30。 |
@@ -69,6 +69,9 @@ Ai__Providers__deepseek__ApiKey=sk-...
 Ai__Providers__deepseek__Models__0=deepseek-chat
 Ai__DefaultProvider=deepseek
 Ai__DefaultModel=deepseek-chat
+# 按供应商价目表填写单价（美元 / 百万 token），预算和用量统计才准确
+Ai__Pricing__deepseek-chat__InputPerMillion=<输入单价>
+Ai__Pricing__deepseek-chat__OutputPerMillion=<输出单价>
 ```
 
 ## HTTPS 与反向代理
@@ -161,6 +164,8 @@ docker compose up -d --build
 ```
 
 新镜像启动时自动迁移数据库。升级前建议先备份。
+
+旧容器停止时，应用最多用 30 秒收尾：把执行中的智能体运行标记为已取消、交还工作流运行和领取的任务。示例 Compose 把 `stop_grace_period` 设成了 40 秒（Docker 默认只等 10 秒就强制结束）；用别的编排工具部署时，也请把停止宽限期设到 30 秒以上。
 
 ## 健康检查
 

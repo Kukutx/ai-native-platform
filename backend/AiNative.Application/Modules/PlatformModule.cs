@@ -48,6 +48,8 @@ public interface IModuleCatalog
 
     IReadOnlyList<FeatureDefinition> AllFeatures { get; }
 
+    FeatureDefinition? FindFeature(string key);
+
     IReadOnlyList<PlatformEventDefinition> AllEvents { get; }
 
     PlatformEventDefinition? FindEvent(string key);
@@ -62,15 +64,27 @@ public sealed class ModuleCatalog(IEnumerable<IPlatformModule> modules) : IModul
 {
     private readonly IReadOnlyList<IPlatformModule> _modules = [.. modules.OrderBy(m => m.IsCore ? 0 : 1).ThenBy(m => m.Key, StringComparer.Ordinal)];
 
+    // 模块在启动时就固定了，目录和索引只算一次；每个请求的权限检查都会查这里。
+    private IReadOnlyList<FeatureDefinition>? _features;
+    private IReadOnlyList<PlatformEventDefinition>? _events;
+    private Dictionary<string, IPlatformModule>? _moduleIndex;
+    private Dictionary<string, FeatureDefinition>? _featureIndex;
+    private Dictionary<string, PlatformEventDefinition>? _eventIndex;
+
     public IReadOnlyList<IPlatformModule> Modules => _modules;
 
-    public IPlatformModule? Find(string key) => _modules.FirstOrDefault(m => m.Key == key);
+    public IPlatformModule? Find(string key)
+        => (_moduleIndex ??= _modules.DistinctBy(m => m.Key).ToDictionary(m => m.Key, StringComparer.Ordinal)).GetValueOrDefault(key);
 
-    public IReadOnlyList<FeatureDefinition> AllFeatures => [.. _modules.SelectMany(m => m.Features)];
+    public IReadOnlyList<FeatureDefinition> AllFeatures => _features ??= [.. _modules.SelectMany(m => m.Features)];
 
-    public IReadOnlyList<PlatformEventDefinition> AllEvents => [.. _modules.SelectMany(m => m.Events)];
+    public FeatureDefinition? FindFeature(string key)
+        => (_featureIndex ??= AllFeatures.DistinctBy(f => f.Key).ToDictionary(f => f.Key, StringComparer.Ordinal)).GetValueOrDefault(key);
 
-    public PlatformEventDefinition? FindEvent(string key) => _modules.SelectMany(m => m.Events).FirstOrDefault(e => e.Key == key);
+    public IReadOnlyList<PlatformEventDefinition> AllEvents => _events ??= [.. _modules.SelectMany(m => m.Events)];
+
+    public PlatformEventDefinition? FindEvent(string key)
+        => (_eventIndex ??= AllEvents.DistinctBy(e => e.Key).ToDictionary(e => e.Key, StringComparer.Ordinal)).GetValueOrDefault(key);
 
     public IReadOnlySet<string> ResolveEnabled(IReadOnlyDictionary<string, bool> overrides)
     {

@@ -19,8 +19,7 @@ internal sealed class RunQueryHandlers(IAppDbContext db) :
 {
     public async Task<PagedResult<RunDto>> HandleAsync(ListRunsQuery request, CancellationToken cancellationToken)
     {
-        var page = Math.Max(1, request.Page);
-        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var (page, pageSize) = Paging.Normalize(request.Page, request.PageSize, 100);
         var query = db.HeartbeatRuns.AsNoTracking();
         if (request.AgentId is { } agentId)
         {

@@ -105,7 +105,11 @@ internal sealed class AgentPromptBuilder(
         var sb = new StringBuilder();
         var timeZone = await db.Tenants.AsNoTracking().Where(t => t.Id == agent.TenantId).Select(t => t.TimeZone)
             .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);
-        sb.AppendLine(CultureInfo.InvariantCulture, $"现在是 {TimeZones.Describe(clock.GetUtcNow(), timeZone)}，你被唤醒了。");
+        var now = clock.GetUtcNow();
+        sb.AppendLine(CultureInfo.InvariantCulture, $"现在是 {TimeZones.Describe(now, timeZone)}，你被唤醒了。");
+
+        // 逾期、"今天开始"都按空间时区判断，和界面一致。
+        var today = TimeZones.DateIn(now, TimeZones.Find(timeZone) ?? TimeZoneInfo.Utc);
         sb.AppendLine().AppendLine("## 唤醒原因");
         if (wakeup is null || wakeup.Items.Count == 0)
         {
@@ -118,15 +122,20 @@ internal sealed class AgentPromptBuilder(
                 sb.AppendLine(CultureInfo.InvariantCulture, $"- [{item.Source}] {item.Reason}");
             }
 
-            if (wakeup.CoalescedCount > 0)
+            var total = wakeup.CoalescedCount + 1;
+            if (total > wakeup.Items.Count)
             {
-                sb.AppendLine(CultureInfo.InvariantCulture, $"（上次运行后累计了 {wakeup.CoalescedCount + 1} 次唤醒，已合并。）");
+                sb.AppendLine(CultureInfo.InvariantCulture, $"（上次运行后累计了 {total} 次唤醒，已合并；只列出最近 {wakeup.Items.Count} 条，更早的 {total - wakeup.Items.Count} 条已省略。）");
+            }
+            else if (wakeup.CoalescedCount > 0)
+            {
+                sb.AppendLine(CultureInfo.InvariantCulture, $"（上次运行后累计了 {total} 次唤醒，已合并。）");
             }
         }
 
         if (focus is not null)
         {
-            await AppendFocusAsync(sb, focus, checkedOut, cancellationToken).ConfigureAwait(false);
+            await AppendFocusAsync(sb, focus, checkedOut, today, cancellationToken).ConfigureAwait(false);
         }
 
         var mine = await db.WorkItems.AsNoTracking()
@@ -140,7 +149,6 @@ internal sealed class AgentPromptBuilder(
             sb.AppendLine("- 无");
         }
 
-        var today = DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
         var projectIds = mine.Where(w => w.ProjectId != null).Select(w => w.ProjectId!.Value).Distinct().ToList();
         var projectNames = projectIds.Count == 0
             ? []
@@ -297,11 +305,11 @@ internal sealed class AgentPromptBuilder(
         }
     }
 
-    private async Task AppendFocusAsync(StringBuilder sb, WorkItem focus, bool checkedOut, CancellationToken cancellationToken)
+    private async Task AppendFocusAsync(StringBuilder sb, WorkItem focus, bool checkedOut, DateOnly today, CancellationToken cancellationToken)
     {
         sb.AppendLine().AppendLine(checkedOut ? "## 本轮聚焦的任务（已为你领取）" : "## 相关任务（由他人负责，仅供参考）");
         sb.AppendLine(CultureInfo.InvariantCulture, $"{FocusMarker} {focus.Id}");
-        sb.AppendLine(CultureInfo.InvariantCulture, $"T-{focus.Number}《{focus.Title}》 状态 {focus.Status}，优先级 {focus.Priority}{StartText(focus.StartDate)}{DueText(focus.DueDate, DateOnly.FromDateTime(clock.GetLocalNow().DateTime))}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"T-{focus.Number}《{focus.Title}》 状态 {focus.Status}，优先级 {focus.Priority}{StartText(focus.StartDate)}{DueText(focus.DueDate, today)}");
         if (focus.ProjectId is { } projectId)
         {
             var project = await db.Projects.AsNoTracking().Where(p => p.Id == projectId)

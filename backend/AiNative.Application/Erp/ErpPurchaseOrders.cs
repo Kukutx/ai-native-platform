@@ -88,6 +88,7 @@ internal sealed class ErpPurchaseOrderHandlers(
     IStockLedger ledger,
     ITextMatcher text,
     IChangeFeed changes,
+    TenantCalendar calendar,
     TimeProvider clock) :
     IRequestHandler<ListErpPurchaseOrdersQuery, PagedResult<ErpPurchaseOrderDto>>,
     IRequestHandler<GetErpPurchaseOrderQuery, ErpPurchaseOrderDto>,
@@ -340,7 +341,7 @@ internal sealed class ErpPurchaseOrderHandlers(
     private async Task ApplyAsync(ErpPurchaseOrder order, SaveErpPurchaseOrderRequest r, CancellationToken cancellationToken)
     {
         // 下单日期省略时取今天，预计到货日期按实际保存的下单日期检查。
-        var orderDate = r.OrderDate ?? DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+        var orderDate = r.OrderDate ?? await calendar.TodayAsync(cancellationToken).ConfigureAwait(false);
         if (r.ExpectedDate < orderDate)
         {
             throw new ValidationFailedException(new Dictionary<string, string[]> { ["expectedDate"] = ["预计到货日期不能早于下单日期。"] });

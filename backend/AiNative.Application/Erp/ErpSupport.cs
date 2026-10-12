@@ -686,7 +686,7 @@ internal sealed class ErpRecords(
             return data;
         }, cancellationToken);
 
-    public static (int Page, int PageSize) Paging(int page, int pageSize) => (Math.Max(1, page), Math.Clamp(pageSize, 1, 200));
+    public static (int Page, int PageSize) Paging(int page, int pageSize) => Common.Paging.Normalize(page, pageSize);
 
     /// <summary>
     /// 库存不足时的说明，例如「A100 螺丝 缺 3 件（可用 2）」。

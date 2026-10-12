@@ -51,9 +51,49 @@ public sealed class ActionToolset
     }
 
     /// <summary>
-    /// 回传给模型的工具结果：状态 + 输出或错误，审批中的给出明确说明。
+    /// 回传给模型的工具结果的字符数上限（约 8 千到 3 万个 token）。超过时只给开头一段并提示缩小范围，
+    /// 避免一次查询把上下文撑满、费用失控。
     /// </summary>
-    public static string FormatForModel(ActionInvocationResult result) => result.Status switch
+    public const int MaxModelOutputChars = 32_000;
+
+    /// <summary>
+    /// 回传给模型的工具结果：状态 + 输出或错误，审批中的给出明确说明。结果总是合法的 JSON，超长时截断。
+    /// </summary>
+    public static string FormatForModel(ActionInvocationResult result)
+    {
+        var formatted = Format(result);
+        if (formatted.Length <= MaxModelOutputChars)
+        {
+            return formatted;
+        }
+
+        // 预览放进字符串后引号等会被转义、变长，按实际长度收缩到上限以内。
+        var status = result.Status == ActionInvocationStatus.Succeeded ? "ok" : result.Status.ToString().ToLowerInvariant();
+        var cut = MaxModelOutputChars;
+        while (true)
+        {
+            if (cut > 0 && char.IsHighSurrogate(formatted[cut - 1]))
+            {
+                cut--;
+            }
+
+            var text = PlatformJson.Serialize(new
+            {
+                status,
+                truncated = true,
+                preview = formatted[..cut],
+                message = $"结果有 {formatted.Length} 个字符，超过上限，只给出了开头 {cut} 个字符。需要完整信息时请缩小范围（加筛选条件、减小每页条数或分页查询）后再调用。",
+            });
+            if (text.Length <= MaxModelOutputChars || cut == 0)
+            {
+                return text;
+            }
+
+            cut = Math.Max(0, cut - (text.Length - MaxModelOutputChars) - 16);
+        }
+    }
+
+    private static string Format(ActionInvocationResult result) => result.Status switch
     {
         ActionInvocationStatus.Succeeded => PlatformJson.Serialize(new { status = "ok", output = result.Output }),
         ActionInvocationStatus.PendingApproval => PlatformJson.Serialize(new

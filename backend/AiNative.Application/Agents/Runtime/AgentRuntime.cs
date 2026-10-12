@@ -68,11 +68,23 @@ internal sealed class AgentRuntime(
                 throw new OperationCanceledException("智能体已暂停或终止。");
             }
 
+            // 以"仍可工作"为条件改成运行中：读到智能体之后被暂停或终止的，不会被这里覆盖回运行中。
+            var started = await db.Agents
+                .Where(a => a.Id == agent.Id && (a.Status == AgentStatus.Idle || a.Status == AgentStatus.Running || a.Status == AgentStatus.Error))
+                .ExecuteUpdateAsync(s => s.SetProperty(a => a.Status, AgentStatus.Running), cancellationToken)
+                .ConfigureAwait(false);
+            if (started == 0)
+            {
+                throw new OperationCanceledException("智能体已暂停或终止。");
+            }
+
+            var status = db.Entry(agent).Property(a => a.Status);
+            status.CurrentValue = status.OriginalValue = AgentStatus.Running;
+
             run.Status = RunStatus.Running;
             run.StartedAt ??= clock.GetUtcNow();
             run.Provider = agent.ModelProvider;
             run.Model = agent.Model;
-            agent.Status = AgentStatus.Running;
             await db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             await PublishChangesAsync(tenantId, run, agent).ConfigureAwait(false);
             await recorder.RecordAsync(RunEventType.Status, new { status = "running", reasons = wakeup?.Items.Select(i => i.Reason) }, cancellationToken).ConfigureAwait(false);
@@ -327,25 +339,35 @@ internal sealed class AgentRuntime(
         run.Error = error;
         run.FinishedAt = now;
 
-        // 执行期间管理员可能暂停或终止了智能体，先取最新状态，不能用本轮开始时的快照覆盖。
+        // 执行期间管理员可能暂停或终止了智能体：状态在数据库里按当前值条件更新（一条语句），
+        // 只把"运行中"改回空闲或出错、只暂停仍可工作的智能体，不会用本轮开始时的快照覆盖并发的暂停或终止。
+        var lastError = outcome == RunStatus.Succeeded ? null : error;
+        var settled = outcome == RunStatus.Failed ? AgentStatus.Error : AgentStatus.Idle;
+        const string budgetReason = "本月预算已用完";
         try
         {
+            await db.Agents.Where(a => a.Id == agent.Id)
+                .ExecuteUpdateAsync(
+                    s => s
+                        .SetProperty(a => a.LastHeartbeatAt, now)
+                        .SetProperty(a => a.LastError, lastError)
+                        .SetProperty(
+                            a => a.Status,
+                            a => budgetExhausted && (a.Status == AgentStatus.Idle || a.Status == AgentStatus.Running || a.Status == AgentStatus.Error)
+                                ? AgentStatus.Paused
+                                : a.Status == AgentStatus.Running ? settled : a.Status)
+                        .SetProperty(
+                            a => a.PauseReason,
+                            a => budgetExhausted && (a.Status == AgentStatus.Idle || a.Status == AgentStatus.Running || a.Status == AgentStatus.Error)
+                                ? budgetReason
+                                : a.PauseReason),
+                    ct)
+                .ConfigureAwait(false);
             await db.Entry(agent).ReloadAsync(ct).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to reload agent {AgentId} before finishing run {RunId}", agent.Id, run.Id);
-        }
-
-        agent.LastHeartbeatAt = now;
-        agent.LastError = outcome == RunStatus.Succeeded ? null : error;
-        if (budgetExhausted && agent.CanWork)
-        {
-            agent.Pause("本月预算已用完");
-        }
-        else if (agent.Status == AgentStatus.Running)
-        {
-            agent.Status = outcome == RunStatus.Failed ? AgentStatus.Error : AgentStatus.Idle;
+            logger.LogError(ex, "Failed to update agent {AgentId} after run {RunId}", agent.Id, run.Id);
         }
 
         if (wakeup is not null)

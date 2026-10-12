@@ -125,8 +125,7 @@ internal sealed class MemoryHandlers(
             query = query.Where(m => m.Content.ToLower().Contains(term));
         }
 
-        var page = Math.Max(request.Page, 1);
-        var size = Math.Clamp(request.PageSize, 1, 200);
+        var (page, size) = Paging.Normalize(request.Page, request.PageSize);
         var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
         var items = await query.OrderByDescending(m => m.UpdatedAt).Skip((page - 1) * size).Take(size)
             .ToListAsync(cancellationToken).ConfigureAwait(false);

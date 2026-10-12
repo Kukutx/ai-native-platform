@@ -44,6 +44,22 @@ internal sealed class ModelGateway : IModelGateway
         {
             logger.LogWarning("Default model provider {Provider} is not configured; falling back to the demo model.", _options.DefaultProvider);
         }
+
+        // 没有单价的模型花费恒为 0，月度预算对它不起作用。免费的本地模型可以把单价显式配成 0 来消除提醒。
+        var models = _providers.Where(p => p.Key != DemoProvider && IsConfigured(p.Key))
+            .SelectMany(p => p.Value.Models.Select(m => (Provider: p.Key, Model: m)))
+            .Append((Provider: Default.Provider, Model: Default.Model))
+            .Where(m => m.Provider != DemoProvider)
+            .Distinct();
+        foreach (var (provider, model) in models)
+        {
+            if (!HasPrice(model))
+            {
+                logger.LogWarning(
+                    "Model {Model} of provider {Provider} has no price; its usage is recorded as $0 and monthly budgets will not limit it. Set Ai:Pricing:{Model}:InputPerMillion and OutputPerMillion (0 for free local models).",
+                    model, provider, model);
+            }
+        }
     }
 
     public ModelSelection Default { get; }
@@ -71,7 +87,7 @@ internal sealed class ModelGateway : IModelGateway
 
     public decimal EstimateCostUsd(string provider, string model, long inputTokens, long outputTokens)
     {
-        if (!_options.Pricing.TryGetValue(model, out var price) && !BuiltInPrices.TryGetValue(model, out price))
+        if (!TryGetPrice(model, out var price))
         {
             return 0m;
         }
@@ -83,6 +99,11 @@ internal sealed class ModelGateway : IModelGateway
         Default.Provider,
         Default.Model,
         [.. _providers.Select(p => new ModelProviderDto(p.Key, p.Value.Kind, p.Value.Models, IsConfigured(p.Key)))]);
+
+    private bool HasPrice(string model) => TryGetPrice(model, out _);
+
+    private bool TryGetPrice(string model, out ModelPrice price)
+        => _options.Pricing.TryGetValue(model, out price!) || BuiltInPrices.TryGetValue(model, out price!);
 
     private bool IsConfigured(string provider)
         => _providers.TryGetValue(provider, out var options)

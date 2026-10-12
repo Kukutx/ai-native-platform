@@ -27,6 +27,8 @@ services:
       context: ..
     image: ${APP_IMAGE:-ainative-platform:latest}
     restart: unless-stopped
+    # 停止时应用最多用 30 秒收尾（把执行中的智能体和工作流标记好、释放领取的任务），Docker 默认只等 10 秒就强杀。
+    stop_grace_period: 40s
     depends_on:
       postgres:
         condition: service_healthy
