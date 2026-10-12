@@ -76,29 +76,39 @@ function AgentDetail() {
         title={a.name}
         description={a.title}
         actions={
-          manageable ? (
-            <>
-              <Button variant='outline' onClick={() => setEditing(true)}>
-                <Icons.edit />
-                编辑
+          <>
+            {can('chat.use') && a.status !== 'terminated' ? (
+              <Button variant='outline' asChild>
+                <Link href={`/chat?agent=${a.id}`}>
+                  <Icons.chat />
+                  对话
+                </Link>
               </Button>
-              <Button variant='outline' disabled={pause.isPending} onClick={() => pause.mutate(a.status !== 'paused')}>
-                {pause.isPending ? <Icons.spinner className='animate-spin' /> : null}
-                {a.status === 'paused' ? '恢复' : '暂停'}
-              </Button>
-              <Button
-                variant='destructive'
-                disabled={terminate.isPending}
-                onClick={() =>
-                  void confirm({ title: `终止 ${a.name}？`, description: '终止后不能恢复，下属会改为向其上级汇报。', confirmLabel: '终止' }).then(
-                    (ok) => ok && terminate.mutate(),
-                  )
-                }
-              >
-                终止
-              </Button>
-            </>
-          ) : null
+            ) : null}
+            {manageable ? (
+              <>
+                <Button variant='outline' onClick={() => setEditing(true)}>
+                  <Icons.edit />
+                  编辑
+                </Button>
+                <Button variant='outline' disabled={pause.isPending} onClick={() => pause.mutate(a.status !== 'paused')}>
+                  {pause.isPending ? <Icons.spinner className='animate-spin' /> : null}
+                  {a.status === 'paused' ? '恢复' : '暂停'}
+                </Button>
+                <Button
+                  variant='destructive'
+                  disabled={terminate.isPending}
+                  onClick={() =>
+                    void confirm({ title: `终止 ${a.name}？`, description: '终止后不能恢复，下属会改为向其上级汇报。', confirmLabel: '终止' }).then(
+                      (ok) => ok && terminate.mutate(),
+                    )
+                  }
+                >
+                  终止
+                </Button>
+              </>
+            ) : null}
+          </>
         }
       />
       <div className='grid gap-6 lg:grid-cols-3'>

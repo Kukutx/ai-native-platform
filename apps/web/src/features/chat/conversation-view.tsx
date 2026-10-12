@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { ChatMessageDto } from '@ainative/api-client';
+import type { AgentDto, ChatMessageDto } from '@ainative/api-client';
 import { Markdown } from '@/components/app/markdown';
 import { useSession } from '@/components/app/session-provider';
 import { Icons } from '@/components/icons';
@@ -28,14 +28,24 @@ function lastUserMessageIs(messages: ChatMessageDto[] | undefined, text: string)
 }
 
 /**
- * 对话视图。conversationId 为空时是"新对话"：发送第一条消息时才创建会话，完成后通过 onCreated 切换地址。
+ * 对话视图。conversationId 为空时是"新对话"：发送第一条消息时才创建会话（agent 为对话对象，不传就是默认助理），
+ * 完成后通过 onCreated 切换地址。
  */
-export function ConversationView({ conversationId, onCreated }: { conversationId: string | null; onCreated?: (id: string) => void }) {
+export function ConversationView({
+  conversationId,
+  agent,
+  onCreated,
+}: {
+  conversationId: string | null;
+  agent?: AgentDto;
+  onCreated?: (id: string) => void;
+}) {
   const queryClient = useQueryClient();
   const { can } = useSession();
   const [activeId, setActiveId] = useState(conversationId);
   const models = useQuery({ ...catalogQueries.models(), enabled: can('agents.view') });
-  const demo = models.data?.providers.find((p) => p.name === models.data.defaultProvider)?.kind === 'demo';
+  const provider = agent?.modelProvider ?? models.data?.defaultProvider;
+  const demo = models.data?.providers.find((p) => p.name === provider)?.kind === 'demo';
   const messages = useQuery({
     queryKey: queryKeys.messages(activeId ?? 'new'),
     queryFn: ({ signal }) => api.conversations.messages(activeId!, signal),
@@ -66,7 +76,7 @@ export function ConversationView({ conversationId, onCreated }: { conversationId
     let failed = false;
     try {
       if (!id) {
-        id = (await api.conversations.create({ title: text.slice(0, 40) }, controller.signal)).id;
+        id = (await api.conversations.create({ title: text.slice(0, 40), agentId: agent?.id }, controller.signal)).id;
         setActiveId(id);
       }
 
@@ -112,7 +122,8 @@ export function ConversationView({ conversationId, onCreated }: { conversationId
           {messages.isLoading ? <Skeleton className='h-20 w-full' /> : null}
           {!messages.data?.length && !messages.isLoading && !draft ? (
             <div className='text-muted-foreground py-16 text-center text-sm'>
-              <p className='text-foreground mb-2 text-base font-medium'>有什么可以帮你？</p>
+              <p className='text-foreground mb-2 text-base font-medium'>{agent ? `和${agent.name}聊点什么？` : '有什么可以帮你？'}</p>
+              {agent ? <p className='mb-2'>{agent.title ? `${agent.title}。` : null}它按自己的岗位设定和模型回答，动手操作时用的是你的权限。</p> : null}
               {demo ? (
                 <>当前使用内置演示模型，它只会复述你的话，不会真的执行操作。在后端配置 Ai:Providers 的模型密钥后，就可以让我建任务、规划项目、查客户。</>
               ) : (
