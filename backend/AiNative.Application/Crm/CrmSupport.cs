@@ -327,7 +327,7 @@ internal sealed class CrmRecords(IAppDbContext db, ITenantContext tenant, IPlatf
             return data;
         }, cancellationToken);
 
-    public static (int Page, int PageSize) Paging(int page, int pageSize) => (Math.Max(1, page), Math.Clamp(pageSize, 1, 200));
+    public static (int Page, int PageSize) Paging(int page, int pageSize) => Common.Paging.Normalize(page, pageSize);
 
     /// <summary>
     /// 去掉首尾空白、空标签和重复标签（不区分大小写，保留第一次出现的写法）。

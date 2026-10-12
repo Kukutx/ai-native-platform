@@ -3213,11 +3213,23 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.HasIndex("CheckoutRunId")
                         .HasDatabaseName("ix_work_items_checkout_run_id");
 
+                    b.HasIndex("Description")
+                        .HasDatabaseName("ix_work_items_description");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Description"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Description"), new[] { "gin_trgm_ops" });
+
                     b.HasIndex("MilestoneId")
                         .HasDatabaseName("ix_work_items_milestone_id");
 
                     b.HasIndex("ParentId")
                         .HasDatabaseName("ix_work_items_parent_id");
+
+                    b.HasIndex("Title")
+                        .HasDatabaseName("ix_work_items_title");
+
+                    NpgsqlIndexBuilderExtensions.HasMethod(b.HasIndex("Title"), "gin");
+                    NpgsqlIndexBuilderExtensions.HasOperators(b.HasIndex("Title"), new[] { "gin_trgm_ops" });
 
                     b.HasIndex("ProjectId", "Status")
                         .HasDatabaseName("ix_work_items_project_id_status");
@@ -3598,6 +3610,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_workflow_runs");
+
+                    b.HasIndex("ResumeAt")
+                        .HasDatabaseName("ix_workflow_runs_resume")
+                        .HasFilter("status = 'Waiting' AND resume_at IS NOT NULL");
 
                     b.HasIndex("WaitingApprovalId")
                         .HasDatabaseName("ix_workflow_runs_waiting_approval_id")

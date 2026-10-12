@@ -11,6 +11,7 @@ using AiNative.Contracts.Governance;
 using AiNative.Domain.Agents;
 using AiNative.Domain.Common;
 using AiNative.Domain.Governance;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -24,6 +25,11 @@ public sealed record ListApprovalsQuery(ApprovalStatus? Status = null) : IQuery<
 /// </summary>
 [RequireFeature(Features.Approvals.Decide)]
 public sealed record DecideApprovalCommand(Guid Id, DecideApprovalRequest Request) : IRequest<ApprovalDto>;
+
+public sealed class DecideApprovalCommandValidator : AbstractValidator<DecideApprovalCommand>
+{
+    public DecideApprovalCommandValidator() => RuleFor(x => x.Request.Note).MaximumLength(2_000);
+}
 
 internal static class ApprovalMapping
 {

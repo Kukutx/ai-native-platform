@@ -32,9 +32,11 @@ internal sealed class AuthorizationBehavior<TRequest, TResponse>(ITenantContext 
 
             foreach (var feature in RequiredFeatures)
             {
+                // 声明了没有登记的权限键是代码错误（多半是拼写），直接报错，而不是悄悄跳过模块检查。
+                var moduleKey = (catalog.FindFeature(feature)
+                                 ?? throw new InvalidOperationException($"{typeof(TRequest).Name} 声明的权限 {feature} 没有在任何模块中登记。")).ModuleKey;
                 tenant.Demand(feature);
-                var moduleKey = catalog.AllFeatures.FirstOrDefault(f => f.Key == feature)?.ModuleKey;
-                if (moduleKey is not null && !await modules.IsEnabledAsync(moduleKey, cancellationToken).ConfigureAwait(false))
+                if (!await modules.IsEnabledAsync(moduleKey, cancellationToken).ConfigureAwait(false))
                 {
                     throw new ForbiddenException($"模块 {moduleKey} 未在当前空间启用。");
                 }

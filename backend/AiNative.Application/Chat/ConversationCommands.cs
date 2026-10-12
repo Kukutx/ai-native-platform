@@ -6,6 +6,7 @@ using AiNative.Application.Common;
 using AiNative.Application.Tenancy;
 using AiNative.Contracts.Chat;
 using AiNative.Domain.Chat;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 
@@ -19,6 +20,11 @@ public sealed record CreateConversationCommand(CreateConversationRequest Request
 
 [RequireFeature(Features.Chat.Use)]
 public sealed record DeleteConversationCommand(Guid Id) : ICommand<Unit>;
+
+public sealed class CreateConversationCommandValidator : AbstractValidator<CreateConversationCommand>
+{
+    public CreateConversationCommandValidator() => RuleFor(x => x.Request.Title).MaximumLength(200);
+}
 
 [RequireFeature(Features.Chat.Use)]
 public sealed record GetConversationMessagesQuery(Guid ConversationId) : IQuery<IReadOnlyList<ChatMessageDto>>;

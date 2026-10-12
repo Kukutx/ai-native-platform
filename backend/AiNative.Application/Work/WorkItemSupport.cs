@@ -84,7 +84,13 @@ public interface IWorkItemCheckout
 /// 项目里的任务状态变化交给 <see cref="ProjectWorkflow"/> 通知项目负责人。
 /// 自己触发的变化不唤醒自己，避免智能体自我循环（前置任务关闭除外，见 <see cref="WakeReadyDependentsAsync"/>）。
 /// </summary>
-internal sealed class WorkItemWorkflow(IAppDbContext db, IWakeupQueue wakeups, IChangeFeed changes, ProjectWorkflow projects, TimeProvider clock)
+internal sealed class WorkItemWorkflow(
+    IAppDbContext db,
+    IWakeupQueue wakeups,
+    IChangeFeed changes,
+    ProjectWorkflow projects,
+    WorkItemDependencyRules dependencies,
+    TimeProvider clock)
 {
     public async Task OnAssignedAsync(WorkItem item, Guid? previousAgentId, Actor actor, CancellationToken cancellationToken)
     {
@@ -131,13 +137,21 @@ internal sealed class WorkItemWorkflow(IAppDbContext db, IWakeupQueue wakeups, I
             return;
         }
 
+        // 同时关闭同一后续任务的两个前置任务时，两边都会把对方当成未关闭而谁也不唤醒。在依赖锁下检查，
+        // 后提交的一方能看到先提交的关闭。锁的顺序固定为 依赖 → 项目，和 UpdateWorkItem 一致，避免死锁。
+        var closing = item.IsClosed && previous is not (WorkItemStatus.Done or WorkItemStatus.Cancelled);
+        if (closing)
+        {
+            await dependencies.LockAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         await projects.OnTaskStatusChangedAsync(item, previous, actor, cancellationToken).ConfigureAwait(false);
         if (!item.IsClosed)
         {
             return;
         }
 
-        if (previous is not (WorkItemStatus.Done or WorkItemStatus.Cancelled))
+        if (closing)
         {
             await WakeReadyDependentsAsync(item, actor, cancellationToken).ConfigureAwait(false);
         }

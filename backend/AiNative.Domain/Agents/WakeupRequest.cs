@@ -49,6 +49,11 @@ public sealed record WakeupItem
 /// </summary>
 public sealed class WakeupRequest : TenantEntity
 {
+    /// <summary>
+    /// 合并时最多保留的唤醒原因条数（保留最近的）。
+    /// </summary>
+    public const int MaxItems = 50;
+
     public Guid AgentId { get; set; }
 
     public WakeupStatus Status { get; set; } = WakeupStatus.Queued;

@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AiNative.Application.Abstractions;
 using AiNative.Application.Access;
 using AiNative.Application.Common;
@@ -77,6 +78,15 @@ public sealed class AddCommentCommandValidator : AbstractValidator<AddCommentCom
     public AddCommentCommandValidator() => RuleFor(x => x.Body).NotEmpty().MaximumLength(20_000);
 }
 
+public sealed class ChangeWorkItemStatusCommandValidator : AbstractValidator<ChangeWorkItemStatusCommand>
+{
+    public ChangeWorkItemStatusCommandValidator()
+    {
+        RuleFor(x => x.Status).IsInEnum();
+        RuleFor(x => x.Comment).MaximumLength(20_000);
+    }
+}
+
 internal sealed class WorkItemCommandHandlers(
     IAppDbContext db,
     ITenantContext tenant,
@@ -147,6 +157,12 @@ internal sealed class WorkItemCommandHandlers(
         var item = await FindAsync(request.Id, cancellationToken).ConfigureAwait(false);
         var r = request.Request;
         var now = clock.GetUtcNow();
+        if (r.Status is WorkItemStatus.Done or WorkItemStatus.Cancelled && !item.IsClosed)
+        {
+            // 关闭任务要拿依赖锁（见 WorkItemWorkflow.OnStatusChangedAsync），在放进项目拿项目锁之前先拿，保持锁的顺序一致。
+            await dependencies.LockAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         if (r.ExpectedUpdatedAt is { } expected)
         {
             await OptimisticConcurrency.EnsureUnchangedAsync(
@@ -301,14 +317,13 @@ internal sealed class WorkItemCommandHandlers(
     }
 }
 
-internal sealed class WorkItemQueryHandlers(IAppDbContext db) :
+internal sealed partial class WorkItemQueryHandlers(IAppDbContext db, ITextMatcher text) :
     IRequestHandler<ListWorkItemsQuery, PagedResult<WorkItemDto>>,
     IRequestHandler<GetWorkItemQuery, WorkItemDetailDto>
 {
     public async Task<PagedResult<WorkItemDto>> HandleAsync(ListWorkItemsQuery request, CancellationToken cancellationToken)
     {
-        var page = Math.Max(1, request.Page);
-        var pageSize = Math.Clamp(request.PageSize, 1, 200);
+        var (page, pageSize) = Paging.Normalize(request.Page, request.PageSize);
         var query = db.WorkItems.AsNoTracking();
         if (request.Status is { } status)
         {
@@ -342,8 +357,11 @@ internal sealed class WorkItemQueryHandlers(IAppDbContext db) :
 
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
-            var term = request.Search.Trim().ToLowerInvariant();
-            query = query.Where(w => w.Title.ToLower().Contains(term) || w.Description.ToLower().Contains(term));
+            // 输入任务编号（T-12）直接定位；其余按标题和描述模糊匹配（走三元组索引，% 和 _ 按字面匹配）。
+            var term = request.Search.Trim();
+            query = TaskKey().Match(term) is { Success: true } key && int.TryParse(key.Groups[1].ValueSpan, out var number)
+                ? query.Where(w => w.Number == number)
+                : text.WhereContains(query, term, w => w.Title, w => w.Description);
         }
 
         var total = await query.CountAsync(cancellationToken).ConfigureAwait(false);
@@ -385,4 +403,7 @@ internal sealed class WorkItemQueryHandlers(IAppDbContext db) :
             [.. predecessors.Select(w => w.ToLink())],
             [.. dependents.Select(w => w.ToLink())]);
     }
+
+    [GeneratedRegex(@"^[Tt]-?(\d{1,9})$")]
+    private static partial Regex TaskKey();
 }

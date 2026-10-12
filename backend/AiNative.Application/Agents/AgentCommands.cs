@@ -61,6 +61,11 @@ public sealed class UpdateAgentCommandValidator : AbstractValidator<UpdateAgentC
     public UpdateAgentCommandValidator() => RuleFor(x => x.Request).SetValidator(new SaveAgentRequestValidator());
 }
 
+public sealed class WakeAgentCommandValidator : AbstractValidator<WakeAgentCommand>
+{
+    public WakeAgentCommandValidator() => RuleFor(x => x.Request.Reason).NotEmpty().MaximumLength(2_000);
+}
+
 internal sealed class AgentCommandHandlers(
     IAppDbContext db,
     IModelGateway models,

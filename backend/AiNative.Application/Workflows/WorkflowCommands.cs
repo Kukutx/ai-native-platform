@@ -327,8 +327,7 @@ internal sealed class WorkflowQueryHandlers(IAppDbContext db, IModuleCatalog cat
 
     public async Task<PagedResult<WorkflowRunSummaryDto>> HandleAsync(ListWorkflowRunsQuery request, CancellationToken cancellationToken)
     {
-        var page = Math.Max(1, request.Page);
-        var pageSize = Math.Clamp(request.PageSize, 1, 100);
+        var (page, pageSize) = Paging.Normalize(request.Page, request.PageSize, 100);
         var query = db.WorkflowRuns.AsNoTracking();
         if (request.WorkflowId is { } workflowId)
         {

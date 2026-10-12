@@ -163,7 +163,7 @@ internal static class ProjectMapping
 /// <summary>
 /// 项目管理各处理器共用的查找、校验与写入辅助。
 /// </summary>
-internal sealed class ProjectRecords(IAppDbContext db, ITenantContext tenant, IPlatformEvents events, ITransactionLock locks, TimeProvider clock)
+internal sealed class ProjectRecords(IAppDbContext db, ITenantContext tenant, IPlatformEvents events, ITransactionLock locks, TenantCalendar calendar)
 {
     /// <summary>
     /// 往项目或里程碑里加任务、完成项目、完成里程碑都在这把锁下进行：
@@ -171,7 +171,8 @@ internal sealed class ProjectRecords(IAppDbContext db, ITenantContext tenant, IP
     /// </summary>
     public static string LockKey(Guid projectId) => $"project:{projectId}";
 
-    public DateOnly Today => DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+    /// <summary>空间时区下的今天，逾期按它判断。</summary>
+    public Task<DateOnly> TodayAsync(CancellationToken cancellationToken) => calendar.TodayAsync(cancellationToken);
 
     public Task LockAsync(Guid projectId, CancellationToken cancellationToken) => locks.AcquireAsync(LockKey(projectId), cancellationToken);
 
@@ -220,10 +221,10 @@ internal sealed class ProjectRecords(IAppDbContext db, ITenantContext tenant, IP
     }
 
     public async Task<ProjectDto> ToDtoAsync(Project project, CancellationToken cancellationToken)
-        => (await ProjectMapping.ProjectsAsync(db, [project], Today, cancellationToken).ConfigureAwait(false))[0];
+        => (await ProjectMapping.ProjectsAsync(db, [project], await TodayAsync(cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false))[0];
 
     public async Task<ProjectMilestoneDto> ToDtoAsync(ProjectMilestone milestone, CancellationToken cancellationToken)
-        => (await ProjectMapping.MilestonesAsync(db, [milestone], Today, cancellationToken).ConfigureAwait(false))[0];
+        => (await ProjectMapping.MilestonesAsync(db, [milestone], await TodayAsync(cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false))[0];
 
     public async Task<ProjectDetailDto> DetailAsync(Project project, CancellationToken cancellationToken)
     {
@@ -239,7 +240,7 @@ internal sealed class ProjectRecords(IAppDbContext db, ITenantContext tenant, IP
     public async Task<ProjectDetailDto> DetailAsync(Project project, IReadOnlyList<ProjectMilestone> milestones, IReadOnlyList<ProjectMember> members, CancellationToken cancellationToken)
         => new(
             await ToDtoAsync(project, cancellationToken).ConfigureAwait(false),
-            await ProjectMapping.MilestonesAsync(db, milestones, Today, cancellationToken).ConfigureAwait(false),
+            await ProjectMapping.MilestonesAsync(db, milestones, await TodayAsync(cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false),
             await ProjectMapping.MembersAsync(db, project.Id, members, cancellationToken).ConfigureAwait(false));
 
     public static ProjectMilestone NewMilestone(Guid projectId, SaveProjectMilestoneRequest request)
@@ -268,7 +269,7 @@ internal sealed class ProjectRecords(IAppDbContext db, ITenantContext tenant, IP
             return data;
         }, cancellationToken);
 
-    public static (int Page, int PageSize) Paging(int page, int pageSize) => (Math.Max(1, page), Math.Clamp(pageSize, 1, 200));
+    public static (int Page, int PageSize) Paging(int page, int pageSize) => Common.Paging.Normalize(page, pageSize);
 }
 
 /// <summary>
@@ -344,7 +345,7 @@ internal sealed class ProjectPlacement(IAppDbContext db, IModuleAccess modules, 
 /// 项目负责人是智能体时的协作：被设为负责人、项目里的任务被阻塞、里程碑或整个项目的任务全部关闭时唤醒它。
 /// 自己造成的变化不唤醒自己。
 /// </summary>
-internal sealed class ProjectWorkflow(IAppDbContext db, IWakeupQueue wakeups, TimeProvider clock)
+internal sealed class ProjectWorkflow(IAppDbContext db, IWakeupQueue wakeups, ITransactionLock locks, TimeProvider clock)
 {
     public Task OnLeadAssignedAsync(Project project, Guid? previousLeadAgentId, Actor actor, CancellationToken cancellationToken)
     {
@@ -370,6 +371,9 @@ internal sealed class ProjectWorkflow(IAppDbContext db, IWakeupQueue wakeups, Ti
             return;
         }
 
+        // 在项目锁下统计：并发关闭最后两个任务时，后提交的一方能看到先提交的关闭，不会谁都不通知负责人；
+        // 也不会和"完成项目"前的未关闭任务检查交错。
+        await locks.AcquireAsync(ProjectRecords.LockKey(projectId), cancellationToken).ConfigureAwait(false);
         var project = await db.Projects.AsNoTracking().Where(p => p.Id == projectId)
             .Select(p => new { p.Id, p.Name, p.LeadAgentId, p.Status })
             .FirstOrDefaultAsync(cancellationToken).ConfigureAwait(false);

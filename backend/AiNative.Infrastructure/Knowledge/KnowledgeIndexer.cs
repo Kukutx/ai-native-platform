@@ -1,4 +1,6 @@
 using AiNative.Application.Knowledge;
+using AiNative.Application.Realtime;
+using AiNative.Contracts.Realtime;
 using AiNative.Infrastructure.Common;
 using AiNative.Infrastructure.Persistence;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +20,8 @@ internal sealed class KnowledgeIndexSignal : CoalescingSignal, IKnowledgeIndexSi
 /// 后台向量化：找出没有向量或向量模型与当前配置不一致的片段，批量生成向量写回。
 /// 片段一经生成就不再修改（文档更新时整体重建），所以不需要加锁：写回时片段已被删除则什么都不发生，
 /// 多实例同时处理同一批只会多调用一次模型。更换向量模型后，旧向量会被自动逐批替换。
+/// 整批失败时逐条重试：个别内容被模型拒绝（超长、含违规内容）只标记这几条不再处理，不会卡住后面的文档；
+/// 逐条也全部失败才视为向量服务故障，退避后重试。写回后推送文档和记忆的变化，界面上的向量化进度实时刷新。
 /// </summary>
 internal sealed class KnowledgeIndexer(
     IServiceScopeFactory scopes,
@@ -27,6 +31,9 @@ internal sealed class KnowledgeIndexer(
     ILogger<KnowledgeIndexer> logger) : BackgroundService
 {
     private const int BatchSize = 64;
+
+    // 逐条重试时，开头连续这么多条都失败、一条都没成功，就认为是服务故障而不是个别内容的问题。
+    private const int FailFastAfter = 3;
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan MaxBackoff = TimeSpan.FromMinutes(5);
 
@@ -83,7 +90,7 @@ internal sealed class KnowledgeIndexer(
         var pending = await RawSql.RunAsync(db.Database, async command =>
         {
             command.CommandText = $"""
-                SELECT c.id, COALESCE(d.title || E'\n', '') || c.content
+                SELECT c.id, c.tenant_id, c.document_id, c.memory_id, COALESCE(d.title || E'\n', '') || c.content
                 FROM knowledge_chunks c
                 LEFT JOIN knowledge_documents d ON d.id = c.document_id
                 WHERE {condition}
@@ -92,11 +99,16 @@ internal sealed class KnowledgeIndexer(
                 """;
             command.Parameters.Add(new NpgsqlParameter("model", model));
             command.Parameters.Add(new NpgsqlParameter("batch", BatchSize));
-            var rows = new List<(Guid Id, string Text)>();
+            var rows = new List<PendingChunk>();
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                rows.Add((reader.GetGuid(0), reader.GetString(1)));
+                rows.Add(new PendingChunk(
+                    reader.GetGuid(0),
+                    reader.GetGuid(1),
+                    reader.IsDBNull(2) ? null : reader.GetGuid(2),
+                    reader.IsDBNull(3) ? null : reader.GetGuid(3),
+                    reader.GetString(4)));
             }
 
             return rows;
@@ -108,10 +120,10 @@ internal sealed class KnowledgeIndexer(
             return 0;
         }
 
-        var vectors = await embeddings.EmbedAsync([.. pending.Select(p => p.Text)], cancellationToken).ConfigureAwait(false);
+        var vectors = await EmbedAsync([.. pending.Select(p => p.Text)], cancellationToken).ConfigureAwait(false);
 
-        // 没有任何可用字词的片段（例如只有标点）得到零向量，存 NULL 并标记模型，避免反复处理。
-        var literals = vectors.Select(v => v.Any(x => x != 0) ? EmbeddingVector.ToSql(v) : null).ToArray();
+        // 没有任何可用字词的片段（例如只有标点）得到零向量、被模型拒绝的片段没有向量，都存 NULL 并标记模型，避免反复处理。
+        var literals = vectors.Select(v => v is not null && v.Any(x => x != 0) ? EmbeddingVector.ToSql(v) : null).ToArray();
         await RawSql.RunAsync(db.Database, async command =>
         {
             command.CommandText = """
@@ -133,6 +145,82 @@ internal sealed class KnowledgeIndexer(
         }
 
         logger.LogDebug("Embedded {Count} knowledge chunks with {Model}", pending.Count, model);
+        await NotifyAsync(scope.ServiceProvider, pending, cancellationToken).ConfigureAwait(false);
         return pending.Count;
     }
+
+    /// <summary>
+    /// 整批生成向量；整批失败时逐条重试，被拒绝的条目返回 null。逐条也都失败时抛出最后一个异常。
+    /// </summary>
+    private async Task<IReadOnlyList<float[]?>> EmbedAsync(IReadOnlyList<string> texts, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await embeddings.EmbedAsync(texts, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (texts.Count > 1 && ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "Embedding a batch of {Count} chunks failed; retrying one by one", texts.Count);
+        }
+
+        var results = new float[]?[texts.Count];
+        var succeeded = 0;
+        Exception? last = null;
+        for (var i = 0; i < texts.Count; i++)
+        {
+            try
+            {
+                results[i] = (await embeddings.EmbedAsync([texts[i]], cancellationToken).ConfigureAwait(false))[0];
+                succeeded++;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                last = ex;
+                if (succeeded == 0 && i + 1 >= FailFastAfter)
+                {
+                    throw;
+                }
+            }
+        }
+
+        if (succeeded == 0)
+        {
+            throw last!;
+        }
+
+        if (succeeded < texts.Count)
+        {
+            logger.LogWarning(last, "{Failed} of {Count} chunks were rejected by the embedding model and will be searched by keywords only", texts.Count - succeeded, texts.Count);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// 推送是尽力而为的：向量已经写回，推送失败只记日志。
+    /// </summary>
+    private async Task NotifyAsync(IServiceProvider services, IReadOnlyList<PendingChunk> chunks, CancellationToken cancellationToken)
+    {
+        if (services.GetService<IRealtimeNotifier>() is not { } notifier)
+        {
+            return;
+        }
+
+        var changes = chunks.Where(c => c.DocumentId is not null).Select(c => (c.TenantId, Entity: RealtimeEntities.KnowledgeDocument, Id: c.DocumentId!.Value))
+            .Concat(chunks.Where(c => c.MemoryId is not null).Select(c => (c.TenantId, Entity: RealtimeEntities.Memory, Id: c.MemoryId!.Value)))
+            .Distinct();
+        try
+        {
+            foreach (var (tenantId, entity, id) in changes)
+            {
+                await notifier.ChangedAsync(tenantId, new RealtimeChangeDto(entity, id, RealtimeChangeKind.Updated), cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogDebug(ex, "Pushing embedding progress failed");
+        }
+    }
+
+    private sealed record PendingChunk(Guid Id, Guid TenantId, Guid? DocumentId, Guid? MemoryId, string Text);
 }

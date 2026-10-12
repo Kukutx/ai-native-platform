@@ -161,7 +161,7 @@ internal sealed class ProjectHandlers(
             .ThenBy(p => p.TargetDate == null).ThenBy(p => p.TargetDate).ThenByDescending(p => p.CreatedAt)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
-        return new PagedResult<ProjectDto>(await ProjectMapping.ProjectsAsync(db, items, records.Today, cancellationToken).ConfigureAwait(false), total, page, pageSize);
+        return new PagedResult<ProjectDto>(await ProjectMapping.ProjectsAsync(db, items, await records.TodayAsync(cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false), total, page, pageSize);
     }
 
     public async Task<ProjectDetailDto> HandleAsync(GetProjectQuery request, CancellationToken cancellationToken)

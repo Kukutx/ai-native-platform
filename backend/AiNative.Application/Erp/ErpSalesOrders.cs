@@ -112,6 +112,7 @@ internal sealed class ErpSalesOrderHandlers(
     IStockLedger ledger,
     ITextMatcher text,
     IChangeFeed changes,
+    TenantCalendar calendar,
     TimeProvider clock) :
     IRequestHandler<ListErpSalesOrdersQuery, PagedResult<ErpSalesOrderDto>>,
     IRequestHandler<GetErpSalesOrderQuery, ErpSalesOrderDto>,
@@ -515,7 +516,7 @@ internal sealed class ErpSalesOrderHandlers(
         order.ContactId = contactId;
         order.DealId = r.DealId;
         order.WarehouseId = warehouse.Id;
-        order.OrderDate = r.OrderDate ?? DateOnly.FromDateTime(clock.GetLocalNow().DateTime);
+        order.OrderDate = r.OrderDate ?? await calendar.TodayAsync(cancellationToken).ConfigureAwait(false);
         order.Note = r.Note.Trim();
         order.SetLines(lines);
     }

@@ -60,7 +60,7 @@ internal sealed class ProjectScheduleHandler(IAppDbContext db, ProjectRecords re
         var links = edges.Select(e => new ScheduleLinkDto(e.Predecessor, e.Successor, ScheduleCalculator.IsConflict(nodes[e.Predecessor], nodes[e.Successor])))
             .ToList();
 
-        var today = records.Today;
+        var today = await records.TodayAsync(cancellationToken).ConfigureAwait(false);
         var dates = nodes.Values.SelectMany(n => n.Span is { } span ? new[] { span.Start, span.End } : [])
             .Concat(detail.Milestones.Where(m => m.DueDate.HasValue).Select(m => m.DueDate!.Value))
             .Concat(new[] { project.StartDate, project.TargetDate }.Where(d => d.HasValue).Select(d => d!.Value))

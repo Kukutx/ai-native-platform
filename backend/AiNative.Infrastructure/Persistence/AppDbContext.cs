@@ -292,6 +292,10 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             // 经营分析按创建时间、完成时间分天统计。
             b.HasIndex(x => new { x.TenantId, x.CreatedAt });
             b.HasIndex(x => new { x.TenantId, x.CompletedAt }).HasFilter("completed_at IS NOT NULL");
+
+            // 任务列表的关键词搜索（ILIKE '%词%'）
+            b.HasIndex(x => x.Title).HasMethod("gin").HasOperators("gin_trgm_ops");
+            b.HasIndex(x => x.Description).HasMethod("gin").HasOperators("gin_trgm_ops");
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<WorkItem>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Agent>().WithMany().HasForeignKey(x => x.AssigneeAgentId).OnDelete(DeleteBehavior.SetNull);
@@ -519,6 +523,9 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => new { x.Status, x.CreatedAt }).HasFilter("status IN ('Queued', 'Running', 'Waiting')").HasDatabaseName("ix_workflow_runs_active");
             b.HasIndex(x => x.WaitingWorkItemId).HasFilter("waiting_work_item_id IS NOT NULL");
             b.HasIndex(x => x.WaitingApprovalId).HasFilter("waiting_approval_id IS NOT NULL");
+
+            // 引擎按到期时间捞出定时等待（延时步骤、等待超时）的运行
+            b.HasIndex(x => x.ResumeAt).HasFilter("status = 'Waiting' AND resume_at IS NOT NULL").HasDatabaseName("ix_workflow_runs_resume");
             b.HasOne<Workflow>().WithMany().HasForeignKey(x => x.WorkflowId).OnDelete(DeleteBehavior.Cascade);
         });
 
