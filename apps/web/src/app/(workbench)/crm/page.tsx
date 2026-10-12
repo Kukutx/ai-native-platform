@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { CrmNav } from '@/features/crm/crm-nav';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
+import { FieldSettingsDialog } from '@/features/crm/field-settings-dialog';
 import { CloseDealDialog, useMoveDeal, type MoveRequest } from '@/features/crm/move-deal';
 import { StageSettingsDialog } from '@/features/crm/stage-settings-dialog';
 import { isOverdue } from '@/features/crm/utils';
@@ -36,6 +37,7 @@ export default function CrmBoardPage() {
   const [mine, setMine] = useState(false);
   const [creating, setCreating] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState(false);
+  const [configuringFields, setConfiguringFields] = useState(false);
   const [closing, setClosing] = useState<MoveRequest | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const ownerUserId = mine ? session?.user.id : undefined;
@@ -76,10 +78,16 @@ export default function CrmBoardPage() {
               </SelectContent>
             </Select>
             {can('crm.configure') ? (
-              <Button variant='outline' onClick={() => setConfiguring(true)} disabled={!pipeline.data}>
-                <Icons.settings />
-                阶段设置
-              </Button>
+              <>
+                <Button variant='outline' onClick={() => setConfiguring(true)} disabled={!pipeline.data}>
+                  <Icons.settings />
+                  阶段设置
+                </Button>
+                <Button variant='outline' onClick={() => setConfiguringFields(true)}>
+                  <Icons.forms />
+                  字段设置
+                </Button>
+              </>
             ) : null}
             {manage ? (
               <Button onClick={() => setCreating('')}>
@@ -150,6 +158,7 @@ export default function CrmBoardPage() {
       ) : null}
       <DealFormDialog open={creating !== null} defaults={{ stageId: creating || undefined }} onOpenChange={(open) => !open && setCreating(null)} />
       <StageSettingsDialog open={configuring} stages={stages} onOpenChange={setConfiguring} />
+      <FieldSettingsDialog open={configuringFields} recordType='deal' onOpenChange={setConfiguringFields} />
       <CloseDealDialog
         request={closing}
         onCancel={() => setClosing(null)}

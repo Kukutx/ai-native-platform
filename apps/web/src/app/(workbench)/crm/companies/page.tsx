@@ -16,6 +16,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { CompanyFormDialog } from '@/features/crm/company-form-dialog';
 import { CrmNav } from '@/features/crm/crm-nav';
+import { FieldSettingsDialog } from '@/features/crm/field-settings-dialog';
+import { ImportDialog } from '@/features/crm/import-dialog';
 import { Pager } from '@/features/crm/pager';
 import { api } from '@/lib/api';
 import { formatTime } from '@/lib/labels';
@@ -27,6 +29,8 @@ export default function CrmCompaniesPage() {
   const { can } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [configuring, setConfiguring] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const term = useDeferredValue(search.trim());
@@ -52,11 +56,23 @@ export default function CrmCompaniesPage() {
               placeholder='搜索名称、行业、电话'
               className='w-56'
             />
-            {can('crm.manage') ? (
-              <Button onClick={() => setCreating(true)}>
-                <Icons.add />
-                新建客户
+            {can('crm.configure') ? (
+              <Button variant='outline' onClick={() => setConfiguring(true)}>
+                <Icons.settings />
+                字段设置
               </Button>
+            ) : null}
+            {can('crm.manage') ? (
+              <>
+                <Button variant='outline' onClick={() => setImporting(true)}>
+                  <Icons.upload />
+                  导入
+                </Button>
+                <Button onClick={() => setCreating(true)}>
+                  <Icons.add />
+                  新建客户
+                </Button>
+              </>
             ) : null}
           </>
         }
@@ -110,6 +126,8 @@ export default function CrmCompaniesPage() {
       ) : (
         <EmptyState title={term ? '没有找到客户' : '还没有客户'} description={term ? '换个关键字试试。' : '新建第一个客户，或者让智能体从会议纪要里整理录入。'} />
       )}
+      <ImportDialog open={importing} recordType='company' onOpenChange={setImporting} />
+      <FieldSettingsDialog open={configuring} recordType='company' onOpenChange={setConfiguring} />
       <CompanyFormDialog open={creating} onOpenChange={setCreating} onSaved={(c) => router.push(`/crm/companies/view?id=${c.id}`)} />
     </div>
   );

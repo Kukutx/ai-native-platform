@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ActivityTimeline } from '@/features/crm/activity-timeline';
 import { ContactFormDialog } from '@/features/crm/contact-form-dialog';
+import { CustomFieldValues } from '@/features/crm/custom-fields';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
 import { InfoRow } from '@/features/crm/info-row';
 import { ListLimitNote } from '@/features/crm/list-limit-note';
@@ -99,6 +100,7 @@ function ContactDetail() {
               <InfoRow icon={Icons.user} label='负责人'>
                 {contact.owner?.name ?? null}
               </InfoRow>
+              <CustomFieldValues recordType='contact' values={contact.customFields} />
               {contact.description ? <p className='text-muted-foreground border-t pt-3 whitespace-pre-wrap'>{contact.description}</p> : null}
               <p className='text-muted-foreground border-t pt-3 text-xs'>
                 {contact.createdBy.name ?? '系统'} 创建于 {formatTime(contact.createdAt)}

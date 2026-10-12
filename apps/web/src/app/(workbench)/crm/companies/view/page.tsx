@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ActivityTimeline } from '@/features/crm/activity-timeline';
 import { CompanyFormDialog } from '@/features/crm/company-form-dialog';
 import { ContactFormDialog } from '@/features/crm/contact-form-dialog';
+import { CustomFieldValues } from '@/features/crm/custom-fields';
 import { DealFormDialog } from '@/features/crm/deal-form-dialog';
 import { InfoRow } from '@/features/crm/info-row';
 import { ListLimitNote } from '@/features/crm/list-limit-note';
@@ -110,6 +111,7 @@ function CompanyDetail() {
               <InfoRow icon={Icons.user} label='负责人'>
                 {company.owner?.name ?? null}
               </InfoRow>
+              <CustomFieldValues recordType='company' values={company.customFields} />
               {company.description ? <p className='text-muted-foreground border-t pt-3 whitespace-pre-wrap'>{company.description}</p> : null}
               <p className='text-muted-foreground border-t pt-3 text-xs'>
                 {company.createdBy.name ?? '系统'} 创建于 {formatTime(company.createdAt)}

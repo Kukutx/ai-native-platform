@@ -35,6 +35,7 @@ export const queryKeys = {
   // 客户管理的数据互相关联（金额、计数、最近往来），任何 crm_* 变化都整体失效 ['crm']。
   crmPipeline: (ownerUserId?: string) => ['crm', 'pipeline', ownerUserId ?? 'all'] as const,
   crmStages: ['crm', 'stages'] as const,
+  crmFields: (recordType?: string) => ['crm', 'fields', recordType ?? 'all'] as const,
   crmCompanies: (filters?: object) => ['crm', 'companies', filters ?? {}] as const,
   crmCompany: (id: string) => ['crm', 'company', id] as const,
   crmContacts: (filters?: object) => ['crm', 'contacts', filters ?? {}] as const,
@@ -90,6 +91,7 @@ export const invalidationMap: Record<string, (id: string) => readonly (readonly 
   crm_deal: () => [['crm'], ['erp'], analyticsData],
   crm_activity: () => [['crm'], analyticsData],
   crm_stage: () => [['crm'], analyticsData],
+  crm_field: () => [['crm']],
   erp_product: () => [['erp'], analyticsData],
   erp_warehouse: () => [['erp']],
   erp_stock: () => [['erp'], analyticsData],
