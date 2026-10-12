@@ -25,18 +25,20 @@ import { queryKeys } from '@/lib/query-keys';
 
 const PAGE_SIZE = 50;
 const ALL = '__all__';
+const PENDING = 'pending';
 
 export default function PurchaseOrdersPage() {
   const { can } = useSession();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<ErpPurchaseOrderStatus | undefined>();
+  const [status, setStatus] = useState<ErpPurchaseOrderStatus | typeof PENDING | undefined>();
   const [page, setPage] = useState(1);
   const term = useDeferredValue(search.trim());
   const orders = useQuery({
     queryKey: queryKeys.erpPurchaseOrders({ search: term, status, page }),
-    queryFn: ({ signal }) => api.erp.purchaseOrders.list(term || undefined, status, undefined, page, PAGE_SIZE, signal),
+    queryFn: ({ signal }) =>
+      api.erp.purchaseOrders.list(term || undefined, status === PENDING ? undefined : status, undefined, page, PAGE_SIZE, status === PENDING, signal),
     placeholderData: keepPreviousData,
   });
   const filtered = !!term || !!status;
@@ -45,7 +47,7 @@ export default function PurchaseOrdersPage() {
     <div className='space-y-6 p-6'>
       <PageHeader
         title='采购订单'
-        description='向供应商下单，到货后收货入库。供应商来自客户管理里的公司。'
+        description='向供应商下单，到货后收货入库（可以分批收货、退货给供应商）。供应商来自客户管理里的公司。'
         actions={
           <>
             <Input
@@ -60,7 +62,7 @@ export default function PurchaseOrdersPage() {
             <Select
               value={status ?? ALL}
               onValueChange={(v) => {
-                setStatus(v === ALL ? undefined : (v as ErpPurchaseOrderStatus));
+                setStatus(v === ALL ? undefined : (v as ErpPurchaseOrderStatus | typeof PENDING));
                 setPage(1);
               }}
             >
@@ -69,6 +71,7 @@ export default function PurchaseOrdersPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ALL}>全部状态</SelectItem>
+                <SelectItem value={PENDING}>未收完</SelectItem>
                 {Object.entries(erpPurchaseOrderStatus).map(([key, meta]) => (
                   <SelectItem key={key} value={key}>
                     {meta.label}

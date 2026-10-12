@@ -11,8 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
-import { formatQuantity } from '@/lib/labels';
+import { formatAmount, formatQuantity } from '@/lib/labels';
 import { ProductPicker } from './product-picker';
+import { toNumber } from './utils';
 import { WarehouseSelect } from './warehouse-select';
 
 type PickedProduct = Pick<ErpProductDto, 'id' | 'sku' | 'name' | 'unit'>;
@@ -63,7 +64,10 @@ function AdjustForm({ product: initialProduct, warehouseId: initialWarehouse, on
   const [product, setProduct] = useState(initialProduct);
   const [warehouseId, setWarehouseId] = useState(initialWarehouse);
   const [quantity, setQuantity] = useState('');
+  const [unitCost, setUnitCost] = useState('');
   const [note, setNote] = useState('');
+  // 只有可能增加库存时才需要单位成本；减少时按平均成本出库。
+  const adding = mode === 'count' || Number(quantity) > 0;
   const save = useMutation({
     mutationFn: () =>
       api.erp.stock.adjust({
@@ -71,10 +75,11 @@ function AdjustForm({ product: initialProduct, warehouseId: initialWarehouse, on
         warehouseId,
         quantity: mode === 'delta' ? Number(quantity) : undefined,
         countedQuantity: mode === 'count' ? Number(quantity) : undefined,
+        unitCost: adding ? toNumber(unitCost) : undefined,
         note,
       }),
     onSuccess: async (level) => {
-      toast.success(`${level.warehouseName} 现有 ${formatQuantity(level.onHand, level.unit)}`);
+      toast.success(`${level.warehouseName} 现有 ${formatQuantity(level.onHand, level.unit)}，平均成本 ${formatAmount(level.averageCost, level.currency)}`);
       await queryClient.invalidateQueries({ queryKey: ['erp'] });
       onClose();
     },
@@ -119,6 +124,20 @@ function AdjustForm({ product: initialProduct, warehouseId: initialWarehouse, on
           placeholder={mode === 'delta' ? '例如 100 或 -2' : '盘点后的实际数量'}
         />
       </div>
+      {adding ? (
+        <div className='grid gap-2'>
+          <Label htmlFor='adjust-cost'>单位成本（可选）</Label>
+          <Input
+            id='adjust-cost'
+            type='number'
+            step='any'
+            min={0}
+            value={unitCost}
+            onChange={(e) => setUnitCost(e.target.value)}
+            placeholder='不填按当前平均成本；还没有成本时按参考采购价'
+          />
+        </div>
+      ) : null}
       <div className='grid gap-2'>
         <Label htmlFor='adjust-note'>原因</Label>
         <Input id='adjust-note' value={note} onChange={(e) => setNote(e.target.value)} maxLength={500} placeholder='例如：期初录入、破损报废' />

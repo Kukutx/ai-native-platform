@@ -124,7 +124,7 @@ public sealed class ErpStockController : ApiControllerBase
 public sealed class ErpSalesOrdersController : ApiControllerBase
 {
     /// <summary>
-    /// 销售订单，最新的在前；search 匹配订单号和客户名称。
+    /// 销售订单，最新的在前；search 匹配订单号和客户名称，pending=true 只看还没发完的（已确认和部分发货）。
     /// </summary>
     [HttpGet]
     public Task<PagedResult<ErpSalesOrderDto>> List(
@@ -134,8 +134,9 @@ public sealed class ErpSalesOrdersController : ApiControllerBase
         [FromQuery] Guid? dealId,
         [FromQuery] Guid? ownerUserId,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
-        => SendAsync(new ListErpSalesOrdersQuery(search, status, companyId, dealId, ownerUserId, page, pageSize));
+        [FromQuery] int pageSize = 50,
+        [FromQuery] bool pending = false)
+        => SendAsync(new ListErpSalesOrdersQuery(search, status, companyId, dealId, ownerUserId, page, pageSize, pending));
 
     [HttpGet("{id:guid}")]
     public Task<ErpSalesOrderDto> Get(Guid id) => SendAsync(new GetErpSalesOrderQuery(id));
@@ -160,10 +161,22 @@ public sealed class ErpSalesOrdersController : ApiControllerBase
     public Task<ErpSalesOrderDto> Confirm(Guid id) => SendAsync(new ConfirmErpSalesOrderCommand(id));
 
     /// <summary>
-    /// 发货：扣减库存并记出库流水。
+    /// 发货：扣减库存、按平均成本记出库流水并生成发货单。可以只发一部分（lines），不传请求体或 lines 为空时发出全部未发的数量。
     /// </summary>
     [HttpPost("{id:guid}/ship")]
-    public Task<ErpSalesOrderDto> Ship(Guid id) => SendAsync(new ShipErpSalesOrderCommand(id));
+    public Task<ErpSalesOrderDto> Ship(Guid id, [FromBody] ErpDeliveryRequest? request = null) => SendAsync(new ShipErpSalesOrderCommand(id, request));
+
+    /// <summary>
+    /// 结束发货：部分发货的订单不再发剩下的，释放剩下的预留。
+    /// </summary>
+    [HttpPost("{id:guid}/close")]
+    public Task<ErpSalesOrderDto> Close(Guid id) => SendAsync(new CloseErpSalesOrderCommand(id));
+
+    /// <summary>
+    /// 客户退货：退回的货入库，按发货成本冲回，生成退货单。
+    /// </summary>
+    [HttpPost("{id:guid}/returns")]
+    public Task<ErpSalesOrderDto> Return(Guid id, ErpReturnRequest request) => SendAsync(new ReturnErpSalesOrderCommand(id, request));
 
     /// <summary>
     /// 取消草稿或已确认的订单（释放预留）。
@@ -187,7 +200,7 @@ public sealed class ErpSalesOrdersController : ApiControllerBase
 public sealed class ErpPurchaseOrdersController : ApiControllerBase
 {
     /// <summary>
-    /// 采购订单，最新的在前；search 匹配订单号和供应商名称。
+    /// 采购订单，最新的在前；search 匹配订单号和供应商名称，pending=true 只看还没收完的（已下单和部分到货）。
     /// </summary>
     [HttpGet]
     public Task<PagedResult<ErpPurchaseOrderDto>> List(
@@ -195,8 +208,9 @@ public sealed class ErpPurchaseOrdersController : ApiControllerBase
         [FromQuery] ErpPurchaseOrderStatus? status,
         [FromQuery] Guid? supplierId,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
-        => SendAsync(new ListErpPurchaseOrdersQuery(search, status, supplierId, page, pageSize));
+        [FromQuery] int pageSize = 50,
+        [FromQuery] bool pending = false)
+        => SendAsync(new ListErpPurchaseOrdersQuery(search, status, supplierId, page, pageSize, pending));
 
     [HttpGet("{id:guid}")]
     public Task<ErpPurchaseOrderDto> Get(Guid id) => SendAsync(new GetErpPurchaseOrderQuery(id));
@@ -214,10 +228,22 @@ public sealed class ErpPurchaseOrdersController : ApiControllerBase
     public Task<ErpPurchaseOrderDto> Place(Guid id) => SendAsync(new PlaceErpPurchaseOrderCommand(id));
 
     /// <summary>
-    /// 到货：全部入库并记入库流水。
+    /// 到货：入库、重算平均成本并生成收货单。可以只收一部分（lines），不传请求体或 lines 为空时收下全部未到的数量。
     /// </summary>
     [HttpPost("{id:guid}/receive")]
-    public Task<ErpPurchaseOrderDto> Receive(Guid id) => SendAsync(new ReceiveErpPurchaseOrderCommand(id));
+    public Task<ErpPurchaseOrderDto> Receive(Guid id, [FromBody] ErpDeliveryRequest? request = null) => SendAsync(new ReceiveErpPurchaseOrderCommand(id, request));
+
+    /// <summary>
+    /// 结束收货：部分到货的订单剩下的不再等。
+    /// </summary>
+    [HttpPost("{id:guid}/close")]
+    public Task<ErpPurchaseOrderDto> Close(Guid id) => SendAsync(new CloseErpPurchaseOrderCommand(id));
+
+    /// <summary>
+    /// 退货给供应商：从仓库出库（只能动用可用数量），生成退货单。
+    /// </summary>
+    [HttpPost("{id:guid}/returns")]
+    public Task<ErpPurchaseOrderDto> Return(Guid id, ErpReturnRequest request) => SendAsync(new ReturnErpPurchaseOrderCommand(id, request));
 
     [HttpPost("{id:guid}/cancel")]
     public Task<ErpPurchaseOrderDto> Cancel(Guid id) => SendAsync(new CancelErpPurchaseOrderCommand(id));
@@ -229,6 +255,26 @@ public sealed class ErpPurchaseOrdersController : ApiControllerBase
         await SendAsync(new DeleteErpPurchaseOrderCommand(id)).ConfigureAwait(false);
         return NoContent();
     }
+}
+
+[Route("api/erp/stock-documents")]
+public sealed class ErpStockDocumentsController : ApiControllerBase
+{
+    /// <summary>
+    /// 发货单、收货单和退货单，最新的在前；可按类型、订单或产品过滤。
+    /// </summary>
+    [HttpGet]
+    public Task<PagedResult<ErpStockDocumentDto>> List(
+        [FromQuery] ErpStockDocumentKind? kind,
+        [FromQuery] Guid? salesOrderId,
+        [FromQuery] Guid? purchaseOrderId,
+        [FromQuery] Guid? productId,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
+        => SendAsync(new ListErpStockDocumentsQuery(kind, salesOrderId, purchaseOrderId, productId, page, pageSize));
+
+    [HttpGet("{id:guid}")]
+    public Task<ErpStockDocumentDto> Get(Guid id) => SendAsync(new GetErpStockDocumentQuery(id));
 }
 
 [Route("api/erp/summary")]

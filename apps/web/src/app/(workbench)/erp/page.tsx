@@ -26,12 +26,12 @@ export default function ErpOverviewPage() {
   const [creating, setCreating] = useState<'sales' | 'purchase' | null>(null);
   const summary = useQuery({ queryKey: queryKeys.erpSummary, queryFn: ({ signal }) => api.erp.summary.get(signal) });
   const toShip = useQuery({
-    queryKey: queryKeys.erpSalesOrders({ status: 'confirmed', size: LIST_SIZE }),
-    queryFn: ({ signal }) => api.erp.salesOrders.list(undefined, 'confirmed', undefined, undefined, undefined, 1, LIST_SIZE, signal),
+    queryKey: queryKeys.erpSalesOrders({ pending: true, size: LIST_SIZE }),
+    queryFn: ({ signal }) => api.erp.salesOrders.list(undefined, undefined, undefined, undefined, undefined, 1, LIST_SIZE, true, signal),
   });
   const incoming = useQuery({
-    queryKey: queryKeys.erpPurchaseOrders({ status: 'ordered', size: LIST_SIZE }),
-    queryFn: ({ signal }) => api.erp.purchaseOrders.list(undefined, 'ordered', undefined, 1, LIST_SIZE, signal),
+    queryKey: queryKeys.erpPurchaseOrders({ pending: true, size: LIST_SIZE }),
+    queryFn: ({ signal }) => api.erp.purchaseOrders.list(undefined, undefined, undefined, 1, LIST_SIZE, true, signal),
   });
   const lowStock = useQuery({
     queryKey: queryKeys.erpProducts({ lowStockOnly: true, size: LIST_SIZE }),
@@ -42,7 +42,7 @@ export default function ErpOverviewPage() {
     <div className='space-y-6 p-6'>
       <PageHeader
         title='进销存'
-        description='产品、库存和订单。销售订单确认时预留库存、发货时出库；采购订单收货时入库。'
+        description='产品、库存和订单。销售订单确认时预留库存，可以分批发货和退货；采购订单可以分批收货。库存按移动加权平均计算成本。'
         actions={
           <>
             {can('erp.purchase') ? (
@@ -62,14 +62,17 @@ export default function ErpOverviewPage() {
       />
       <ErpNav />
       {summary.data ? (
-        <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-4'>
-          <StatCard label='本月发货' value={formatTotals(summary.data.shippedThisMonth)} />
+        <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+          <StatCard label='本月发货' hint='扣除客户退货' value={formatTotals(summary.data.shippedThisMonth)} />
+          <StatCard label='本月毛利' hint='发货金额减去按移动加权平均计的成本；产品货币与订单不同的明细不计入' value={formatTotals(summary.data.grossProfitThisMonth)} />
           <StatCard
             label='待发货'
+            hint='已确认和部分发货的订单，金额为还没发的部分'
             value={`${summary.data.toShipSalesOrders} 单`}
             detail={summary.data.toShipSalesOrders ? formatTotals(summary.data.toShipTotals) : undefined}
           />
-          <StatCard label='本月采购入库' value={formatTotals(summary.data.receivedThisMonth)} detail={`${summary.data.openPurchaseOrders} 张采购单待收货`} />
+          <StatCard label='本月采购入库' hint='扣除退给供应商的' value={formatTotals(summary.data.receivedThisMonth)} detail={`${summary.data.openPurchaseOrders} 张采购单待收货`} />
+          <StatCard label='库存金额' hint='全部仓库的现有数量 × 平均成本' value={formatTotals(summary.data.stockValue)} />
           <StatCard
             label='库存预警'
             hint='可用数量不高于补货提醒线的在售产品'
@@ -88,7 +91,7 @@ export default function ErpOverviewPage() {
               key={o.id}
               href={`/erp/sales-orders/view?id=${o.id}`}
               title={`${o.number} · ${o.companyName ?? '未指定客户'}`}
-              hint={`下单 ${formatDate(o.orderDate)} · ${o.warehouseName}`}
+              hint={`${o.status === 'partially_shipped' ? '部分发货' : `下单 ${formatDate(o.orderDate)}`} · ${o.warehouseName}`}
               value={formatAmount(o.total, o.currency)}
             />
           ))}
@@ -99,7 +102,7 @@ export default function ErpOverviewPage() {
               key={o.id}
               href={`/erp/purchase-orders/view?id=${o.id}`}
               title={`${o.number} · ${o.supplierName ?? '供应商'}`}
-              hint={o.expectedDate ? `预计 ${formatDate(o.expectedDate)} 到货` : `下单 ${formatDate(o.orderDate)}`}
+              hint={o.status === 'partially_received' ? '部分到货' : o.expectedDate ? `预计 ${formatDate(o.expectedDate)} 到货` : `下单 ${formatDate(o.orderDate)}`}
               value={formatAmount(o.total, o.currency)}
             />
           ))}

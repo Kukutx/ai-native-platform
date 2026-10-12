@@ -11,13 +11,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InfoRow } from '@/features/crm/info-row';
+import { DeliveryDialog, type DeliveryMode } from '@/features/erp/delivery-dialog';
 import { OrderLinesTable } from '@/features/erp/order-lines-table';
 import { PurchaseOrderFormDialog } from '@/features/erp/purchase-order-form-dialog';
+import { StockDocumentList } from '@/features/erp/stock-document-list';
 import { api } from '@/lib/api';
-import { erpPurchaseOrderStatus, formatDate, formatTime } from '@/lib/labels';
+import { erpPurchaseOrderStatus, formatAmount, formatDate, formatTime } from '@/lib/labels';
 import { queryKeys } from '@/lib/query-keys';
 
-type Transition = 'place' | 'receive' | 'cancel';
+type Transition = 'place' | 'close' | 'cancel';
 
 function PurchaseOrderDetail() {
   const id = useSearchParams().get('id') ?? '';
@@ -25,6 +27,7 @@ function PurchaseOrderDetail() {
   const { can } = useSession();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [delivery, setDelivery] = useState<DeliveryMode | null>(null);
   const detail = useQuery({ queryKey: queryKeys.erpPurchaseOrder(id), queryFn: ({ signal }) => api.erp.purchaseOrders.get(id, signal), enabled: !!id });
   const transition = useMutation({
     mutationFn: (action: Transition) => api.erp.purchaseOrders[action](id),
@@ -45,6 +48,7 @@ function PurchaseOrderDetail() {
   const order = detail.data;
   const manage = can('erp.purchase');
   const busy = transition.isPending || remove.isPending;
+  const started = order.status === 'partially_received' || order.status === 'received';
 
   return (
     <div className='space-y-6 p-6'>
@@ -79,10 +83,22 @@ function PurchaseOrderDetail() {
                 </Button>
               </>
             ) : null}
-            {order.status === 'ordered' ? (
-              <Button onClick={() => confirm(`货已到齐？收货后按明细把数量加到「${order.warehouseName}」。`) && transition.mutate('receive')} disabled={busy}>
+            {order.status === 'ordered' || order.status === 'partially_received' ? (
+              <Button onClick={() => setDelivery('receive')} disabled={busy} title='货没到齐时可以分批收货'>
                 <Icons.check />
                 收货入库
+              </Button>
+            ) : null}
+            {order.status === 'partially_received' ? (
+              <Button variant='outline' onClick={() => confirm('剩下没到的不再收货，采购单记为已入库？') && transition.mutate('close')} disabled={busy}>
+                <Icons.circleCheck />
+                结束收货
+              </Button>
+            ) : null}
+            {started ? (
+              <Button variant='outline' onClick={() => setDelivery('purchase_return')} disabled={busy}>
+                <Icons.undo />
+                退货
               </Button>
             ) : null}
             {order.status === 'draft' || order.status === 'ordered' ? (
@@ -107,9 +123,10 @@ function PurchaseOrderDetail() {
               <CardTitle>明细</CardTitle>
             </CardHeader>
             <CardContent>
-              <OrderLinesTable lines={order.lines} currency={order.currency} total={order.total} />
+              <OrderLinesTable lines={order.lines} currency={order.currency} total={order.total} deliveredLabel={started ? '已收' : undefined} />
             </CardContent>
           </Card>
+          {started ? <StockDocumentList purchaseOrderId={order.id} /> : null}
           {order.note ? (
             <Card>
               <CardContent className='text-sm whitespace-pre-wrap'>{order.note}</CardContent>
@@ -130,6 +147,11 @@ function PurchaseOrderDetail() {
             <InfoRow icon={Icons.clock} label='预计到货'>
               {order.expectedDate ? formatDate(order.expectedDate) : null}
             </InfoRow>
+            {started ? (
+              <InfoRow icon={Icons.receipt} label='已入库'>
+                <span className='tabular-nums'>{formatAmount(order.receivedAmount, order.currency)}</span>
+              </InfoRow>
+            ) : null}
             <div className='text-muted-foreground space-y-1 border-t pt-3 text-xs'>
               <p>
                 {order.createdBy.name ?? '系统'} 创建于 {formatTime(order.createdAt)}
@@ -142,6 +164,7 @@ function PurchaseOrderDetail() {
         </Card>
       </div>
       <PurchaseOrderFormDialog open={editing} order={order} onOpenChange={setEditing} />
+      <DeliveryDialog open={!!delivery} mode={delivery ?? 'receive'} order={order} onOpenChange={(open) => !open && setDelivery(null)} />
     </div>
   );
 }

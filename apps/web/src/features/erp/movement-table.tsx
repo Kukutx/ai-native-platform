@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import type { ErpStockMovementDto } from '@ainative/api-client';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { erpMovementKind, formatQuantity, formatTime } from '@/lib/labels';
+import { erpMovementKind, formatAmount, formatQuantity, formatTime } from '@/lib/labels';
 import { cn } from '@/lib/utils';
 
-/** 库存流水：每次入库、出库、调整、调拨各一行，结存为该仓库变动后的现有数量。 */
+/** 库存流水：每次入库、出库、调整、调拨、退货各一行，结存为该仓库变动后的现有数量，成本为这笔变动按单位成本计的金额。 */
 export function MovementTable({ movements, showProduct }: { movements: ErpStockMovementDto[]; showProduct?: boolean }) {
   return (
     <Table>
@@ -16,6 +16,7 @@ export function MovementTable({ movements, showProduct }: { movements: ErpStockM
           <TableHead>类型</TableHead>
           <TableHead className='text-right'>数量</TableHead>
           <TableHead className='text-right'>结存</TableHead>
+          <TableHead className='text-right'>成本</TableHead>
           <TableHead>说明</TableHead>
         </TableRow>
       </TableHeader>
@@ -38,6 +39,9 @@ export function MovementTable({ movements, showProduct }: { movements: ErpStockM
               {formatQuantity(m.quantity)}
             </TableCell>
             <TableCell className='text-right tabular-nums'>{formatQuantity(m.balanceAfter, m.unit)}</TableCell>
+            <TableCell className='text-muted-foreground text-right tabular-nums' title={`单位成本 ${formatAmount(m.unitCost, m.currency)}`}>
+              {formatAmount(m.costAmount, m.currency)}
+            </TableCell>
             <TableCell className='text-muted-foreground max-w-64 text-xs'>
               {m.salesOrderId ? (
                 <Link href={`/erp/sales-orders/view?id=${m.salesOrderId}`} className='text-foreground hover:underline'>

@@ -28,8 +28,9 @@ const segments: { key: Segment; label: string }[] = [
 export default function ErpScreen() {
   const p = usePalette();
   const [segment, setSegment] = useState<Segment>('sales');
-  const [salesStatus, setSalesStatus] = useState<ErpSalesOrderStatus | undefined>('confirmed');
-  const [purchaseStatus, setPurchaseStatus] = useState<ErpPurchaseOrderStatus | undefined>('ordered');
+  // 默认只看还没发完 / 收完的订单（pending），也可以按某个状态过滤。
+  const [salesStatus, setSalesStatus] = useState<ErpSalesOrderStatus | 'pending' | undefined>('pending');
+  const [purchaseStatus, setPurchaseStatus] = useState<ErpPurchaseOrderStatus | 'pending' | undefined>('pending');
   const [lowOnly, setLowOnly] = useState(false);
   const [search, setSearch] = useState('');
   const term = useDeferredValue(search.trim()) || undefined;
@@ -40,7 +41,8 @@ export default function ErpScreen() {
     queryFn: async ({ signal }): Promise<Row[]> => {
       const api = getApi().erp;
       if (segment === 'sales') {
-        const page = await api.salesOrders.list(term, salesStatus, undefined, undefined, undefined, 1, 100, signal);
+        const pending = salesStatus === 'pending';
+        const page = await api.salesOrders.list(term, pending ? undefined : salesStatus, undefined, undefined, undefined, 1, 100, pending, signal);
         return page.items.map((o) => ({
           id: o.id,
           title: `${o.number} · ${o.companyName ?? '未指定客户'}`,
@@ -51,7 +53,8 @@ export default function ErpScreen() {
       }
 
       if (segment === 'purchase') {
-        const page = await api.purchaseOrders.list(term, purchaseStatus, undefined, 1, 100, signal);
+        const pending = purchaseStatus === 'pending';
+        const page = await api.purchaseOrders.list(term, pending ? undefined : purchaseStatus, undefined, 1, 100, pending, signal);
         return page.items.map((o) => ({
           id: o.id,
           title: `${o.number} · ${o.supplierName ?? '供应商'}`,
@@ -130,6 +133,7 @@ export default function ErpScreen() {
             <View style={styles.chips}>
               {segment === 'sales' ? (
                 <>
+                  <Chip label='未发完' active={salesStatus === 'pending'} onPress={() => setSalesStatus('pending')} />
                   <Chip label='全部' active={!salesStatus} onPress={() => setSalesStatus(undefined)} />
                   {(Object.keys(erpSalesOrderStatus) as ErpSalesOrderStatus[]).map((s) => (
                     <Chip key={s} label={erpSalesOrderStatus[s]} active={salesStatus === s} onPress={() => setSalesStatus(s)} />
@@ -138,6 +142,7 @@ export default function ErpScreen() {
               ) : null}
               {segment === 'purchase' ? (
                 <>
+                  <Chip label='未收完' active={purchaseStatus === 'pending'} onPress={() => setPurchaseStatus('pending')} />
                   <Chip label='全部' active={!purchaseStatus} onPress={() => setPurchaseStatus(undefined)} />
                   {(Object.keys(erpPurchaseOrderStatus) as ErpPurchaseOrderStatus[]).map((s) => (
                     <Chip key={s} label={erpPurchaseOrderStatus[s]} active={purchaseStatus === s} onPress={() => setPurchaseStatus(s)} />

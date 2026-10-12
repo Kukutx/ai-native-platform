@@ -9,7 +9,7 @@ import { getApi } from '@/lib/api';
 import { erpPurchaseOrderStatus, formatDate, formatTime } from '@/lib/labels';
 import { usePalette } from '@/lib/theme';
 
-type Transition = 'place' | 'receive' | 'cancel';
+type Transition = 'place' | 'receive' | 'close' | 'cancel';
 
 export default function PurchaseOrderScreen() {
   const p = usePalette();
@@ -28,6 +28,7 @@ export default function PurchaseOrderScreen() {
 
   const order = detail.data;
   const manage = sessionCan(session.data, 'erp.purchase');
+  const started = order.status === 'partially_received' || order.status === 'received';
   const ask = (title: string, message: string, action: Transition) =>
     Alert.alert(title, message, [
       { text: '再想想', style: 'cancel' },
@@ -42,16 +43,19 @@ export default function PurchaseOrderScreen() {
         {erpPurchaseOrderStatus[order.status]} · {order.expectedDate ? `预计 ${formatDate(order.expectedDate)} 到货` : `下单 ${formatDate(order.orderDate)}`} ·{' '}
         {order.warehouseName}
       </Muted>
-      <OrderLines lines={order.lines} currency={order.currency} total={order.total} />
+      <OrderLines lines={order.lines} currency={order.currency} total={order.total} deliveredLabel={started ? '已收' : undefined} />
       {manage ? (
         <View style={styles.actions}>
           {order.status === 'draft' ? <Button title='下单' onPress={() => transition.mutate('place')} loading={transition.isPending} /> : null}
-          {order.status === 'ordered' ? (
+          {order.status === 'ordered' || order.status === 'partially_received' ? (
             <Button
-              title='收货入库'
-              onPress={() => ask('收货入库', `货已到齐？按明细把数量加到「${order.warehouseName}」。`, 'receive')}
+              title={order.status === 'ordered' ? '全部收货入库' : '收下剩下的'}
+              onPress={() => ask('收货入库', `货已到齐？把还没收的数量加到「${order.warehouseName}」。只收一部分请在网页端操作。`, 'receive')}
               loading={transition.isPending}
             />
+          ) : null}
+          {order.status === 'partially_received' ? (
+            <Button title='结束收货' variant='outline' onPress={() => ask('结束收货', '剩下没到的不再收货，采购单记为已入库。', 'close')} disabled={transition.isPending} />
           ) : null}
           {order.status === 'draft' || order.status === 'ordered' ? (
             <Button title='取消' variant='outline' onPress={() => ask('取消采购单', '取消这张采购单？', 'cancel')} disabled={transition.isPending} />

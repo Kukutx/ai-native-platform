@@ -166,7 +166,7 @@ internal sealed class ErpProductHandlers(
         var movements = await db.ErpStockMovements.AsNoTracking().Where(m => m.ProductId == product.Id)
             .OrderByDescending(m => m.CreatedAt).ThenByDescending(m => m.Id)
             .Take(MovementPageSize).ToListAsync(cancellationToken).ConfigureAwait(false);
-        var stock = new StockBalance(levels.Sum(l => l.OnHand), levels.Sum(l => l.Reserved));
+        var stock = new StockTotals(levels.Sum(l => l.OnHand), levels.Sum(l => l.Reserved), levels.Sum(l => l.OnHand * l.AverageCost));
         return new ErpProductDetailDto(
             product.ToDto(stock),
             await ErpMapping.LevelsAsync(db, levels, cancellationToken).ConfigureAwait(false),
@@ -210,9 +210,11 @@ internal sealed class ErpProductHandlers(
         if (product.TrackInventory != r.TrackInventory)
         {
             // 已确认未发货的订单按确认时是否管库存决定发货、取消时要不要动库存，期间不能切换。
-            if (await db.ErpSalesOrders.AnyAsync(o => o.Status == ErpSalesOrderStatus.Confirmed && o.Lines.Any(l => l.ProductId == product.Id), cancellationToken).ConfigureAwait(false))
+            if (await db.ErpSalesOrders.AnyAsync(
+                    o => (o.Status == ErpSalesOrderStatus.Confirmed || o.Status == ErpSalesOrderStatus.PartiallyShipped) && o.Lines.Any(l => l.ProductId == product.Id),
+                    cancellationToken).ConfigureAwait(false))
             {
-                throw new ConflictException("erp_product.open_orders", "产品还有已确认未发货的销售订单，等它们发货或取消后再修改是否管库存。");
+                throw new ConflictException("erp_product.open_orders", "产品还有已确认未发完货的销售订单，等它们发货、结束发货或取消后再修改是否管库存。");
             }
 
             if (!r.TrackInventory
@@ -220,6 +222,14 @@ internal sealed class ErpProductHandlers(
             {
                 throw new ConflictException("erp_product.has_stock", "产品还有库存，不能改为不管库存。请先把库存调整为 0。");
             }
+        }
+
+        // 库存成本按产品货币计价，暂不做汇率换算：还有库存时不能换货币，否则已有的成本就对不上了。
+        var currency = r.Currency.Trim().ToUpperInvariant();
+        if (currency != product.Currency
+            && await db.ErpStockLevels.AnyAsync(l => l.ProductId == product.Id && l.OnHand != 0, cancellationToken).ConfigureAwait(false))
+        {
+            throw new ConflictException("erp_product.currency_locked", $"产品还有库存，库存成本按 {product.Currency} 计算，不能改货币。请先把库存调整为 0。");
         }
 
         product.Sku = sku;
@@ -357,7 +367,8 @@ internal sealed class ErpWarehouseHandlers(IAppDbContext db, ITenantContext tena
 
         var used = await db.ErpStockMovements.AnyAsync(m => m.WarehouseId == warehouse.Id, cancellationToken).ConfigureAwait(false)
                    || await db.ErpSalesOrders.AnyAsync(o => o.WarehouseId == warehouse.Id, cancellationToken).ConfigureAwait(false)
-                   || await db.ErpPurchaseOrders.AnyAsync(o => o.WarehouseId == warehouse.Id, cancellationToken).ConfigureAwait(false);
+                   || await db.ErpPurchaseOrders.AnyAsync(o => o.WarehouseId == warehouse.Id, cancellationToken).ConfigureAwait(false)
+                   || await db.ErpStockDocuments.AnyAsync(d => d.WarehouseId == warehouse.Id, cancellationToken).ConfigureAwait(false);
         if (used)
         {
             throw new ConflictException("erp_warehouse.in_use", $"仓库「{warehouse.Name}」已有订单或库存流水，不能删除。");

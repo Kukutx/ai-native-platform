@@ -109,8 +109,11 @@ public sealed class ErpOrderLineInput
 
 public sealed class ListErpSalesOrdersInput
 {
-    [Description("按状态过滤：draft 草稿、confirmed 已确认待发货、shipped 已发货、cancelled 已取消")]
+    [Description("按状态过滤：draft 草稿、confirmed 已确认待发货、partially_shipped 部分发货、shipped 已发货、cancelled 已取消")]
     public ErpSalesOrderStatus? Status { get; init; }
+
+    [Description("true 时只看还没发完的订单（confirmed 和 partially_shipped），找待发货的订单时用")]
+    public bool Pending { get; init; }
 
     [Description("只看某个客户的订单（客户 ID）")]
     public Guid? CompanyId { get; init; }
@@ -141,7 +144,7 @@ internal sealed class ListErpSalesOrdersAction(IRequestDispatcher dispatcher) : 
 
     protected override async Task<IReadOnlyList<ErpSalesOrderDto>> ExecuteAsync(ListErpSalesOrdersInput input, ActionContext context, CancellationToken cancellationToken)
         => (await dispatcher.SendAsync(
-            new ListErpSalesOrdersQuery(input.Search, input.Status, input.CompanyId, input.DealId, null, 1, Math.Clamp(input.Limit, 1, 100)),
+            new ListErpSalesOrdersQuery(input.Search, input.Status, input.CompanyId, input.DealId, null, 1, Math.Clamp(input.Limit, 1, 100), input.Pending),
             cancellationToken).ConfigureAwait(false)).Items;
 }
 
@@ -159,7 +162,7 @@ internal sealed class GetErpSalesOrderAction(IRequestDispatcher dispatcher, ErpR
 
     public override string Title => "查看销售订单";
 
-    public override string Description => "按订单号查看销售订单：客户、来源商机、发货仓库、订单行、金额和状态。";
+    public override string Description => "按订单号查看销售订单：客户、来源商机、发货仓库、订单行（含已发、已退数量）、金额、已发货金额、销售成本、毛利和状态。";
 
     public override string RequiredFeature => ErpFeatures.View;
 
@@ -241,7 +244,46 @@ internal sealed class ConfirmErpSalesOrderAction(IRequestDispatcher dispatcher, 
     }
 }
 
-internal sealed class ShipErpSalesOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
+public sealed class ErpQuantityLineInput
+{
+    [Description("产品编码（SKU），与 productId 二选一")]
+    public string? Sku { get; init; }
+
+    [Description("产品 ID")]
+    public Guid? ProductId { get; init; }
+
+    [Description("数量（按产品的计量单位），大于 0")]
+    public required decimal Quantity { get; init; }
+}
+
+public sealed class ErpDeliveryInput
+{
+    [Description("订单号（例如 SO-0001、PO-0001）或订单 ID")]
+    public required string Order { get; init; }
+
+    [Description("本次的产品和数量，只发（收）一部分时填写；省略为全部还没发（收）的数量")]
+    public IReadOnlyList<ErpQuantityLineInput>? Lines { get; init; }
+
+    [Description("备注，例如快递单号")]
+    public string? Note { get; init; }
+}
+
+public sealed class ErpReturnInput
+{
+    [Description("订单号（例如 SO-0001、PO-0001）或订单 ID")]
+    public required string Order { get; init; }
+
+    [Description("退货的产品和数量，不超过已发（已收）未退的数量")]
+    public required IReadOnlyList<ErpQuantityLineInput> Lines { get; init; }
+
+    [Description("仓库名称；省略为订单的仓库")]
+    public string? Warehouse { get; init; }
+
+    [Description("退货原因")]
+    public required string Note { get; init; }
+}
+
+internal sealed class ShipErpSalesOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpDeliveryInput, ErpSalesOrderDto>
 {
     public override string Key => "erp.ship_sales_order";
 
@@ -249,14 +291,58 @@ internal sealed class ShipErpSalesOrderAction(IRequestDispatcher dispatcher, Erp
 
     public override string Title => "销售订单发货";
 
-    public override string Description => "登记已确认的销售订单已经发货：扣减库存并记出库流水。只在货确实发出后使用。";
+    public override string Description => "登记已确认（或部分发货）的销售订单已经发货：扣减库存、按平均成本记出库流水并生成发货单。可以只发一部分（lines 写本次的产品和数量），省略 lines 为全部未发的数量。只在货确实发出后使用。";
 
     public override string RequiredFeature => ErpFeatures.Sales;
+
+    protected override async Task<ErpSalesOrderDto> ExecuteAsync(ErpDeliveryInput input, ActionContext context, CancellationToken cancellationToken)
+    {
+        var orderId = await refs.SalesOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
+        var request = await refs.DeliveryAsync(input, cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new ShipErpSalesOrderCommand(orderId, request, context.RunId), cancellationToken).ConfigureAwait(false);
+    }
+}
+
+internal sealed class CloseErpSalesOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpSalesOrderDto>
+{
+    public override string Key => "erp.close_sales_order";
+
+    public override string ModuleKey => ErpModule.ModuleKey;
+
+    public override string Title => "结束发货";
+
+    public override string Description => "部分发货的销售订单不再发剩下的数量（例如客户不要了）：释放剩下的预留库存，订单变为已发货。智能体发起时需要人工审批。";
+
+    public override string RequiredFeature => ErpFeatures.Sales;
+
+    public override ApprovalPolicy ApprovalPolicy => ApprovalPolicy.RequiredForAgents;
 
     protected override async Task<ErpSalesOrderDto> ExecuteAsync(ErpOrderRefInput input, ActionContext context, CancellationToken cancellationToken)
     {
         var orderId = await refs.SalesOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
-        return await dispatcher.SendAsync(new ShipErpSalesOrderCommand(orderId, context.RunId), cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new CloseErpSalesOrderCommand(orderId), cancellationToken).ConfigureAwait(false);
+    }
+}
+
+internal sealed class ReturnErpSalesOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpReturnInput, ErpSalesOrderDto>
+{
+    public override string Key => "erp.return_sales_order";
+
+    public override string ModuleKey => ErpModule.ModuleKey;
+
+    public override string Title => "客户退货";
+
+    public override string Description => "登记客户退回了销售订单里已发出的货：退回的货入库（默认订单的仓库），按发货时的成本冲回，生成退货单，订单的毛利随之减少。只在货确实退回后使用。智能体发起时需要人工审批。";
+
+    public override string RequiredFeature => ErpFeatures.Sales;
+
+    public override ApprovalPolicy ApprovalPolicy => ApprovalPolicy.RequiredForAgents;
+
+    protected override async Task<ErpSalesOrderDto> ExecuteAsync(ErpReturnInput input, ActionContext context, CancellationToken cancellationToken)
+    {
+        var orderId = await refs.SalesOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
+        var request = await refs.ReturnAsync(input, cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new ReturnErpSalesOrderCommand(orderId, request, context.RunId), cancellationToken).ConfigureAwait(false);
     }
 }
 
@@ -283,8 +369,11 @@ internal sealed class CancelErpSalesOrderAction(IRequestDispatcher dispatcher, E
 
 public sealed class ListErpPurchaseOrdersInput
 {
-    [Description("按状态过滤：draft 草稿、ordered 已下单待到货、received 已到货、cancelled 已取消")]
+    [Description("按状态过滤：draft 草稿、ordered 已下单待到货、partially_received 部分到货、received 已到货、cancelled 已取消")]
     public ErpPurchaseOrderStatus? Status { get; init; }
+
+    [Description("true 时只看还没收完的订单（ordered 和 partially_received），找在途的采购单时用")]
+    public bool Pending { get; init; }
 
     [Description("只看某个供应商的订单（客户管理里的客户 ID）")]
     public Guid? SupplierId { get; init; }
@@ -312,7 +401,7 @@ internal sealed class ListErpPurchaseOrdersAction(IRequestDispatcher dispatcher)
 
     protected override async Task<IReadOnlyList<ErpPurchaseOrderDto>> ExecuteAsync(ListErpPurchaseOrdersInput input, ActionContext context, CancellationToken cancellationToken)
         => (await dispatcher.SendAsync(
-            new ListErpPurchaseOrdersQuery(input.Search, input.Status, input.SupplierId, 1, Math.Clamp(input.Limit, 1, 100)),
+            new ListErpPurchaseOrdersQuery(input.Search, input.Status, input.SupplierId, 1, Math.Clamp(input.Limit, 1, 100), input.Pending),
             cancellationToken).ConfigureAwait(false)).Items;
 }
 
@@ -382,7 +471,7 @@ internal sealed class PlaceErpPurchaseOrderAction(IRequestDispatcher dispatcher,
     }
 }
 
-internal sealed class ReceiveErpPurchaseOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpPurchaseOrderDto>
+internal sealed class ReceiveErpPurchaseOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpDeliveryInput, ErpPurchaseOrderDto>
 {
     public override string Key => "erp.receive_purchase_order";
 
@@ -390,14 +479,58 @@ internal sealed class ReceiveErpPurchaseOrderAction(IRequestDispatcher dispatche
 
     public override string Title => "采购到货";
 
-    public override string Description => "登记已下单的采购订单全部到货：每行入库并记入库流水。只在货确实到了以后使用。";
+    public override string Description => "登记已下单（或部分到货）的采购订单到货：入库、按采购单价重算移动加权平均成本并生成收货单。可以只收一部分（lines 写本次的产品和数量），省略 lines 为全部未到的数量。只在货确实到了以后使用。";
 
     public override string RequiredFeature => ErpFeatures.Purchase;
+
+    protected override async Task<ErpPurchaseOrderDto> ExecuteAsync(ErpDeliveryInput input, ActionContext context, CancellationToken cancellationToken)
+    {
+        var orderId = await refs.PurchaseOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
+        var request = await refs.DeliveryAsync(input, cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new ReceiveErpPurchaseOrderCommand(orderId, request, context.RunId), cancellationToken).ConfigureAwait(false);
+    }
+}
+
+internal sealed class CloseErpPurchaseOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpOrderRefInput, ErpPurchaseOrderDto>
+{
+    public override string Key => "erp.close_purchase_order";
+
+    public override string ModuleKey => ErpModule.ModuleKey;
+
+    public override string Title => "结束收货";
+
+    public override string Description => "部分到货的采购订单剩下的不再等（例如供应商缺货）：订单变为已到货。智能体发起时需要人工审批。";
+
+    public override string RequiredFeature => ErpFeatures.Purchase;
+
+    public override ApprovalPolicy ApprovalPolicy => ApprovalPolicy.RequiredForAgents;
 
     protected override async Task<ErpPurchaseOrderDto> ExecuteAsync(ErpOrderRefInput input, ActionContext context, CancellationToken cancellationToken)
     {
         var orderId = await refs.PurchaseOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
-        return await dispatcher.SendAsync(new ReceiveErpPurchaseOrderCommand(orderId, context.RunId), cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new CloseErpPurchaseOrderCommand(orderId), cancellationToken).ConfigureAwait(false);
+    }
+}
+
+internal sealed class ReturnErpPurchaseOrderAction(IRequestDispatcher dispatcher, ErpRefs refs) : PlatformAction<ErpReturnInput, ErpPurchaseOrderDto>
+{
+    public override string Key => "erp.return_purchase_order";
+
+    public override string ModuleKey => ErpModule.ModuleKey;
+
+    public override string Title => "退货给供应商";
+
+    public override string Description => "登记把采购订单里已收到的货退给供应商：从仓库出库（只能动用可用数量，已预留给销售订单的不能退），按平均成本记出库，生成退货单。只在货确实退出后使用。智能体发起时需要人工审批。";
+
+    public override string RequiredFeature => ErpFeatures.Purchase;
+
+    public override ApprovalPolicy ApprovalPolicy => ApprovalPolicy.RequiredForAgents;
+
+    protected override async Task<ErpPurchaseOrderDto> ExecuteAsync(ErpReturnInput input, ActionContext context, CancellationToken cancellationToken)
+    {
+        var orderId = await refs.PurchaseOrderAsync(input.Order, cancellationToken).ConfigureAwait(false);
+        var request = await refs.ReturnAsync(input, cancellationToken).ConfigureAwait(false);
+        return await dispatcher.SendAsync(new ReturnErpPurchaseOrderCommand(orderId, request, context.RunId), cancellationToken).ConfigureAwait(false);
     }
 }
 
@@ -418,6 +551,9 @@ public sealed class AdjustErpStockInput
     [Description("盘点后的实际数量，与 quantity 二选一")]
     public decimal? CountedQuantity { get; init; }
 
+    [Description("增加库存时的单位成本（产品货币），例如期初录入的进价；省略按当前平均成本")]
+    public decimal? UnitCost { get; init; }
+
     [Description("原因，例如期初录入、盘点、报损")]
     public required string Note { get; init; }
 }
@@ -430,7 +566,7 @@ internal sealed class AdjustErpStockAction(IRequestDispatcher dispatcher, ErpRef
 
     public override string Title => "调整库存";
 
-    public override string Description => "手工调整库存（期初录入、盘点、报损），会记一条调整流水。采购到货和销售发货不要用它，分别用 erp.receive_purchase_order 和 erp.ship_sales_order。智能体发起时需要人工审批。";
+    public override string Description => "手工调整库存（期初录入、盘点、报损），会记一条调整流水；期初录入时可以带上 unitCost（进价）作为库存成本。采购到货、销售发货和退货不要用它，分别用 erp.receive_purchase_order、erp.ship_sales_order、erp.return_sales_order、erp.return_purchase_order。智能体发起时需要人工审批。";
 
     public override string RequiredFeature => ErpFeatures.Inventory;
 
@@ -443,6 +579,7 @@ internal sealed class AdjustErpStockAction(IRequestDispatcher dispatcher, ErpRef
             WarehouseId = await refs.WarehouseAsync(input.Warehouse, cancellationToken).ConfigureAwait(false),
             Quantity = input.Quantity,
             CountedQuantity = input.CountedQuantity,
+            UnitCost = input.UnitCost,
             Note = input.Note,
         }, context.RunId), cancellationToken).ConfigureAwait(false);
 }
@@ -543,6 +680,36 @@ internal sealed class ErpRefs(IAppDbContext db)
                 ProductId = await ProductAsync(line.ProductId, line.Sku, "lines", cancellationToken).ConfigureAwait(false),
                 Quantity = line.Quantity,
                 UnitPrice = line.UnitPrice,
+            });
+        }
+
+        return result;
+    }
+
+    public async Task<ErpDeliveryRequest> DeliveryAsync(ErpDeliveryInput input, CancellationToken cancellationToken)
+        => new()
+        {
+            Lines = input.Lines is { Count: > 0 } lines ? await QuantityLinesAsync(lines, cancellationToken).ConfigureAwait(false) : null,
+            Note = input.Note ?? string.Empty,
+        };
+
+    public async Task<ErpReturnRequest> ReturnAsync(ErpReturnInput input, CancellationToken cancellationToken)
+        => new()
+        {
+            Lines = await QuantityLinesAsync(input.Lines, cancellationToken).ConfigureAwait(false),
+            WarehouseId = await WarehouseAsync(input.Warehouse, cancellationToken).ConfigureAwait(false),
+            Note = input.Note,
+        };
+
+    private async Task<IReadOnlyList<ErpQuantityLineRequest>> QuantityLinesAsync(IReadOnlyList<ErpQuantityLineInput> lines, CancellationToken cancellationToken)
+    {
+        var result = new List<ErpQuantityLineRequest>(lines.Count);
+        foreach (var line in lines)
+        {
+            result.Add(new ErpQuantityLineRequest
+            {
+                ProductId = await ProductAsync(line.ProductId, line.Sku, "lines", cancellationToken).ConfigureAwait(false),
+                Quantity = line.Quantity,
             });
         }
 
