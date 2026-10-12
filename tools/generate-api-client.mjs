@@ -2,12 +2,15 @@
 //   1. 在内存中启动 API 宿主导出 packages/api-client/openapi.json（不需要数据库）；
 //   2. 用 NSwag 生成 packages/api-client/src/generated.ts。
 // 用法：pnpm api:generate（需要 .NET 10 SDK）。
+// 其余参数原样传给导出程序的 dotnet run，例如 CI 复用已有的 Release 构建：
+//   node tools/generate-api-client.mjs --configuration Release --no-build
 import { spawnSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const backend = resolve(root, 'backend');
+const runArgs = process.argv.slice(2);
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit', env: { ...process.env, DOTNET_NOLOGO: '1' } });
@@ -17,5 +20,5 @@ function run(command, args, cwd) {
 }
 
 run('dotnet', ['tool', 'restore'], backend);
-run('dotnet', ['run', '--project', 'AiNative.OpenApi.Export', '--', resolve(root, 'packages/api-client/openapi.json')], backend);
+run('dotnet', ['run', '--project', 'AiNative.OpenApi.Export', ...runArgs, '--', resolve(root, 'packages/api-client/openapi.json')], backend);
 run('dotnet', ['tool', 'run', 'nswag', 'run', 'nswag.json'], backend);

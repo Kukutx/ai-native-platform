@@ -131,6 +131,7 @@ docker compose up -d --build
 | `pnpm type-check` / `pnpm lint` | 全部前端包的类型检查与 lint |
 | `pnpm build` | 构建 Web |
 | `pnpm test:api` | 后端单元测试 + 集成测试（集成测试需要 Docker，或设置 `AINATIVE_TEST_POSTGRES` 指向现有库） |
+| `pnpm test:client` | 共享 TS 客户端（`packages/api-client`）的单元测试 |
 | `pnpm api:generate` | 后端接口变更后重新导出 OpenAPI 并生成 TS 客户端 |
 
 ## 目录

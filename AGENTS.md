@@ -18,6 +18,7 @@ pnpm dev:api               # 后端，http://localhost:5080
 pnpm dev:web               # Web，http://localhost:3000
 pnpm type-check && pnpm lint
 pnpm test:api              # 后端全部测试
+pnpm test:client           # 共享 TS 客户端的单元测试（node:test）
 pnpm api:generate          # 接口变化后重新生成 TS 客户端
 ```
 
@@ -71,7 +72,7 @@ dotnet ef migrations add <名称> --project AiNative.Infrastructure --startup-pr
 
 ```bash
 pnpm type-check && pnpm lint && pnpm build
-pnpm test:api
+pnpm test:api && pnpm test:client
 ```
 
 改动 `Dockerfile`、静态页托管或启动配置时，本地跑一次 `docker build -t ainative-platform .`，再用 `deploy/docker-compose.yml` 起一套确认能打开页面（见 [docs/deployment.md](docs/deployment.md)）。
