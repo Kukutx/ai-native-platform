@@ -3,7 +3,7 @@ name = "ainative-desktop"
 version = "0.1.0"
 description = "AI 原生工作台桌面端"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.90"
 publish = false
 
 [lib]

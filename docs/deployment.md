@@ -125,7 +125,7 @@ ai.example.com {
 ## 客户端接入
 
 - **Web**：直接打开站点地址。
-- **桌面端**：打包时指定后端地址，例如 `NEXT_PUBLIC_API_URL=https://ai.example.com pnpm build:desktop`。后端默认允许桌面端的跨域来源。
+- **桌面端**：打包时指定后端地址，例如 `NEXT_PUBLIC_API_URL=https://ai.example.com pnpm build:desktop`。地址在构建时写进 Web 静态导出，安装后不能修改，换服务器需要重新打包；不指定时是 `http://localhost:5080`，只适合本机开发。内网用 `http://` 明文地址也可以（桌面端的 CSP 允许 `http:`/`ws:`）。后端默认允许桌面端的跨域来源。详见 [apps/desktop/README.md](../apps/desktop/README.md)。
 - **移动端**：登录页填写服务器地址（例如 `https://ai.example.com`），也可以在构建时用 `EXPO_PUBLIC_API_URL` 设置默认值。
 - **MCP 客户端**：服务地址是 `https://ai.example.com/mcp`。在「设置 → API 密钥」创建密钥时，对话框里给出的命令已经带上当前站点的完整地址。
 
