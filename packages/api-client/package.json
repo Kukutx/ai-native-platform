@@ -11,12 +11,14 @@
     "./realtime": "./src/realtime.ts"
   },
   "scripts": {
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "node --import ./test/resolve-ts.mjs --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@microsoft/signalr": "^10.0.11"
   },
   "devDependencies": {
+    "@types/node": "^24.19.0",
     "typescript": "^6.0.3"
   }
 }

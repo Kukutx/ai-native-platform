@@ -388,7 +388,7 @@ public sealed class CrmTests(PostgresFixture postgres) : IntegrationTest(postgre
         task.Title.Should().Be("交付 星火科技 年度采购");
         task.Description.Should().Be("商务谈判 → 赢单：签了三年");
 
-        await Task.Delay(500, Ct);
+        await WaitForIdleAsync();
         (await GetAsync<PagedResult<WorkflowRunSummaryDto>>(client, "/api/workflows/runs")).Total.Should().Be(1);
     }
 

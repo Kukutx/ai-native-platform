@@ -111,7 +111,7 @@ public sealed class WorkflowTests(PostgresFixture postgres) : IntegrationTest(po
         var detail = await GetAsync<WorkItemDetailDto>(client, $"/api/work-items/{task.Id}");
         detail.Comments.Should().ContainSingle(c => c.Body == "owner 完成了 T-1（in_progress → done）");
 
-        await Task.Delay(500, Ct);
+        await WaitForIdleAsync();
         (await GetAsync<PagedResult<WorkflowRunSummaryDto>>(client, "/api/workflows/runs")).Total.Should().Be(1);
     }
 
@@ -280,7 +280,7 @@ public sealed class WorkflowTests(PostgresFixture postgres) : IntegrationTest(po
         await EventuallyAsync(
             () => GetAsync<PagedResult<WorkflowRunSummaryDto>>(ownerClient, $"/api/workflows/runs?workflowId={ownerWorkflow.Id}"),
             r => r.Items.Count == 1 && r.Items[0].Status == WorkflowRunStatus.Succeeded);
-        await Task.Delay(500, Ct);
+        await WaitForIdleAsync();
         (await GetAsync<PagedResult<WorkflowRunSummaryDto>>(ownerClient, $"/api/workflows/runs?workflowId={memberWorkflow.Id}")).Total.Should().Be(0);
     }
 
@@ -334,7 +334,7 @@ public sealed class WorkflowTests(PostgresFixture postgres) : IntegrationTest(po
         await EventuallyAsync(
             () => GetAsync<PagedResult<WorkflowRunSummaryDto>>(client, "/api/workflows/runs"),
             r => r.Items.Count == 1 && r.Items[0].Status == WorkflowRunStatus.Succeeded);
-        await Task.Delay(800, Ct);
+        await WaitForIdleAsync();
         (await GetAsync<PagedResult<WorkflowRunSummaryDto>>(client, "/api/workflows/runs")).Total.Should().Be(1);
         (await GetAsync<PagedResult<WorkItemDto>>(client, "/api/work-items")).Items.Select(t => t.Title)
             .Should().BeEquivalentTo("发布新版本", "检查：发布新版本");

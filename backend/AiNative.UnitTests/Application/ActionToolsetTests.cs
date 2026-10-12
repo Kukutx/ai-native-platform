@@ -28,7 +28,7 @@ public sealed class ActionToolsetTests
 
         text.Length.Should().BeLessThanOrEqualTo(ActionToolset.MaxModelOutputChars);
         var parsed = PlatformJson.Parse(text);
-        parsed.GetProperty("status").GetString().Should().Be("ok");
+        parsed.GetProperty("status").GetString().Should().Be("succeeded");
         parsed.GetProperty("truncated").GetBoolean().Should().BeTrue();
         parsed.GetProperty("message").GetString().Should().Contain("缩小范围");
     }

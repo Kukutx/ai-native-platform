@@ -323,6 +323,49 @@ public sealed class ErpFulfillmentTests(PostgresFixture postgres) : IntegrationT
         actions.Single(a => a.Key == "erp.receive_purchase_order").RequiresApprovalForAgents.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Closing_a_partially_received_purchase_order_stops_waiting_for_the_rest()
+    {
+        var auth = await RegisterAsync();
+        using var client = Client(auth.AccessToken);
+        var product = await ProductAsync(client, "M-1", "电机", price: 30, cost: 10);
+        var supplier = await PostAsync<CrmCompanyDto>(client, "/api/crm/companies", new SaveCrmCompanyRequest { Name = "华东五金" });
+        var po = await PlacedOrderAsync(client, supplier.Id, product.Id, 10, 12);
+        var close = $"/api/erp/purchase-orders/{po.Id}/close";
+
+        // 一件都没到的订单不能结束收货（不要了应当取消）。
+        var early = await client.PostAsJsonAsync(close, new { }, PlatformJson.Options, Ct);
+        early.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await CodeAsync(early)).Should().Be("erp_purchase_order.status_changed");
+        await PostAsync<ErpPurchaseOrderDto>(client, $"/api/erp/purchase-orders/{po.Id}/receive", new ErpDeliveryRequest { Lines = [Quantity(product.Id, 4)] });
+
+        // 普通成员没有采购权限；别的空间找不到这张订单。
+        var member = (await GetAsync<List<RoleDto>>(client, "/api/roles")).Single(r => r.Key == "member");
+        using var memberClient = Client(await AddMemberAsync(client, "member@example.com", member.Id));
+        (await memberClient.PostAsJsonAsync(close, new { }, PlatformJson.Options, Ct)).StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var other = await RegisterAsync("other@example.com", "别的空间");
+        using var otherClient = Client(other.AccessToken);
+        (await otherClient.PostAsJsonAsync(close, new { }, PlatformJson.Options, Ct)).StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var closed = await PostAsync<ErpPurchaseOrderDto>(client, close, new { });
+
+        closed.Status.Should().Be(ErpPurchaseOrderStatus.Received);
+        closed.ReceivedAt.Should().NotBeNull();
+        closed.Lines.Should().ContainSingle().Which.Should().Match<ErpOrderLineDto>(l => l.Quantity == 10 && l.Delivered == 4);
+        closed.ReceivedAmount.Should().Be(48);
+        (await GetAsync<PagedResult<ErpPurchaseOrderDto>>(client, "/api/erp/purchase-orders?pending=true")).Items.Should().BeEmpty();
+        (await LevelAsync(client, product.Id)).OnHand.Should().Be(4);
+
+        // 结束后不能再收货，也不能重复结束；已收到的货仍然可以退给供应商。
+        var receive = await client.PostAsJsonAsync($"/api/erp/purchase-orders/{po.Id}/receive", new { }, PlatformJson.Options, Ct);
+        (await CodeAsync(receive)).Should().Be("erp_purchase_order.status_changed");
+        var again = await client.PostAsJsonAsync(close, new { }, PlatformJson.Options, Ct);
+        (await CodeAsync(again)).Should().Be("erp_purchase_order.status_changed");
+        var returned = await PostAsync<ErpPurchaseOrderDto>(client, $"/api/erp/purchase-orders/{po.Id}/returns", new ErpReturnRequest { Lines = [Quantity(product.Id, 1)], Note = "坏了" });
+        returned.Lines[0].Returned.Should().Be(1);
+        (await LevelAsync(client, product.Id)).OnHand.Should().Be(3);
+    }
+
     private static ErpOrderLineRequest Line(Guid productId, decimal quantity) => new() { ProductId = productId, Quantity = quantity };
 
     private static ErpQuantityLineRequest Quantity(Guid productId, decimal quantity) => new() { ProductId = productId, Quantity = quantity };

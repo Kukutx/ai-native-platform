@@ -169,6 +169,27 @@ public abstract class IntegrationTest(PostgresFixture postgres) : IAsyncLifetime
     protected Task<List<AiNative.Domain.Agents.HeartbeatRun>> RunsAsync()
         => WithDbAsync(db => db.HeartbeatRuns.IgnoreQueryFilters().AsNoTracking().OrderBy(r => r.CreatedAt).ToListAsync(Ct));
 
+    /// <summary>
+    /// 等后台工作全部处理完：没有排队或已领取的唤醒，也没有排队或执行中的智能体运行、工作流运行。
+    /// 唤醒和工作流运行都与引发它们的业务变化在同一事务里入队，此刻队列为空就说明之前的操作不会再引出新的工作，
+    /// 用它代替"等一会儿再断言某件事没有发生"的固定延时。暂停的智能体的唤醒会一直排队，有这种情况的测试不能用它。
+    /// </summary>
+    protected async Task WaitForIdleAsync(TimeSpan? timeout = null)
+    {
+        await EventuallyAsync(
+            () => WithDbAsync(async db => new
+            {
+                Wakeups = await db.WakeupRequests.IgnoreQueryFilters()
+                    .CountAsync(w => w.Status == AiNative.Domain.Agents.WakeupStatus.Queued || w.Status == AiNative.Domain.Agents.WakeupStatus.Claimed, Ct),
+                Runs = await db.HeartbeatRuns.IgnoreQueryFilters()
+                    .CountAsync(r => r.Status == AiNative.Domain.Agents.RunStatus.Queued || r.Status == AiNative.Domain.Agents.RunStatus.Running, Ct),
+                WorkflowRuns = await db.WorkflowRuns.IgnoreQueryFilters()
+                    .CountAsync(r => r.Status == AiNative.Domain.Workflows.WorkflowRunStatus.Queued || r.Status == AiNative.Domain.Workflows.WorkflowRunStatus.Running, Ct),
+            }),
+            busy => busy.Wakeups == 0 && busy.Runs == 0 && busy.WorkflowRuns == 0,
+            timeout);
+    }
+
     private static async Task EnsureSuccessAsync(HttpResponseMessage response)
     {
         if (!response.IsSuccessStatusCode)

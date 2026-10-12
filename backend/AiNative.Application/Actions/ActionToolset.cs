@@ -68,7 +68,7 @@ public sealed class ActionToolset
         }
 
         // 预览放进字符串后引号等会被转义、变长，按实际长度收缩到上限以内。
-        var status = result.Status == ActionInvocationStatus.Succeeded ? "ok" : result.Status.ToString().ToLowerInvariant();
+        var status = StatusName(result.Status);
         var cut = MaxModelOutputChars;
         while (true)
         {
@@ -93,15 +93,29 @@ public sealed class ActionToolset
         }
     }
 
+    /// <summary>
+    /// 工具结果里的状态名，与接口里枚举的序列化一致（snake_case），对话界面按同一套值显示。
+    /// </summary>
+    public static string StatusName(ActionInvocationStatus status) => status switch
+    {
+        ActionInvocationStatus.Succeeded => "succeeded",
+        ActionInvocationStatus.PendingApproval => "pending_approval",
+        ActionInvocationStatus.Failed => "failed",
+        ActionInvocationStatus.Forbidden => "forbidden",
+        ActionInvocationStatus.NotFound => "not_found",
+        ActionInvocationStatus.InvalidInput => "invalid_input",
+        _ => throw new ArgumentOutOfRangeException(nameof(status), status, null),
+    };
+
     private static string Format(ActionInvocationResult result) => result.Status switch
     {
-        ActionInvocationStatus.Succeeded => PlatformJson.Serialize(new { status = "ok", output = result.Output }),
+        ActionInvocationStatus.Succeeded => PlatformJson.Serialize(new { status = StatusName(result.Status), output = result.Output }),
         ActionInvocationStatus.PendingApproval => PlatformJson.Serialize(new
         {
-            status = "pending_approval",
+            status = StatusName(result.Status),
             approvalId = result.ApprovalId,
             message = "该操作需要人工审批，已提交审批单。不要重复提交；审批结果出来后你会被唤醒。",
         }),
-        _ => PlatformJson.Serialize(new { status = result.Status.ToString().ToLowerInvariant(), error = result.Error }),
+        _ => PlatformJson.Serialize(new { status = StatusName(result.Status), error = result.Error }),
     };
 }

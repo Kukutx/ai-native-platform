@@ -157,7 +157,7 @@ public sealed class ClusterTests(PostgresFixture postgres) : IntegrationTest(pos
         });
 
         // 执行实例仍在报到：不动它。
-        await Task.Delay(1000, Ct);
+        await WaitForRecoverySweepAsync(auth);
         (await RunAsync(runId)).Status.Should().Be(RunStatus.Running);
 
         await ExpireInstanceAsync(peerId);
@@ -202,11 +202,11 @@ public sealed class ClusterTests(PostgresFixture postgres) : IntegrationTest(pos
         using var client = Client(auth.AccessToken);
         var agent = await StarterAgentAsync(client);
         var peerId = await FakeInstanceAsync();
-        var onLivePeer = await InsertApprovalAsync(auth, agent, peerId);
-        var onLostPeer = await InsertApprovalAsync(auth, agent, Guid.NewGuid());
+        var onLivePeer = await InsertApprovalAsync(auth, Actor.ForAgent(agent.Id), peerId);
+        var onLostPeer = await InsertApprovalAsync(auth, Actor.ForAgent(agent.Id), Guid.NewGuid());
 
         var flagged = await EventuallyAsync(() => ApprovalAsync(onLostPeer), a => a.ExecutionError is not null);
-        await Task.Delay(500, Ct);
+        await WaitForRecoverySweepAsync(auth);
 
         flagged.ExecutionError.Should().Contain("结果未知");
         (await ApprovalAsync(onLivePeer)).ExecutionError.Should().BeNull();
@@ -333,14 +333,29 @@ public sealed class ClusterTests(PostgresFixture postgres) : IntegrationTest(pos
             return run.Id;
         });
 
-    private Task<Guid> InsertApprovalAsync(AuthResponse auth, AgentDto agent, Guid executor)
+    /// <summary>
+    /// 等恢复扫描在此之后完整跑完一轮，代替固定延时：插入一条记在已失联实例名下、结果没写回的已批准审批，等它被标记。
+    /// 每轮恢复先扫运行、再扫审批，标记第一条的那一轮可能在调用之前就扫完了运行，所以连做两次：
+    /// 标记第二条的那一轮整个都发生在调用之后，此前插入的运行和审批都至少被它检查过一次。
+    /// 申请人是成员，标记后不会唤醒任何智能体。
+    /// </summary>
+    private async Task WaitForRecoverySweepAsync(AuthResponse auth)
+    {
+        for (var i = 0; i < 2; i++)
+        {
+            var probe = await InsertApprovalAsync(auth, Actor.ForUser(auth.Session.User.Id), Guid.NewGuid());
+            await EventuallyAsync(() => ApprovalAsync(probe), a => a.ExecutionError is not null);
+        }
+    }
+
+    private Task<Guid> InsertApprovalAsync(AuthResponse auth, Actor requestedBy, Guid executor)
         => WithDbAsync(async db =>
         {
             var approval = new Approval
             {
                 TenantId = auth.Session.Tenant.Id,
                 ActionKey = "agents.hire",
-                RequestedBy = Actor.ForAgent(agent.Id),
+                RequestedBy = requestedBy,
                 Status = ApprovalStatus.Approved,
                 DecidedByUserId = auth.Session.User.Id,
                 DecidedAt = DateTimeOffset.UtcNow,

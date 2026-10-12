@@ -1,0 +1,65 @@
+# 依赖更新：每周检查一次，小版本和补丁合成一个 PR，大版本单独提 PR 逐个评估。
+version: 2
+updates:
+  # 后端：Directory.Packages.props 集中管理版本，.config/dotnet-tools.json 里的 dotnet-ef、nswag 一并更新。
+  - package-ecosystem: nuget
+    directory: /backend
+    schedule:
+      interval: weekly
+    groups:
+      nuget-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # 前端整个 pnpm 工作区（Web、移动端、桌面端 CLI、共享客户端）。
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # pnpm 默认不安装发布不足一天的版本，等几天再提 PR，避免锁文件解析失败。
+    cooldown:
+      default-days: 3
+    groups:
+      npm-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+    # 移动端的 React、React Native 和 Expo 系列版本由 Expo SDK 锁定，升级走 `expo install --fix`，不让机器人单独改。
+    ignore:
+      - dependency-name: expo
+      - dependency-name: expo-*
+      - dependency-name: '@expo/*'
+      - dependency-name: eslint-config-expo
+      - dependency-name: react
+      - dependency-name: react-dom
+      - dependency-name: react-native
+      - dependency-name: react-native-*
+      - dependency-name: '@react-native/*'
+
+  # 桌面端 Tauri 外壳。
+  - package-ecosystem: cargo
+    directory: /apps/desktop/src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      cargo-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  # 生产镜像的基础镜像（Dockerfile）。
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      docker-minor-patch:
+        patterns: ['*']
+        update-types: [minor, patch]

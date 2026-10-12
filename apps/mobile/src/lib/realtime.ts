@@ -47,6 +47,9 @@ const invalidation: Record<string, (id: string) => readonly (readonly unknown[])
   project: (id) => [['projects'], ['project', id], ['work-items']],
   // 经营分析数据较重，手机端不随业务变化实时重算，靠下拉刷新和重新进入页面更新。
   analytics_report: () => [],
+  // 手机端没有外部服务和密钥的管理页面。
+  mcp_server: () => [],
+  tenant_secret: () => [],
   tenant: () => [['session'], ['analytics']],
 };
 

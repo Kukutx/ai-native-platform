@@ -46,7 +46,7 @@ public sealed class AgentRuntimeTests(PostgresFixture postgres) : IntegrationTes
         (await GetAsync<AgentDto>(client, $"/api/agents/{agent.Id}")).Status.Should().Be(AgentStatus.Idle);
 
         // 智能体自己的评论不会再次唤醒自己。
-        await Task.Delay(500, Ct);
+        await WaitForIdleAsync();
         (await RunsAsync()).Should().HaveCount(1);
     }
 

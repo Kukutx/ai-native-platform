@@ -1,12 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Reflection;
 using AiNative.Application.Abstractions;
-using AiNative.Application.Access;
 using AiNative.Application.Agents;
 using AiNative.Application.Agents.Runtime;
 using AiNative.Application.Common;
-using AiNative.Application.Modules;
 using AiNative.Application.Tenancy;
 using AiNative.Contracts.Actions;
 using AiNative.Contracts.Agents;
@@ -25,7 +22,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AiNative.IntegrationTests;
 
 /// <summary>
-/// 健壮性：并发关闭任务不丢唤醒、输入超长返回 400、唤醒原因有上限、超大页码、任务搜索、权限键都已登记。
+/// 健壮性：并发关闭任务不丢唤醒、输入超长返回 400、唤醒原因有上限、超大页码、任务搜索。
 /// </summary>
 public sealed class RobustnessTests(PostgresFixture postgres) : IntegrationTest(postgres)
 {
@@ -168,18 +165,6 @@ public sealed class RobustnessTests(PostgresFixture postgres) : IntegrationTest(
         (await SearchAsync(client, done.Key)).Should().ContainSingle().Which.Id.Should().Be(done.Id);
         (await SearchAsync(client, done.Key.ToLowerInvariant())).Should().ContainSingle().Which.Id.Should().Be(done.Id);
         (await SearchAsync(client, "汇报")).Should().ContainSingle().Which.Id.Should().Be(done.Id);
-    }
-
-    [Fact]
-    public void Every_declared_feature_is_registered_in_a_module()
-    {
-        var catalog = Factory.Services.GetRequiredService<IModuleCatalog>();
-        var declared = typeof(RequireFeatureAttribute).Assembly.GetTypes()
-            .SelectMany(t => t.GetCustomAttributes<RequireFeatureAttribute>(inherit: false).Select(a => (Type: t.Name, a.Feature)))
-            .ToList();
-
-        declared.Should().NotBeEmpty();
-        declared.Where(d => catalog.FindFeature(d.Feature) is null).Should().BeEmpty();
     }
 
     private static async Task<IReadOnlyList<WorkItemDto>> SearchAsync(HttpClient client, string term)

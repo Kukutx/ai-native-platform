@@ -14,6 +14,7 @@
     "lint": "turbo run lint",
     "type-check": "turbo run type-check",
     "test:api": "dotnet test --solution backend/AiNative.slnx",
+    "test:client": "pnpm --filter @ainative/api-client test",
     "api:generate": "node tools/generate-api-client.mjs",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down"
