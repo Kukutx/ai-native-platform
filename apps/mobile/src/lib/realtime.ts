@@ -38,6 +38,9 @@ const invalidation: Record<RealtimeChange['entity'], (id: string) => readonly (r
   erp_sales_order: () => [['erp']],
   erp_purchase_order: () => [['erp']],
   project: (id) => [['projects'], ['project', id], ['work-items']],
+  // 经营分析数据较重，手机端不随业务变化实时重算，靠下拉刷新和重新进入页面更新。
+  analytics_report: () => [],
+  tenant: () => [['session'], ['analytics']],
 };
 
 /** 登录后连接 SignalR 实时通道，服务端推送变化时让对应查询失效，界面自动刷新。 */

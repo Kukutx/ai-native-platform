@@ -705,6 +705,58 @@ export class ModelsClient {
     }
 }
 
+export class TenantClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 修改空间名称和时区。时区影响按天统计、"本月"等日期的计算；当前设置在会话的 tenant 里。
+     */
+    updateSettings(request: UpdateTenantSettingsRequest, signal?: AbortSignal): Promise<TenantSettingsDto> {
+        let url_ = this.baseUrl + "/api/tenant/settings";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdateSettings(_response);
+        });
+    }
+
+    protected processUpdateSettings(response: Response): Promise<TenantSettingsDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as TenantSettingsDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<TenantSettingsDto>(null as any);
+    }
+}
+
 export class AgentsClient {
     private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
     private baseUrl: string;
@@ -1052,6 +1104,403 @@ export class AgentsClient {
             });
         }
         return Promise.resolve<WakeupDto>(null as any);
+    }
+}
+
+export class AnalyticsClient {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+    protected jsonParseReviver: ((key: string, value: any) => any) | undefined = undefined;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        this.http = http ? http : window as any;
+        this.baseUrl = baseUrl ?? "http://localhost";
+    }
+
+    /**
+     * 当前身份可以查看的指标及其可拆分的维度。
+     */
+    metrics(signal?: AbortSignal): Promise<MetricDefinitionDto[]> {
+        let url_ = this.baseUrl + "/api/analytics/metrics";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processMetrics(_response);
+        });
+    }
+
+    protected processMetrics(response: Response): Promise<MetricDefinitionDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as MetricDefinitionDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<MetricDefinitionDto[]>(null as any);
+    }
+
+    /**
+     * 查询一个指标：区间合计、环比、按天/周/月的趋势，可按维度拆分。没有权限查看该指标返回 403。
+     * @param metric (optional) 
+     * @param from (optional) 
+     * @param to (optional) 
+     * @param range (optional) 
+     * @param interval (optional) 
+     * @param breakdown (optional) 
+     * @param currency (optional) 
+     * @param timeZone (optional) 
+     * @param compare (optional) 
+     * @param limit (optional) 
+     */
+    query(metric?: string | undefined, from?: string | null | undefined, to?: string | null | undefined, range?: AnalyticsRange | null | undefined, interval?: AnalyticsInterval | undefined, breakdown?: string | null | undefined, currency?: string | null | undefined, timeZone?: string | null | undefined, compare?: boolean | undefined, limit?: number | undefined, signal?: AbortSignal): Promise<MetricResultDto> {
+        let url_ = this.baseUrl + "/api/analytics/query?";
+        if (metric === null)
+            throw new globalThis.Error("The parameter 'metric' cannot be null.");
+        else if (metric !== undefined)
+            url_ += "Metric=" + encodeURIComponent("" + metric) + "&";
+        if (from !== undefined && from !== null)
+            url_ += "From=" + encodeURIComponent("" + from) + "&";
+        if (to !== undefined && to !== null)
+            url_ += "To=" + encodeURIComponent("" + to) + "&";
+        if (range !== undefined && range !== null)
+            url_ += "Range=" + encodeURIComponent("" + range) + "&";
+        if (interval === null)
+            throw new globalThis.Error("The parameter 'interval' cannot be null.");
+        else if (interval !== undefined)
+            url_ += "Interval=" + encodeURIComponent("" + interval) + "&";
+        if (breakdown !== undefined && breakdown !== null)
+            url_ += "Breakdown=" + encodeURIComponent("" + breakdown) + "&";
+        if (currency !== undefined && currency !== null)
+            url_ += "Currency=" + encodeURIComponent("" + currency) + "&";
+        if (timeZone !== undefined && timeZone !== null)
+            url_ += "TimeZone=" + encodeURIComponent("" + timeZone) + "&";
+        if (compare === null)
+            throw new globalThis.Error("The parameter 'compare' cannot be null.");
+        else if (compare !== undefined)
+            url_ += "Compare=" + encodeURIComponent("" + compare) + "&";
+        if (limit === null)
+            throw new globalThis.Error("The parameter 'limit' cannot be null.");
+        else if (limit !== undefined)
+            url_ += "Limit=" + encodeURIComponent("" + limit) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processQuery(_response);
+        });
+    }
+
+    protected processQuery(response: Response): Promise<MetricResultDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as MetricResultDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<MetricResultDto>(null as any);
+    }
+
+    /**
+     * 经营概览：关键指标与环比，以及销售漏斗、缺货产品、项目健康度、智能体工作量。
+     * @param from (optional) 
+     * @param to (optional) 
+     * @param range (optional) 
+     * @param timeZone (optional) 
+     */
+    overview(from?: string | null | undefined, to?: string | null | undefined, range?: AnalyticsRange | null | undefined, timeZone?: string | null | undefined, signal?: AbortSignal): Promise<AnalyticsOverviewDto> {
+        let url_ = this.baseUrl + "/api/analytics/overview?";
+        if (from !== undefined && from !== null)
+            url_ += "from=" + encodeURIComponent("" + from) + "&";
+        if (to !== undefined && to !== null)
+            url_ += "to=" + encodeURIComponent("" + to) + "&";
+        if (range !== undefined && range !== null)
+            url_ += "range=" + encodeURIComponent("" + range) + "&";
+        if (timeZone !== undefined && timeZone !== null)
+            url_ += "timeZone=" + encodeURIComponent("" + timeZone) + "&";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processOverview(_response);
+        });
+    }
+
+    protected processOverview(response: Response): Promise<AnalyticsOverviewDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AnalyticsOverviewDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<AnalyticsOverviewDto>(null as any);
+    }
+
+    reports(signal?: AbortSignal): Promise<AnalyticsReportDto[]> {
+        let url_ = this.baseUrl + "/api/analytics/reports";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processReports(_response);
+        });
+    }
+
+    protected processReports(response: Response): Promise<AnalyticsReportDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AnalyticsReportDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<AnalyticsReportDto[]>(null as any);
+    }
+
+    createReport(request: SaveAnalyticsReportRequest, signal?: AbortSignal): Promise<AnalyticsReportDto> {
+        let url_ = this.baseUrl + "/api/analytics/reports";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processCreateReport(_response);
+        });
+    }
+
+    protected processCreateReport(response: Response): Promise<AnalyticsReportDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AnalyticsReportDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<AnalyticsReportDto>(null as any);
+    }
+
+    getReport(id: string, signal?: AbortSignal): Promise<AnalyticsReportDto> {
+        let url_ = this.baseUrl + "/api/analytics/reports/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            signal,
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processGetReport(_response);
+        });
+    }
+
+    protected processGetReport(response: Response): Promise<AnalyticsReportDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AnalyticsReportDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<AnalyticsReportDto>(null as any);
+    }
+
+    updateReport(id: string, request: SaveAnalyticsReportRequest, signal?: AbortSignal): Promise<AnalyticsReportDto> {
+        let url_ = this.baseUrl + "/api/analytics/reports/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processUpdateReport(_response);
+        });
+    }
+
+    protected processUpdateReport(response: Response): Promise<AnalyticsReportDto> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AnalyticsReportDto;
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<AnalyticsReportDto>(null as any);
+    }
+
+    deleteReport(id: string, signal?: AbortSignal): Promise<void> {
+        let url_ = this.baseUrl + "/api/analytics/reports/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            signal,
+            headers: {
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processDeleteReport(_response);
+        });
+    }
+
+    protected processDeleteReport(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 204) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * 按给定顺序重排报表，没列出的排在后面。
+     */
+    reorderReports(request: ReorderAnalyticsReportsRequest, signal?: AbortSignal): Promise<AnalyticsReportDto[]> {
+        let url_ = this.baseUrl + "/api/analytics/reports/order";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(request);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            signal,
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.http.fetch(url_, options_).then((_response: Response) => {
+            return this.processReorderReports(_response);
+        });
+    }
+
+    protected processReorderReports(response: Response): Promise<AnalyticsReportDto[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as AnalyticsReportDto[];
+            return result200;
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<AnalyticsReportDto[]>(null as any);
     }
 }
 
@@ -5788,6 +6237,18 @@ export interface ModelProviderDto {
     configured: boolean;
 }
 
+export interface TenantSettingsDto {
+    id: string;
+    name: string;
+    slug: string;
+    timeZone: string;
+}
+
+export interface UpdateTenantSettingsRequest {
+    name: string;
+    timeZone: string;
+}
+
 export interface AgentDto {
     id: string;
     name: string;
@@ -5855,6 +6316,166 @@ export interface WakeAgentRequest {
     workItemId?: string | undefined;
 }
 
+export interface MetricDefinitionDto {
+    key: string;
+    moduleKey: string;
+    name: string;
+    description: string;
+    unit: MetricUnit;
+    isRatio: boolean;
+    dimensions: MetricDimensionDto[];
+}
+
+export type MetricUnit = "count" | "amount" | "percent" | "usd" | "tokens";
+
+export interface MetricDimensionDto {
+    key: string;
+    name: string;
+}
+
+export interface MetricResultDto {
+    metric: string;
+    name: string;
+    unit: MetricUnit;
+    isRatio: boolean;
+    from: string;
+    to: string;
+    interval: AnalyticsInterval;
+    timeZone: string;
+    currency?: string | undefined;
+    currencies: string[];
+    total?: number | undefined;
+    previousTotal?: number | undefined;
+    points: MetricPointDto[];
+    breakdown?: string | undefined;
+    series: MetricSeriesDto[];
+}
+
+export type AnalyticsInterval = "day" | "week" | "month";
+
+export interface MetricPointDto {
+    date: string;
+    value?: number | undefined;
+}
+
+export interface MetricSeriesDto {
+    key: string;
+    label: string;
+    total?: number | undefined;
+    points: MetricPointDto[];
+}
+
+export type AnalyticsRange = "last7_days" | "last30_days" | "last90_days" | "this_month" | "last_month" | "this_quarter" | "this_year" | "last12_months";
+
+export interface AnalyticsOverviewDto {
+    from: string;
+    to: string;
+    timeZone: string;
+    kpis: AnalyticsKpiDto[];
+    pipeline?: PipelineStageSummaryDto[] | undefined;
+    lowStock?: LowStockItemDto[] | undefined;
+    projects?: ProjectHealthDto[] | undefined;
+    agents?: AgentActivityDto[] | undefined;
+}
+
+export interface AnalyticsKpiDto {
+    metric: string;
+    name: string;
+    unit: MetricUnit;
+    isRatio: boolean;
+    currency?: string | undefined;
+    value?: number | undefined;
+    previousValue?: number | undefined;
+}
+
+export interface PipelineStageSummaryDto {
+    stageId: string;
+    name: string;
+    probability: number;
+    deals: number;
+    amounts: AnalyticsAmountDto[];
+}
+
+export interface AnalyticsAmountDto {
+    currency: string;
+    amount: number;
+}
+
+export interface LowStockItemDto {
+    productId: string;
+    sku: string;
+    name: string;
+    unit: string;
+    available: number;
+    reorderPoint: number;
+}
+
+export interface ProjectHealthDto {
+    projectId: string;
+    name: string;
+    status: ProjectStatus;
+    percent: number;
+    openTasks: number;
+    blocked: number;
+    overdue: number;
+    targetDate?: string | undefined;
+    isOverdue: boolean;
+}
+
+export type ProjectStatus = "planned" | "active" | "on_hold" | "completed" | "cancelled";
+
+export interface AgentActivityDto {
+    agentId: string;
+    name: string;
+    title: string;
+    openTasks: number;
+    runs: number;
+    failedRuns: number;
+    costUsd: number;
+}
+
+export interface AnalyticsReportDto {
+    id: string;
+    name: string;
+    description: string;
+    metric: string;
+    breakdown?: string | undefined;
+    currency?: string | undefined;
+    range: AnalyticsRange;
+    interval: AnalyticsInterval;
+    chart: AnalyticsChart;
+    position: number;
+    createdBy: ActorDto;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export type AnalyticsChart = "line" | "bar";
+
+export interface ActorDto {
+    kind: ActorKind;
+    id?: string | undefined;
+    name?: string | undefined;
+}
+
+export type ActorKind = "system" | "user" | "agent";
+
+export interface SaveAnalyticsReportRequest {
+    name: string;
+    description?: string;
+    metric: string;
+    breakdown?: string | undefined;
+    currency?: string | undefined;
+    range?: AnalyticsRange;
+    interval?: AnalyticsInterval;
+    chart?: AnalyticsChart;
+    expectedUpdatedAt?: string | undefined;
+}
+
+export interface ReorderAnalyticsReportsRequest {
+    ids: string[];
+}
+
 export interface ApiKeyDto {
     id: string;
     name: string;
@@ -5896,14 +6517,6 @@ export interface ApprovalDto {
     createdAt: string;
 }
 
-export interface ActorDto {
-    kind: ActorKind;
-    id?: string | undefined;
-    name?: string | undefined;
-}
-
-export type ActorKind = "system" | "user" | "agent";
-
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 
 export interface DecideApprovalRequest {
@@ -5937,6 +6550,7 @@ export interface TenantSummaryDto {
     name: string;
     slug: string;
     isOwner: boolean;
+    timeZone: string;
 }
 
 export interface RegisterRequest {
@@ -5944,6 +6558,7 @@ export interface RegisterRequest {
     password: string;
     displayName: string;
     tenantName: string;
+    timeZone?: string | undefined;
 }
 
 export interface LoginRequest {
@@ -6564,8 +7179,6 @@ export interface ProjectDto {
     updatedAt: string;
     closedAt?: string | undefined;
 }
-
-export type ProjectStatus = "planned" | "active" | "on_hold" | "completed" | "cancelled";
 
 export interface ProjectProgressDto {
     total: number;

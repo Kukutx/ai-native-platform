@@ -8,6 +8,10 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- 依赖版本超出包自身声明的范围时直接失败。 -->
     <WarningsAsErrors>$(WarningsAsErrors);NU1608</WarningsAsErrors>
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!--
+      不开启全球化固定模式：时区换算依赖 ICU（Windows 上识别 IANA 时区名、Linux 上识别 Windows 时区名）。
+      格式化和比较一律显式指定 InvariantCulture 或 Ordinal，结果不受机器区域设置影响。
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 </Project>

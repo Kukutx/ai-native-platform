@@ -74,7 +74,7 @@ pnpm type-check && pnpm lint && pnpm build
 pnpm test:api
 ```
 
-改动桌面端时在装有 Rust 的机器上跑一次 `cargo check`（`apps/desktop/src-tauri`）；改动移动端时跑 `pnpm --filter @ainative/mobile bundle:check` 确认能打出安卓包。
+改动桌面端时在装有 Rust 的机器上跑一次 `pnpm --filter @ainative/desktop check`（即 `cargo check`；桌面端没有 TS 代码，不参与 type-check 和 lint，CI 里单独检查）；改动移动端时跑 `pnpm --filter @ainative/mobile bundle:check` 确认能打出安卓包。
 
 <!-- BEGIN:turborepo-agent-rules -->
 

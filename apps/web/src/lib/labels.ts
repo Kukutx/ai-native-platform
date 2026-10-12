@@ -225,3 +225,12 @@ export function formatTime(value?: string | null) {
 export function formatUsd(value: number) {
   return `$${value.toFixed(value < 1 ? 4 : 2)}`;
 }
+
+/** 本机时区（IANA 名称），注册空间时作为默认的统计时区。 */
+export function localTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}

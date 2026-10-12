@@ -498,6 +498,39 @@
         }
       }
     },
+    "/api/tenant/settings": {
+      "put": {
+        "tags": [
+          "Tenant"
+        ],
+        "summary": "修改空间名称和时区。时区影响按天统计、\"本月\"等日期的计算；当前设置在会话的 tenant 里。",
+        "operationId": "Tenant_UpdateSettings",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTenantSettingsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantSettingsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agents": {
       "get": {
         "tags": [
@@ -782,6 +815,397 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WakeupDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/metrics": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "当前身份可以查看的指标及其可拆分的维度。",
+        "operationId": "Analytics_Metrics",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MetricDefinitionDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/query": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "查询一个指标：区间合计、环比、按天/周/月的趋势，可按维度拆分。没有权限查看该指标返回 403。",
+        "operationId": "Analytics_Query",
+        "parameters": [
+          {
+            "name": "Metric",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "From",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "nullable": true
+            },
+            "x-position": 2
+          },
+          {
+            "name": "To",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "nullable": true
+            },
+            "x-position": 3
+          },
+          {
+            "name": "Range",
+            "in": "query",
+            "schema": {
+              "nullable": true,
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/AnalyticsRange"
+                }
+              ]
+            },
+            "x-position": 4
+          },
+          {
+            "name": "Interval",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/AnalyticsInterval"
+            },
+            "x-position": 5
+          },
+          {
+            "name": "Breakdown",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 6
+          },
+          {
+            "name": "Currency",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 7
+          },
+          {
+            "name": "TimeZone",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 8
+          },
+          {
+            "name": "Compare",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            },
+            "x-position": 9
+          },
+          {
+            "name": "Limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "x-position": 10
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricResultDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/overview": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "经营概览：关键指标与环比，以及销售漏斗、缺货产品、项目健康度、智能体工作量。",
+        "operationId": "Analytics_Overview",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "nullable": true
+            },
+            "x-position": 2
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "schema": {
+              "nullable": true,
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/AnalyticsRange"
+                }
+              ]
+            },
+            "x-position": 3
+          },
+          {
+            "name": "timeZone",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "nullable": true
+            },
+            "x-position": 4
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsOverviewDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/reports": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "Analytics_Reports",
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnalyticsReportDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "Analytics_CreateReport",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveAnalyticsReportRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsReportDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analytics/reports/{id}": {
+      "get": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "Analytics_GetReport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsReportDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "Analytics_UpdateReport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveAnalyticsReportRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsReportDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Analytics"
+        ],
+        "operationId": "Analytics_DeleteReport",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/api/analytics/reports/order": {
+      "put": {
+        "tags": [
+          "Analytics"
+        ],
+        "summary": "按给定顺序重排报表，没列出的排在后面。",
+        "operationId": "Analytics_ReorderReports",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderAnalyticsReportsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnalyticsReportDto"
+                  }
                 }
               }
             }
@@ -5515,6 +5939,49 @@
           }
         }
       },
+      "TenantSettingsDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "timeZone"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateTenantSettingsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "timeZone",
+          "name",
+          "timeZone"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        }
+      },
       "AgentDto": {
         "type": "object",
         "additionalProperties": false,
@@ -5825,6 +6292,705 @@
           }
         }
       },
+      "MetricDefinitionDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "moduleKey",
+          "name",
+          "description",
+          "unit",
+          "isRatio",
+          "dimensions"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "moduleKey": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/MetricUnit"
+          },
+          "isRatio": {
+            "type": "boolean"
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricDimensionDto"
+            }
+          }
+        }
+      },
+      "MetricUnit": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Count",
+          "Amount",
+          "Percent",
+          "Usd",
+          "Tokens"
+        ],
+        "enum": [
+          "count",
+          "amount",
+          "percent",
+          "usd",
+          "tokens"
+        ]
+      },
+      "MetricDimensionDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "name"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "MetricResultDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "metric",
+          "name",
+          "unit",
+          "isRatio",
+          "from",
+          "to",
+          "interval",
+          "timeZone",
+          "currencies",
+          "points",
+          "series"
+        ],
+        "properties": {
+          "metric": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/MetricUnit"
+          },
+          "isRatio": {
+            "type": "boolean"
+          },
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "interval": {
+            "$ref": "#/components/schemas/AnalyticsInterval"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "currencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "total": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "previousTotal": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricPointDto"
+            }
+          },
+          "breakdown": {
+            "type": "string",
+            "nullable": true
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricSeriesDto"
+            }
+          }
+        }
+      },
+      "AnalyticsInterval": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Day",
+          "Week",
+          "Month"
+        ],
+        "enum": [
+          "day",
+          "week",
+          "month"
+        ]
+      },
+      "MetricPointDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "date"
+        ],
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "value": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "MetricSeriesDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "label",
+          "points"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MetricPointDto"
+            }
+          }
+        }
+      },
+      "AnalyticsRange": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Last7Days",
+          "Last30Days",
+          "Last90Days",
+          "ThisMonth",
+          "LastMonth",
+          "ThisQuarter",
+          "ThisYear",
+          "Last12Months"
+        ],
+        "enum": [
+          "last7_days",
+          "last30_days",
+          "last90_days",
+          "this_month",
+          "last_month",
+          "this_quarter",
+          "this_year",
+          "last12_months"
+        ]
+      },
+      "AnalyticsOverviewDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "timeZone",
+          "kpis"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "format": "date"
+          },
+          "to": {
+            "type": "string",
+            "format": "date"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "kpis": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsKpiDto"
+            }
+          },
+          "pipeline": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/PipelineStageSummaryDto"
+            }
+          },
+          "lowStock": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/LowStockItemDto"
+            }
+          },
+          "projects": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/ProjectHealthDto"
+            }
+          },
+          "agents": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/AgentActivityDto"
+            }
+          }
+        }
+      },
+      "AnalyticsKpiDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "metric",
+          "name",
+          "unit",
+          "isRatio"
+        ],
+        "properties": {
+          "metric": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "$ref": "#/components/schemas/MetricUnit"
+          },
+          "isRatio": {
+            "type": "boolean"
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "value": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          },
+          "previousValue": {
+            "type": "number",
+            "format": "decimal",
+            "nullable": true
+          }
+        }
+      },
+      "PipelineStageSummaryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stageId",
+          "name",
+          "probability",
+          "deals",
+          "amounts"
+        ],
+        "properties": {
+          "stageId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "probability": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deals": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "amounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AnalyticsAmountDto"
+            }
+          }
+        }
+      },
+      "AnalyticsAmountDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "LowStockItemDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "productId",
+          "sku",
+          "name",
+          "unit",
+          "available",
+          "reorderPoint"
+        ],
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "available": {
+            "type": "number",
+            "format": "decimal"
+          },
+          "reorderPoint": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "ProjectHealthDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "projectId",
+          "name",
+          "status",
+          "percent",
+          "openTasks",
+          "blocked",
+          "overdue",
+          "isOverdue"
+        ],
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProjectStatus"
+          },
+          "percent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "openTasks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "blocked": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "overdue": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "targetDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "isOverdue": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProjectStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Planned",
+          "Active",
+          "OnHold",
+          "Completed",
+          "Cancelled"
+        ],
+        "enum": [
+          "planned",
+          "active",
+          "on_hold",
+          "completed",
+          "cancelled"
+        ]
+      },
+      "AgentActivityDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "agentId",
+          "name",
+          "title",
+          "openTasks",
+          "runs",
+          "failedRuns",
+          "costUsd"
+        ],
+        "properties": {
+          "agentId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "openTasks": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "runs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedRuns": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "costUsd": {
+            "type": "number",
+            "format": "decimal"
+          }
+        }
+      },
+      "AnalyticsReportDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "description",
+          "metric",
+          "range",
+          "interval",
+          "chart",
+          "position",
+          "createdBy",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "metric": {
+            "type": "string"
+          },
+          "breakdown": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "range": {
+            "$ref": "#/components/schemas/AnalyticsRange"
+          },
+          "interval": {
+            "$ref": "#/components/schemas/AnalyticsInterval"
+          },
+          "chart": {
+            "$ref": "#/components/schemas/AnalyticsChart"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdBy": {
+            "$ref": "#/components/schemas/ActorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "AnalyticsChart": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Line",
+          "Bar"
+        ],
+        "enum": [
+          "line",
+          "bar"
+        ]
+      },
+      "ActorDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/ActorKind"
+          },
+          "id": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ActorKind": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "System",
+          "User",
+          "Agent"
+        ],
+        "enum": [
+          "system",
+          "user",
+          "agent"
+        ]
+      },
+      "SaveAnalyticsReportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "metric",
+          "name",
+          "metric"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "metric": {
+            "type": "string"
+          },
+          "breakdown": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "nullable": true
+          },
+          "range": {
+            "$ref": "#/components/schemas/AnalyticsRange"
+          },
+          "interval": {
+            "$ref": "#/components/schemas/AnalyticsInterval"
+          },
+          "chart": {
+            "$ref": "#/components/schemas/AnalyticsChart"
+          },
+          "expectedUpdatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ReorderAnalyticsReportsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ids",
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "guid"
+            }
+          }
+        }
+      },
       "ApiKeyDto": {
         "type": "object",
         "additionalProperties": false,
@@ -5986,41 +7152,6 @@
           }
         }
       },
-      "ActorDto": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind"
-        ],
-        "properties": {
-          "kind": {
-            "$ref": "#/components/schemas/ActorKind"
-          },
-          "id": {
-            "type": "string",
-            "format": "guid",
-            "nullable": true
-          },
-          "name": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "ActorKind": {
-        "type": "string",
-        "description": "",
-        "x-enumNames": [
-          "System",
-          "User",
-          "Agent"
-        ],
-        "enum": [
-          "system",
-          "user",
-          "agent"
-        ]
-      },
       "ApprovalStatus": {
         "type": "string",
         "description": "",
@@ -6145,7 +7276,8 @@
           "id",
           "name",
           "slug",
-          "isOwner"
+          "isOwner",
+          "timeZone"
         ],
         "properties": {
           "id": {
@@ -6160,6 +7292,9 @@
           },
           "isOwner": {
             "type": "boolean"
+          },
+          "timeZone": {
+            "type": "string"
           }
         }
       },
@@ -6188,6 +7323,10 @@
           },
           "tenantName": {
             "type": "string"
+          },
+          "timeZone": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -8842,24 +9981,6 @@
             "nullable": true
           }
         }
-      },
-      "ProjectStatus": {
-        "type": "string",
-        "description": "",
-        "x-enumNames": [
-          "Planned",
-          "Active",
-          "OnHold",
-          "Completed",
-          "Cancelled"
-        ],
-        "enum": [
-          "planned",
-          "active",
-          "on_hold",
-          "completed",
-          "cancelled"
-        ]
       },
       "ProjectProgressDto": {
         "type": "object",

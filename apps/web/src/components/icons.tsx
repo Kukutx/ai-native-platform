@@ -26,6 +26,8 @@ import {
   IconChevronsLeft,
   IconChevronsRight,
   IconChevronUp,
+  IconChartBar,
+  IconChartLine,
   IconCircle,
   IconCircleCheck,
   IconCirclePlus,
@@ -40,6 +42,7 @@ import {
   IconDeviceLaptop,
   IconDots,
   IconDotsVertical,
+  IconDownload,
   IconEdit,
   IconExternalLink,
   IconEyeOff,
@@ -226,6 +229,10 @@ export const Icons = {
   lock: IconLock,
 
   // Data / Charts
+  analytics: IconChartBar,
+  chartBar: IconChartBar,
+  chartLine: IconChartLine,
+  download: IconDownload,
   trendingDown: IconTrendingDown,
   trendingUp: IconTrendingUp,
   eyeOff: IconEyeOff,

@@ -372,6 +372,100 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                     b.ToTable("wakeup_requests", (string)null);
                 });
 
+            modelBuilder.Entity("AiNative.Domain.Analytics.AnalyticsReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Breakdown")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("breakdown");
+
+                    b.Property<string>("Chart")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("chart");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Currency")
+                        .HasMaxLength(3)
+                        .HasColumnType("character(3)")
+                        .HasColumnName("currency")
+                        .IsFixedLength();
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Interval")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("interval");
+
+                    b.Property<string>("Metric")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("metric");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer")
+                        .HasColumnName("position");
+
+                    b.Property<string>("Range")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("range");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tenant_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.ComplexProperty(typeof(Dictionary<string, object>), "CreatedBy", "AiNative.Domain.Analytics.AnalyticsReport.CreatedBy#Actor", b1 =>
+                        {
+                            b1.IsRequired();
+
+                            b1.Property<Guid?>("Id")
+                                .HasColumnType("uuid")
+                                .HasColumnName("created_by_id");
+
+                            b1.Property<string>("Kind")
+                                .IsRequired()
+                                .HasMaxLength(32)
+                                .HasColumnType("character varying(32)")
+                                .HasColumnName("created_by_kind");
+                        });
+
+                    b.HasKey("Id")
+                        .HasName("pk_analytics_reports");
+
+                    b.HasIndex("TenantId", "Position")
+                        .HasDatabaseName("ix_analytics_reports_tenant_id_position");
+
+                    b.ToTable("analytics_reports", (string)null);
+                });
+
             modelBuilder.Entity("AiNative.Domain.Chat.Conversation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -903,6 +997,9 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("ix_crm_deals_tenant_id_closed_at")
                         .HasFilter("status <> 'Open'");
 
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .HasDatabaseName("ix_crm_deals_tenant_id_created_at");
+
                     b.HasIndex("TenantId", "OwnerUserId")
                         .HasDatabaseName("ix_crm_deals_tenant_id_owner_user_id");
 
@@ -1187,6 +1284,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("ix_erp_purchase_orders_tenant_id_number");
 
+                    b.HasIndex("TenantId", "ReceivedAt")
+                        .HasDatabaseName("ix_erp_purchase_orders_tenant_id_received_at")
+                        .HasFilter("status = 'Received'");
+
                     b.HasIndex("TenantId", "Status", "CreatedAt")
                         .HasDatabaseName("ix_erp_purchase_orders_tenant_id_status_created_at");
 
@@ -1320,6 +1421,10 @@ namespace AiNative.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("TenantId", "OwnerUserId")
                         .HasDatabaseName("ix_erp_sales_orders_tenant_id_owner_user_id");
+
+                    b.HasIndex("TenantId", "ShippedAt")
+                        .HasDatabaseName("ix_erp_sales_orders_tenant_id_shipped_at")
+                        .HasFilter("status = 'Shipped'");
 
                     b.HasIndex("TenantId", "Status", "CreatedAt")
                         .HasDatabaseName("ix_erp_sales_orders_tenant_id_status_created_at");
@@ -2533,6 +2638,14 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(64)")
                         .HasColumnName("slug");
 
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasDefaultValue("UTC")
+                        .HasColumnName("time_zone");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("updated_at");
@@ -2686,6 +2799,13 @@ namespace AiNative.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProjectId", "Status")
                         .HasDatabaseName("ix_work_items_project_id_status");
+
+                    b.HasIndex("TenantId", "CompletedAt")
+                        .HasDatabaseName("ix_work_items_tenant_id_completed_at")
+                        .HasFilter("completed_at IS NOT NULL");
+
+                    b.HasIndex("TenantId", "CreatedAt")
+                        .HasDatabaseName("ix_work_items_tenant_id_created_at");
 
                     b.HasIndex("TenantId", "Number")
                         .IsUnique()
@@ -3142,6 +3262,16 @@ namespace AiNative.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_wakeup_requests_agents_agent_id");
+                });
+
+            modelBuilder.Entity("AiNative.Domain.Analytics.AnalyticsReport", b =>
+                {
+                    b.HasOne("AiNative.Domain.Tenancy.Tenant", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_analytics_reports_tenants_tenant_id");
                 });
 
             modelBuilder.Entity("AiNative.Domain.Chat.Conversation", b =>

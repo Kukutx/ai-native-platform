@@ -37,6 +37,7 @@ const navigation = [
   { href: '/crm', label: '客户', icon: Icons.crm, feature: 'crm.view' },
   { href: '/erp', label: '进销存', icon: Icons.product, feature: 'erp.view' },
   { href: '/knowledge', label: '知识库', icon: Icons.knowledge, feature: 'knowledge.view' },
+  { href: '/analytics', label: '经营分析', icon: Icons.analytics, feature: 'analytics.view' },
   { href: '/workflows', label: '自动化', icon: Icons.workflow, feature: 'workflows.view' },
   { href: '/runs', label: '执行记录', icon: Icons.clock, feature: 'runs.view' },
   { href: '/approvals', label: '审批', icon: Icons.badgeCheck, feature: 'approvals.view' },

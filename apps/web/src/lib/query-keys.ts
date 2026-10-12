@@ -53,33 +53,45 @@ export const queryKeys = {
   erpSalesOrder: (id: string) => ['erp', 'sales-order', id] as const,
   erpPurchaseOrders: (filters?: object) => ['erp', 'purchase-orders', filters ?? {}] as const,
   erpPurchaseOrder: (id: string) => ['erp', 'purchase-order', id] as const,
+  // 经营分析：指标数据随业务变化失效（实时通道里限流），报表列表随报表变化失效。
+  analyticsMetrics: ['analytics', 'metrics'] as const,
+  analyticsOverview: (range: string) => ['analytics', 'data', 'overview', range] as const,
+  analyticsQuery: (request: object) => ['analytics', 'data', 'query', request] as const,
+  analyticsReports: ['analytics', 'reports'] as const,
+  analyticsReport: (id: string) => ['analytics', 'report', id] as const,
 };
+
+/** 业务数据变化时要刷新的经营分析数据。 */
+const analyticsData = ['analytics', 'data'] as const;
 
 /** 实体变化 → 需要失效的查询前缀。 */
 export const invalidationMap: Record<string, (id: string) => readonly (readonly unknown[])[]> = {
   agent: () => [['agents'], ['runs']],
   // 任务变化会改变项目和里程碑的进度。
-  work_item: (id) => [['work-items'], ['work-item', id], ['projects'], ['project']],
+  work_item: (id) => [['work-items'], ['work-item', id], ['projects'], ['project'], analyticsData],
   // 删除项目或里程碑会把任务移出来，任务列表一并刷新。
-  project: (id) => [['projects'], ['project', id], ['work-items']],
-  run: (id) => [['runs'], ['run', id], ['agents']],
+  project: (id) => [['projects'], ['project', id], ['work-items'], analyticsData],
+  run: (id) => [['runs'], ['run', id], ['agents'], analyticsData],
   approval: () => [['approvals']],
   conversation: () => [['conversations']],
-  module: () => [['modules'], ['session'], ['actions'], ['workflows', 'catalog']],
+  module: () => [['modules'], ['session'], ['actions'], ['workflows', 'catalog'], ['analytics']],
   knowledge_document: () => [['knowledge']],
   memory: () => [['memories'], ['knowledge', 'search'], ['knowledge', 'status']],
   workflow: () => [['workflows']],
   // 运行状态变化也会改变列表里的"最近一次运行"。
-  workflow_run: (id) => [['workflow-runs'], ['workflow-run', id], ['workflows']],
+  workflow_run: (id) => [['workflow-runs'], ['workflow-run', id], ['workflows'], analyticsData],
   // 订单上显示客户、联系人和商机的名称，这几类变化也刷新进销存。
-  crm_company: () => [['crm'], ['erp']],
+  crm_company: () => [['crm'], ['erp'], analyticsData],
   crm_contact: () => [['crm'], ['erp']],
-  crm_deal: () => [['crm'], ['erp']],
-  crm_activity: () => [['crm']],
-  crm_stage: () => [['crm']],
-  erp_product: () => [['erp']],
+  crm_deal: () => [['crm'], ['erp'], analyticsData],
+  crm_activity: () => [['crm'], analyticsData],
+  crm_stage: () => [['crm'], analyticsData],
+  erp_product: () => [['erp'], analyticsData],
   erp_warehouse: () => [['erp']],
-  erp_stock: () => [['erp']],
-  erp_sales_order: () => [['erp']],
-  erp_purchase_order: () => [['erp']],
+  erp_stock: () => [['erp'], analyticsData],
+  erp_sales_order: () => [['erp'], analyticsData],
+  erp_purchase_order: () => [['erp'], analyticsData],
+  analytics_report: (id) => [['analytics', 'reports'], ['analytics', 'report', id]],
+  // 空间名称或时区变化：会话里的空间信息和按时区统计的数据都要刷新。
+  tenant: () => [['session'], ['analytics']],
 };

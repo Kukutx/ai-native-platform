@@ -87,3 +87,13 @@ public sealed class ModelsController : ApiControllerBase
     [HttpGet]
     public Task<ModelCatalogDto> Catalog() => SendAsync(new GetModelCatalogQuery());
 }
+
+[Route("api/tenant")]
+public sealed class TenantController : ApiControllerBase
+{
+    /// <summary>
+    /// 修改空间名称和时区。时区影响按天统计、"本月"等日期的计算；当前设置在会话的 tenant 里。
+    /// </summary>
+    [HttpPut("settings")]
+    public Task<TenantSettingsDto> UpdateSettings(UpdateTenantSettingsRequest request) => SendAsync(new UpdateTenantSettingsCommand(request));
+}

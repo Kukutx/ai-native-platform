@@ -28,7 +28,9 @@ export default function MeScreen() {
         <Card>
           <Text style={{ color: p.text, fontSize: 18, fontWeight: '600' }}>{session.data.user.displayName}</Text>
           <Muted>{session.data.user.email}</Muted>
-          <Muted>当前空间：{session.data.tenant.name}</Muted>
+          <Muted>
+            当前空间：{session.data.tenant.name} · {session.data.tenant.timeZone}
+          </Muted>
         </Card>
       ) : null}
       {sessionCan(session.data, 'projects.view') ? (
@@ -39,6 +41,20 @@ export default function MeScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={{ color: p.text, fontWeight: '600' }}>项目</Text>
                 <Muted>项目进度、里程碑和成员</Muted>
+              </View>
+              <Ionicons name='chevron-forward' size={18} color={p.muted} />
+            </View>
+          </Card>
+        </Pressable>
+      ) : null}
+      {sessionCan(session.data, 'analytics.view') ? (
+        <Pressable onPress={() => router.push('/analytics')} accessibilityRole='button'>
+          <Card>
+            <View style={styles.entry}>
+              <Ionicons name='bar-chart-outline' size={20} color={p.text} />
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: p.text, fontWeight: '600' }}>经营分析</Text>
+                <Muted>赢单、发货、任务完成和 AI 花费</Muted>
               </View>
               <Ionicons name='chevron-forward' size={18} color={p.muted} />
             </View>

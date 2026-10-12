@@ -4,6 +4,7 @@ using AiNative.Application.Abstractions;
 using AiNative.Application.Common;
 using AiNative.Application.Tenancy;
 using AiNative.Domain.Agents;
+using AiNative.Domain.Analytics;
 using AiNative.Domain.Chat;
 using AiNative.Domain.Common;
 using AiNative.Domain.Crm;
@@ -111,6 +112,8 @@ public sealed class AppDbContext : DbContext, IAppDbContext
 
     public DbSet<ProjectMember> ProjectMembers => Set<ProjectMember>();
 
+    public DbSet<AnalyticsReport> AnalyticsReports => Set<AnalyticsReport>();
+
     /// <summary>
     /// 查询过滤器引用的当前租户；EF 按上下文实例参数化，未进入租户时为空 Guid，什么都查不到。
     /// </summary>
@@ -159,6 +162,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
         {
             b.Property(x => x.Name).HasMaxLength(100);
             b.Property(x => x.Slug).HasMaxLength(64);
+            b.Property(x => x.TimeZone).HasMaxLength(64).HasDefaultValue("UTC");
             b.HasIndex(x => x.Slug).IsUnique();
         });
 
@@ -268,6 +272,10 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => x.CheckoutRunId);
             b.HasIndex(x => new { x.ProjectId, x.Status });
             b.HasIndex(x => x.MilestoneId);
+
+            // 经营分析按创建时间、完成时间分天统计。
+            b.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            b.HasIndex(x => new { x.TenantId, x.CompletedAt }).HasFilter("completed_at IS NOT NULL");
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<WorkItem>().WithMany().HasForeignKey(x => x.ParentId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne<Agent>().WithMany().HasForeignKey(x => x.AssigneeAgentId).OnDelete(DeleteBehavior.SetNull);
@@ -313,6 +321,18 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasOne<Project>().WithMany().HasForeignKey(x => x.ProjectId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne<Agent>().WithMany().HasForeignKey(x => x.AgentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AnalyticsReport>(b =>
+        {
+            b.Property(x => x.Name).HasMaxLength(100);
+            b.Property(x => x.Description).HasMaxLength(1_000);
+            b.Property(x => x.Metric).HasMaxLength(64);
+            b.Property(x => x.Breakdown).HasMaxLength(32);
+            b.Property(x => x.Currency).HasMaxLength(3).IsFixedLength();
+            b.ComplexProperty(x => x.CreatedBy);
+            b.HasIndex(x => new { x.TenantId, x.Position });
+            b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<WorkItemComment>(b =>
@@ -507,6 +527,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => x.Title).HasMethod("gin").HasOperators("gin_trgm_ops");
             b.HasIndex(x => new { x.TenantId, x.Status, x.StageId });
             b.HasIndex(x => new { x.TenantId, x.ClosedAt }).HasFilter("status <> 'Open'");
+            b.HasIndex(x => new { x.TenantId, x.CreatedAt });
             b.HasIndex(x => new { x.TenantId, x.OwnerUserId });
             b.HasIndex(x => x.StageId);
             b.HasIndex(x => x.CompanyId);
@@ -617,6 +638,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => new { x.TenantId, x.Number }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
             b.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            b.HasIndex(x => new { x.TenantId, x.ShippedAt }).HasFilter("status = 'Shipped'");
             b.HasIndex(x => new { x.TenantId, x.OwnerUserId });
             b.HasIndex(x => x.CompanyId);
             b.HasIndex(x => x.ContactId);
@@ -641,6 +663,7 @@ public sealed class AppDbContext : DbContext, IAppDbContext
             b.HasIndex(x => new { x.TenantId, x.Number }).IsUnique();
             b.HasIndex(x => new { x.TenantId, x.Status, x.CreatedAt });
             b.HasIndex(x => new { x.TenantId, x.CreatedAt });
+            b.HasIndex(x => new { x.TenantId, x.ReceivedAt }).HasFilter("status = 'Received'");
             b.HasIndex(x => x.SupplierId);
             b.HasIndex(x => x.WarehouseId);
             b.HasOne<Tenant>().WithMany().HasForeignKey(x => x.TenantId).OnDelete(DeleteBehavior.Cascade);

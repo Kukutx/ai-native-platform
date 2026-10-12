@@ -1,4 +1,5 @@
 using AiNative.Domain.Agents;
+using AiNative.Domain.Analytics;
 using AiNative.Domain.Chat;
 using AiNative.Domain.Crm;
 using AiNative.Domain.Erp;
@@ -95,6 +96,8 @@ public interface IAppDbContext
     DbSet<ProjectMilestone> ProjectMilestones { get; }
 
     DbSet<ProjectMember> ProjectMembers { get; }
+
+    DbSet<AnalyticsReport> AnalyticsReports { get; }
 
     DatabaseFacade Database { get; }
 

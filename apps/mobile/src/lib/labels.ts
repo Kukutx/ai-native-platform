@@ -1,10 +1,12 @@
 import type {
+  AnalyticsRange,
   ApprovalStatus,
   CrmActivityKind,
   CrmDealStatus,
   ErpPurchaseOrderStatus,
   ErpSalesOrderStatus,
   ErpStockMovementKind,
+  MetricUnit,
   ProjectProgressDto,
   ProjectStatus,
   WorkItemPriority,
@@ -181,4 +183,72 @@ export function formatTime(value?: string | null) {
   }
 
   return new Date(value).toLocaleString('zh-CN', { hour12: false });
+}
+
+export const analyticsRanges: { value: AnalyticsRange; label: string; comparison: string }[] = [
+  { value: 'this_month', label: '本月', comparison: '较上月同期' },
+  { value: 'last_month', label: '上月', comparison: '较前一个月' },
+  { value: 'last30_days', label: '近 30 天', comparison: '较前 30 天' },
+  { value: 'this_quarter', label: '本季度', comparison: '较上季度同期' },
+  { value: 'this_year', label: '今年', comparison: '较去年同期' },
+];
+
+function compactNumber(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 100_000_000) {
+    return `${Math.round((value / 100_000_000) * 10) / 10}亿`;
+  }
+
+  if (abs >= 10_000) {
+    return `${Math.round((value / 10_000) * 10) / 10}万`;
+  }
+
+  return String(Math.round(value * 100) / 100);
+}
+
+/** 按指标单位显示数值（与 Web 端口径一致，不依赖 Intl）。 */
+export function formatMetric(value: number | null | undefined, unit: MetricUnit, currency?: string | null) {
+  if (value === null || value === undefined) {
+    return '—';
+  }
+
+  switch (unit) {
+    case 'amount':
+      return formatAmount(value, currency ?? 'CNY');
+    case 'percent':
+      return `${Math.round(value * 10) / 10}%`;
+    case 'usd':
+      return `$${value >= 1 || value === 0 ? value.toFixed(2) : value.toFixed(4)}`;
+    case 'tokens':
+      return compactNumber(value);
+    default:
+      return compactNumber(value);
+  }
+}
+
+/** 与上期相比：比率类给百分点差，其他给百分比；上期为 0 时没有可比的变化。 */
+export function describeChange(value: number | null | undefined, previous: number | null | undefined, isRatio: boolean): { up: boolean | null; text: string } | null {
+  if (value === null || value === undefined || previous === null || previous === undefined) {
+    return null;
+  }
+
+  if (value === previous) {
+    return { up: null, text: '持平' };
+  }
+
+  if (!isRatio && previous === 0) {
+    return value > 0 ? { up: true, text: '上期为 0' } : null;
+  }
+
+  const delta = Math.round((isRatio ? value - previous : ((value - previous) / previous) * 100) * 10) / 10;
+  return { up: delta >= 0, text: `${delta > 0 ? '+' : ''}${delta}${isRatio ? ' 个百分点' : '%'}` };
+}
+
+/** 本机时区（IANA 名称），注册时作为空间的默认时区。 */
+export function localTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
 }
