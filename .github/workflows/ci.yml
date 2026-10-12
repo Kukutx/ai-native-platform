@@ -138,7 +138,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       # 层缓存存进 GitHub Actions 缓存（mode=max 连同中间阶段一起缓存）；load 把镜像放回本机 docker，下面的冒烟检查直接用。
       - name: 构建镜像
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: false
