@@ -4,14 +4,17 @@ using AiNative.Application.Agents;
 using AiNative.Application.Agents.Runtime;
 using AiNative.Application.Ai;
 using AiNative.Application.Erp;
+using AiNative.Application.Integrations;
 using AiNative.Application.Knowledge;
 using AiNative.Application.Platform;
 using AiNative.Application.Work;
 using AiNative.Application.Workflows;
 using AiNative.Infrastructure.Agents;
+using AiNative.Infrastructure.Common;
 using AiNative.Infrastructure.Ai;
 using AiNative.Infrastructure.Dispatching;
 using AiNative.Infrastructure.Erp;
+using AiNative.Infrastructure.Integrations;
 using AiNative.Infrastructure.Knowledge;
 using AiNative.Infrastructure.Persistence;
 using AiNative.Infrastructure.Security;
@@ -120,8 +123,18 @@ public static class DependencyInjection
         services.AddOptions<WorkflowOptions>().BindConfiguration(WorkflowOptions.SectionName);
         services.AddSingleton<WorkflowSignal>();
         services.AddSingleton<IWorkflowSignal>(sp => sp.GetRequiredService<WorkflowSignal>());
+        services.AddOptions<OutboundNetworkOptions>().BindConfiguration(OutboundNetworkOptions.SectionName);
         services.AddSingleton<IWorkflowHttpClient, WorkflowHttpClient>();
         services.AddHostedService<WorkflowEngine>();
+
+        // 集成：空间密钥加密、外部 MCP 服务
+        services.AddOptions<SecretsOptions>()
+            .BindConfiguration(SecretsOptions.SectionName)
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<SecretsOptions>, SecretsOptionsValidator>();
+        services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
+        services.AddOptions<IntegrationOptions>().BindConfiguration(IntegrationOptions.SectionName);
+        services.AddSingleton<IMcpGateway, McpGateway>();
 
         return services;
     }

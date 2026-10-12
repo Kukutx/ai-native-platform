@@ -30,7 +30,7 @@ public sealed class WorkflowControlFlowTests(PostgresFixture postgres) : Integra
     // HTTP 步骤要调用测试里起的本机服务。
     protected override IReadOnlyDictionary<string, string> Settings { get; } = new Dictionary<string, string>
     {
-        ["Workflows:AllowPrivateNetworkRequests"] = "true",
+        ["OutboundNetwork:AllowPrivateNetworkRequests"] = "true",
         ["Workflows:MaxLoopItems"] = "5",
         ["Workflows:MaxEventRunsPerMinute"] = RunsPerMinute.ToString(System.Globalization.CultureInfo.InvariantCulture),
     };

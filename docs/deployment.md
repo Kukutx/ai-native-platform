@@ -36,7 +36,7 @@ openssl rand -base64 48   # 令牌签名密钥
 
 | 变量 | 说明 |
 | --- | --- |
-| `Auth__SigningKey` | **必填**。登录令牌的签名密钥，至少 32 个字符。缺失、太短或沿用仓库里的开发密钥时拒绝启动。更换后所有成员需要重新登录（API 密钥不受影响）。 |
+| `Auth__SigningKey` | **必填**。登录令牌的签名密钥，至少 32 个字符。缺失、太短或沿用仓库里的开发密钥时拒绝启动。更换后所有成员需要重新登录（API 密钥不受影响）；没有设置 `Secrets__MasterKey` 时，「集成」里已保存的密钥也会解不开。 |
 | `Auth__AllowRegistration` | 是否允许自助注册新空间，默认 `true`。私有部署建好自己的空间后设为 `false`，之后由管理员在「设置 → 成员」里添加成员（可设置初始密码）。 |
 | `Auth__AccessTokenLifetime` | 登录有效期，默认 `7.00:00:00`（7 天）。 |
 | `ConnectionStrings__Postgres` | 数据库连接字符串。Compose 里已按 `POSTGRES_PASSWORD` 拼好。 |
@@ -47,8 +47,12 @@ openssl rand -base64 48   # 令牌签名密钥
 | `Ai__Embeddings__Provider` / `Ai__Embeddings__Model` | 知识库语义检索用的向量模型（协议须为 `openai`）。不配置时只用关键词与字面相似检索。 |
 | `Ai__Pricing__<模型>__InputPerMillion` / `__OutputPerMillion` | 自定义模型单价（美元 / 百万 token），用于预算和用量统计。 |
 | `Scheduler__MaxConcurrentRuns` | 同时执行的智能体数量上限，默认 4。 |
-| `Workflows__AllowPrivateNetworkRequests` | 是否允许工作流的「HTTP 请求」步骤访问内网和本机地址，默认 `false`。需要调用同一内网里的服务时再打开。 |
+| `OutboundNetwork__AllowPrivateNetworkRequests` | 是否允许工作流的「HTTP 请求」步骤和接入的外部 MCP 服务访问内网和本机地址，默认 `false`。需要调用同一内网里的服务时再打开。（旧名 `Workflows__AllowPrivateNetworkRequests` 已不再生效。） |
 | `Workflows__MaxEventRunsPerMinute` | 单个工作流每分钟最多被事件或 Webhook 触发的次数，默认 30。 |
+| `Secrets__MasterKey` | 加密「集成 → 密钥」的主密钥，32 字节随机数的 Base64，用 `openssl rand -base64 32` 生成。不设置时由 `Auth__SigningKey` 派生，能用，但之后再更换签名密钥会让已保存的密钥全部解不开，所以生产环境建议设置。主密钥不进数据库，请和数据库备份分开保存。 |
+| `Secrets__PreviousMasterKeys__0` | 更换主密钥时把旧主密钥放这里，旧密钥照样能解开；在界面上重新保存一遍各个密钥后就可以去掉。先用派生密钥、后来才设置 `Secrets__MasterKey` 的部署不需要这一项（派生的那把总会参与解密，只要签名密钥没换）。 |
+| `Integrations__McpConnectTimeout` / `Integrations__McpCallTimeout` | 连接外部 MCP 服务、调用一次外部工具的超时，默认 `00:00:30`、`00:01:00`。 |
+| `Integrations__MaxToolResultChars` | 外部工具返回文本的最大长度，超出部分截断，默认 50000。 |
 | `Cors__AllowedOrigins__N` | 允许跨域访问的来源。默认已包含桌面端（Tauri）的来源；镜像自带的 Web 页面同源，不需要配置。只有把 Web 单独部署到另一个域名时才需要加。 |
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` | 信任反向代理传来的 `X-Forwarded-For` / `X-Forwarded-Proto`。示例 Compose 里已打开，此时应用端口只应通过反向代理访问。 |
 | `Serilog__MinimumLevel__Default` | 日志级别，默认 `Information`。日志写到标准输出，用 `docker compose logs` 查看。 |
@@ -165,6 +169,7 @@ docker compose up -d --build
 ## 上线检查清单
 
 - [ ] `Auth__SigningKey` 是新生成的随机值，`POSTGRES_PASSWORD` 足够强
+- [ ] 要在「集成」里保存令牌时，设置了 `Secrets__MasterKey`，并和数据库备份分开保存
 - [ ] 通过 HTTPS 访问，应用端口只绑定本机（`APP_PORT=127.0.0.1:8080`）
 - [ ] 数据库端口没有暴露到公网（示例 Compose 默认不映射）
 - [ ] 建好自己的空间后设置 `Auth__AllowRegistration=false`

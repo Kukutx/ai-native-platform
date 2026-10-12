@@ -7,6 +7,7 @@ import type {
   ErpPurchaseOrderStatus,
   ErpSalesOrderStatus,
   ErpStockMovementKind,
+  McpApprovalMode,
   MemoryScope,
   ProjectStatus,
   RunStatus,
@@ -167,6 +168,12 @@ export const erpMovementKind: Record<ErpStockMovementKind, string> = {
 };
 
 /** 数量最多 4 位小数，整数不显示小数部分。 */
+export const mcpApprovalMode: Record<McpApprovalMode, { label: string; hint: string }> = {
+  writes_only: { label: '写操作需审批', hint: '智能体调用会修改数据的工具前先提交审批，只读工具直接执行。' },
+  always: { label: '全部需审批', hint: '智能体调用这个服务的任何工具前都先提交审批。' },
+  never: { label: '不需审批', hint: '智能体可以直接调用全部工具。只在完全信任这个服务时选择。' },
+};
+
 export function formatQuantity(value: number | null | undefined, unit?: string) {
   if (value === null || value === undefined) {
     return '—';

@@ -10,7 +10,8 @@ namespace AiNative.Application.Agents;
 public static class AgentDefaults
 {
     /// <summary>
-    /// 新智能体的默认权限：了解团队、处理和讨论任务、唤醒同事、检索知识库、使用自己的长期记忆、查看有权限的经营指标。
+    /// 新智能体的默认权限：了解团队、处理和讨论任务、唤醒同事、检索知识库、使用自己的长期记忆、查看有权限的经营指标、
+    /// 调用接入的外部工具（会改动数据的工具默认需要审批，见外部服务的审批设置）。
     /// </summary>
     public static readonly IReadOnlyList<string> Permissions =
     [
@@ -23,6 +24,7 @@ public static class AgentDefaults
         Features.Memory.Use,
         Projects.ProjectFeatures.View,
         Analytics.AnalyticsFeatures.View,
+        Integrations.IntegrationFeatures.ToolsUse,
     ];
 }
 

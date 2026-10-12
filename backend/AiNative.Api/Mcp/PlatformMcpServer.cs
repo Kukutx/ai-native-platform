@@ -10,6 +10,7 @@ namespace AiNative.Api.Mcp;
 /// MCP 服务：把当前身份可用的平台动作原样开放为 MCP 工具（Streamable HTTP，无状态，挂在 /mcp）。
 /// 鉴权与 REST 接口相同（登录令牌或个人 API 密钥），工具列表和每次调用都经过同一个动作入口，
 /// 权限、模块启用和审批规则与界面、智能体完全一致。
+/// 接入的外部 MCP 服务的工具不从这里转出：外部客户端直接连那些服务即可，也避免平台互相接入时层层套娃。
 /// </summary>
 internal static class PlatformMcpServer
 {
@@ -41,7 +42,7 @@ internal static class PlatformMcpServer
         var actions = await invoker.GetAvailableAsync(cancellationToken).ConfigureAwait(false);
         return new ListToolsResult
         {
-            Tools = [.. actions.Select(action => new Tool
+            Tools = [.. actions.Where(a => a is not IDynamicPlatformAction).Select(action => new Tool
             {
                 Name = ActionToolset.ToToolName(action.Key),
                 Title = action.Title,
@@ -61,7 +62,8 @@ internal static class PlatformMcpServer
     {
         var invoker = RequestServices(context).GetRequiredService<IActionInvoker>();
         var name = context.Params?.Name ?? string.Empty;
-        var action = invoker.Actions.FirstOrDefault(a => ActionToolset.ToToolName(a.Key) == name);
+        var all = await invoker.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        var action = all.FirstOrDefault(a => a is not IDynamicPlatformAction && ActionToolset.ToToolName(a.Key) == name);
         ActionInvocationResult result;
         if (action is null)
         {

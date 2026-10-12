@@ -39,6 +39,7 @@ const navigation = [
   { href: '/knowledge', label: '知识库', icon: Icons.knowledge, feature: 'knowledge.view' },
   { href: '/analytics', label: '经营分析', icon: Icons.analytics, feature: 'analytics.view' },
   { href: '/workflows', label: '自动化', icon: Icons.workflow, feature: 'workflows.view' },
+  { href: '/integrations', label: '集成', icon: Icons.integration, feature: 'integrations.view' },
   { href: '/runs', label: '执行记录', icon: Icons.clock, feature: 'runs.view' },
   { href: '/approvals', label: '审批', icon: Icons.badgeCheck, feature: 'approvals.view' },
   { href: '/settings', label: '设置', icon: Icons.settings, feature: 'platform.members.view' },

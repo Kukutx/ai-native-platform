@@ -349,7 +349,7 @@ function StepCard({
                     aria-label='请求头的值'
                     className='min-w-0 font-mono'
                     value={header.value}
-                    placeholder='Bearer …'
+                    placeholder='Bearer {{ secrets.API_TOKEN }}'
                     onChange={(e) => onChange({ ...draft, headers: draft.headers.map((h) => (h.uid === header.uid ? { ...h, value: e.target.value } : h)) })}
                   />
                   <Button type='button' size='icon' variant='ghost' aria-label='删除请求头' onClick={() => onChange({ ...draft, headers: draft.headers.filter((h) => h.uid !== header.uid) })}>
@@ -363,7 +363,9 @@ function StepCard({
                   添加请求头
                 </Button>
               </div>
-              <p className='text-muted-foreground text-xs'>请求头的值对能查看工作流的成员可见；运行记录里 Authorization、带 token / key 的请求头会打码。</p>
+              <p className='text-muted-foreground text-xs'>
+                令牌等敏感值请先存进「集成 → 密钥」，再在值里写 <code className='font-mono whitespace-nowrap'>{'Bearer {{ secrets.名称 }}'}</code>：密钥只在发送时解密，工作流和运行记录里都看不到明文。直接写在这里的值对能查看工作流的成员可见。
+              </p>
               <FieldError errors={errors} path={`${path}.headers`} />
             </div>
             {['GET', 'DELETE'].includes(step.method ?? 'GET') ? null : (

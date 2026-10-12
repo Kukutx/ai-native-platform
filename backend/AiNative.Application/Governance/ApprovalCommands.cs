@@ -34,10 +34,13 @@ internal static class ApprovalMapping
         CancellationToken cancellationToken)
     {
         var actors = await ActorNames.ResolveAsync(db, approvals.Select(a => a.RequestedBy), cancellationToken).ConfigureAwait(false);
+        var titles = approvals.Count == 0
+            ? new Dictionary<string, string>()
+            : (await actions.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToDictionary(a => a.Key, a => a.Title, StringComparer.Ordinal);
         return [.. approvals.Select(a => new ApprovalDto(
             a.Id,
             a.ActionKey,
-            actions.Find(a.ActionKey)?.Title ?? a.ActionKey,
+            titles.GetValueOrDefault(a.ActionKey, a.ActionKey),
             PlatformJson.Parse(a.InputJson),
             a.Rationale,
             actors(a.RequestedBy),

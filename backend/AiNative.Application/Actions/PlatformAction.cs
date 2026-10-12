@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AiNative.Domain.Common;
 
 namespace AiNative.Application.Actions;
@@ -49,6 +50,41 @@ public interface IPlatformAction
     Type InputType { get; }
 
     Task<object?> ExecuteAsync(object input, ActionContext context, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// 运行时才知道的动作（例如外部 MCP 服务提供的工具）：由 <see cref="IDynamicActionSource"/> 按租户产生，
+/// 自带输入 Schema，输入以 JsonElement 原样传入。不参与程序集扫描。
+/// </summary>
+public interface IDynamicPlatformAction : IPlatformAction
+{
+    JsonElement InputSchema { get; }
+}
+
+/// <summary>
+/// 动态动作的来源。实现类放进已注册的程序集即可被扫描（按作用域注册）；同一作用域内应缓存结果。
+/// </summary>
+public interface IDynamicActionSource
+{
+    /// <summary>
+    /// 产生的动作所属模块；模块停用时不会来取。
+    /// </summary>
+    string ModuleKey { get; }
+
+    /// <summary>
+    /// 动作键是否归这个来源管（按前缀判断，不查库），查找内置动作时据此跳过无关的来源。
+    /// </summary>
+    bool Owns(string actionKey);
+
+    /// <summary>
+    /// 当前租户的全部动态动作（不按权限过滤）。
+    /// </summary>
+    Task<IReadOnlyList<IDynamicPlatformAction>> GetActionsAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// 按键查找一个动态动作。执行单次工具调用时只需要它，实现可以只加载相关的那部分。
+    /// </summary>
+    Task<IDynamicPlatformAction?> FindAsync(string actionKey, CancellationToken cancellationToken);
 }
 
 public abstract class PlatformAction<TInput, TOutput> : IPlatformAction

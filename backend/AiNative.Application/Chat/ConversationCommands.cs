@@ -130,7 +130,8 @@ internal sealed class ConversationHandlers(IAppDbContext db, ITenantContext tena
         var conversation = await FindOwnedAsync(request.ConversationId, cancellationToken).ConfigureAwait(false);
         var rows = await db.ConversationMessages.AsNoTracking().Where(m => m.ConversationId == conversation.Id).OrderBy(m => m.Seq)
             .ToListAsync(cancellationToken).ConfigureAwait(false);
-        var keys = actions.Actions.ToDictionary(a => ActionToolset.ToToolName(a.Key), a => a.Key, StringComparer.Ordinal);
+        var all = await actions.GetAllAsync(cancellationToken).ConfigureAwait(false);
+        var keys = all.ToDictionary(a => ActionToolset.ToToolName(a.Key), a => a.Key, StringComparer.Ordinal);
         return ChatMapping.ToDtos(rows, name => keys.GetValueOrDefault(name, name));
     }
 
