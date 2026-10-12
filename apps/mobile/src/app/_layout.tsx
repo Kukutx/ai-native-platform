@@ -106,6 +106,10 @@ export default function RootLayout() {
               <Stack.Screen name='projects/index' options={{ title: '项目' }} />
               <Stack.Screen name='projects/[id]' options={{ title: '项目' }} />
               <Stack.Screen name='analytics/index' options={{ title: '经营分析' }} />
+              <Stack.Screen name='agents/index' options={{ title: '智能体' }} />
+              <Stack.Screen name='agents/[id]' options={{ title: '智能体' }} />
+              <Stack.Screen name='runs/index' options={{ title: '执行记录' }} />
+              <Stack.Screen name='runs/[id]' options={{ title: '执行详情' }} />
             </Stack.Protected>
             <Stack.Protected guard={!token}>
               <Stack.Screen name='login' options={{ headerShown: false }} />

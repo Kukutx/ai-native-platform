@@ -83,6 +83,11 @@ export default function TaskDetailScreen() {
             查看所属项目
           </Text>
         ) : null}
+        {item.checkoutRunId && can('runs.view') ? (
+          <Text style={{ color: p.text, textDecorationLine: 'underline' }} onPress={() => router.push({ pathname: '/runs/[id]', params: { id: item.checkoutRunId! } })}>
+            查看智能体的执行过程
+          </Text>
+        ) : null}
         {item.description ? <Text style={{ color: p.text, fontSize: 15, lineHeight: 22 }}>{item.description}</Text> : null}
         {can('tasks.manage') ? (
           <View style={styles.chips}>

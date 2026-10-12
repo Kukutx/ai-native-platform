@@ -1,4 +1,5 @@
 import type {
+  AgentStatus,
   AnalyticsRange,
   ApprovalStatus,
   CrmActivityKind,
@@ -9,6 +10,9 @@ import type {
   MetricUnit,
   ProjectProgressDto,
   ProjectStatus,
+  RunEventType,
+  RunStatus,
+  WakeupSource,
   WorkItemPriority,
   WorkItemStatus,
   WorkflowRunStatus,
@@ -56,6 +60,57 @@ export const priority: Record<WorkItemPriority, string> = {
   high: '高',
   urgent: '紧急',
 };
+
+export type Tone = 'muted' | 'text' | 'success' | 'warning' | 'danger';
+
+export const agentStatus: Record<AgentStatus, { label: string; tone: Tone }> = {
+  idle: { label: '空闲', tone: 'muted' },
+  running: { label: '工作中', tone: 'success' },
+  paused: { label: '已暂停', tone: 'warning' },
+  error: { label: '出错', tone: 'danger' },
+  terminated: { label: '已终止', tone: 'muted' },
+};
+
+export const runStatus: Record<RunStatus, { label: string; tone: Tone }> = {
+  queued: { label: '排队中', tone: 'muted' },
+  running: { label: '执行中', tone: 'warning' },
+  succeeded: { label: '成功', tone: 'success' },
+  failed: { label: '失败', tone: 'danger' },
+  cancelled: { label: '已取消', tone: 'muted' },
+  timed_out: { label: '超时', tone: 'danger' },
+};
+
+const finishedRunStatuses = new Set<string>(['succeeded', 'failed', 'cancelled', 'timed_out'] satisfies RunStatus[]);
+
+/** 运行已经结束，不会再有新的过程事件（也接受实时事件里未经校验的状态字符串）。 */
+export function runFinished(status: string) {
+  return finishedRunStatuses.has(status);
+}
+
+export const runEventType: Record<RunEventType, string> = {
+  status: '状态',
+  assistant_text: '回复',
+  tool_call: '调用动作',
+  tool_result: '动作结果',
+  approval_requested: '等待审批',
+  error: '错误',
+};
+
+export const wakeupSource: Record<WakeupSource, string> = {
+  on_demand: '手动唤醒',
+  assignment: '任务指派',
+  comment: '新评论',
+  approval: '审批结果',
+  timer: '定时心跳',
+  delegation: '同事委派',
+  automation: '自动化',
+  dependency: '前置任务完成',
+};
+
+/** 美元金额（模型花费）：不足 1 美元时保留 4 位小数。 */
+export function formatUsd(value: number) {
+  return `$${value >= 1 || value === 0 ? value.toFixed(2) : value.toFixed(4)}`;
+}
 
 export const approvalStatus: Record<ApprovalStatus, string> = {
   pending: '待审批',
@@ -226,7 +281,7 @@ export function formatMetric(value: number | null | undefined, unit: MetricUnit,
     case 'percent':
       return `${Math.round(value * 10) / 10}%`;
     case 'usd':
-      return `$${value >= 1 || value === 0 ? value.toFixed(2) : value.toFixed(4)}`;
+      return formatUsd(value);
     case 'tokens':
       return compactNumber(value);
     default:
