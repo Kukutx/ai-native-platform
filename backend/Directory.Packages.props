@@ -5,7 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- 模型网关：Microsoft.Extensions.AI 统一抽象 + 官方 Anthropic SDK + OpenAI 兼容适配 -->
-    <PackageVersion Include="Anthropic" Version="12.55.0" />
+    <PackageVersion Include="Anthropic" Version="13.3.0" />
     <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.10.1" />
     <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.10.1" />
