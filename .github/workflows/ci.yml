@@ -35,7 +35,7 @@ jobs:
       AINATIVE_TEST_POSTGRES: Host=localhost;Port=5432;Database=postgres;Username=postgres;Password=postgres
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
       # 没有 packages.lock.json，按集中版本文件、项目文件和工具清单的内容做缓存键。
