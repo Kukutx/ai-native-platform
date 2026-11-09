@@ -88,6 +88,8 @@ public sealed class ApiKeyAndMcpTests(PostgresFixture postgres) : IntegrationTes
 
         await using (var mcp = await ConnectMcpAsync(full.Token))
         {
+            // MCP SDK 2.3 起 ServerInfo 可空（新协议允许服务端不报身份）；平台服务端始终报出自己的身份。
+            mcp.ServerInfo.Should().NotBeNull();
             mcp.ServerInfo.Name.Should().Be("ai-native-platform");
             mcp.ServerInstructions.Should().Contain("工具");
 
